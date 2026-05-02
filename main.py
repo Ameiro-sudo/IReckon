@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import asyncio, signal
-from core.logger import setup_logging, logger
-from core.db import db
-from core.config_manager import config_manager
-from ai.capability_pool import capability_pool
-from workflow.task_manager import task_manager
-from workflow.idle_learner import idle_loop
-from web.websocket import log_consumer
-from tools.registry import register_builtin_tools
+from app.core.logger import setup_logging, logger
+from app.core.database import db
+from app.core.config import config_manager
+from app.llm.client import capability_pool
+from app.engine.tasks import task_manager
+from app.engine.learner import idle_loop
+from app.web.ws import log_consumer
+from app.tools.registry import register_builtin_tools
 
 class IReckonApp:
     def __init__(self):
@@ -36,7 +36,7 @@ class IReckonApp:
 
 async def start_backend():
     import uvicorn
-    config = uvicorn.Config("web.api:app", host="0.0.0.0", port=8000, log_level="info", loop="asyncio")
+    config = uvicorn.Config("app.web.api:app", host="0.0.0.0", port=8000, log_level="info", loop="asyncio")
     logger.info(f"后台 API 服务已启动 -> http://localhost:{8000}/docs")
     await uvicorn.Server(config).serve()
 

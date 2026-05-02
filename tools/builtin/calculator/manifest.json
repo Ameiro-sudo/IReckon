@@ -1,9 +1,0 @@
-{
-  "name": "多功能计算器",
-  "description": "提供50+种数学运算，包括基本算术、三角函数、统计、复数、组合数学等。",
-  "language": "python",
-  "tags": ["math", "calculator", "utility", "builtin"],
-  "input_schema": {"type": "object", "properties": {"operation": "string", "args": "list"}},
-  "output_schema": {"type": "any"},
-  "created_by": "system"
-}

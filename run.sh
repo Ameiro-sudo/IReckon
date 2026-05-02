@@ -29,11 +29,11 @@ fi
 
 # 4. 启动后端与前端
 echo "🚀 启动后端服务 (端口 8000) ..."
-python3 -m uvicorn web.api:app --host 0.0.0.0 --port 8000 &
+python3 -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 
 echo "🚀 启动前端界面 (端口 8501) ..."
-python3 -m streamlit run frontend/app.py --server.port 8501 --server.headless true &
+python3 -m streamlit run ui/app.py --server.port 8501 --server.headless true &
 FRONTEND_PID=$!
 
 # 5. 捕获退出信号

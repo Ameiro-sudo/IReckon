@@ -6,3 +6,7 @@ data/.key
 data/chromadb/
 data/db/
 data/logs/
+data/states/
+data/outputs/
+data/knowledge_base/
+.streamlit/
