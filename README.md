@@ -9,14 +9,18 @@
 ```
 IReckon/
 ├── main.py                  # 入口
-├── config/                  # 配置 & 提示词模板
-├── ai/roles/                # AI 角色（调度/执行/审查/创意/交付...）
-├── workflow/                # LangGraph 状态机 & 任务管理
-├── web/                     # FastAPI 后端 + WebSocket
-├── frontend/                # Streamlit 前端
-├── tools/                   # 内置工具 & 零件库
-├── security/                # 安全扫描/沙箱/供应链防火墙
-├── knowledge/               # ChromaDB 向量知识库
+├── app/                     # 后端核心
+│   ├── agents/              # AI 角色（调度/执行/审查/创意/交付...）
+│   ├── core/                # 配置/数据库/日志/状态管理
+│   ├── engine/              # LangGraph 状态机 & 任务管理
+│   ├── knowledge/           # ChromaDB 向量知识库
+│   ├── llm/                 # LLM 客户端 & 能力池
+│   ├── security/            # 安全扫描/沙箱/供应链防火墙
+│   ├── tools/               # 内置工具 & 零件库
+│   └── web/                 # FastAPI 后端 + WebSocket
+├── ui/                      # Streamlit 前端
+├── config/                  # 配置 & 提示词模板 & 主题
+├── data/                    # 运行时数据（日志/DB/快照/输出）
 └── scripts/                 # 辅助脚本
 ```
 

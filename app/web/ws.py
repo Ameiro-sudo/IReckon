@@ -47,8 +47,8 @@ async def push_message_to_websocket(task_id: str, msg: dict):
     await manager.broadcast_to_task(task_id, msg)
 
 async def push_log_to_websocket(level: str, message: str, task_id: Optional[str] = None):
-    from datetime import datetime
-    log_msg = {"type": "log", "level": level, "message": message, "timestamp": datetime.utcnow().isoformat(), "task_id": task_id}
+    from datetime import datetime, timezone
+    log_msg = {"type": "log", "level": level, "message": message, "timestamp": datetime.now(timezone.utc).isoformat(), "task_id": task_id}
     if task_id: await manager.broadcast_to_task(task_id, log_msg)
     await manager.broadcast_global(log_msg)
 

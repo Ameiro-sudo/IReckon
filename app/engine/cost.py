@@ -1,5 +1,5 @@
 from typing import Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from app.core.config import config_manager
 
@@ -25,7 +25,7 @@ class CostTracker:
         return False
 
     def _current_month(self) -> str:
-        return datetime.utcnow().strftime("%Y-%m")
+        return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 cost_tracker = CostTracker()

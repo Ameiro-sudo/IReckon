@@ -4,10 +4,10 @@ import sys, asyncio
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.logger import setup_logging, logger
-from core.db import db
-from ai.capability_pool import capability_pool
-from workflow.task_manager import task_manager
+from app.core.logger import setup_logging, logger
+from app.core.database import db
+from app.llm.pool import capability_pool
+from app.engine.tasks import task_manager
 
 
 async def run_test():
@@ -26,12 +26,12 @@ async def run_test():
 
     timeout = 300
     elapsed = 0
-    while task_id in task_manager._running_tasks and elapsed < timeout:
+    while task_id in task_manager._running and elapsed < timeout:
         await asyncio.sleep(2)
         elapsed += 2
         logger.info(f"等待任务完成... ({elapsed}s)")
 
-    if task_id not in task_manager._running_tasks:
+    if task_id not in task_manager._running:
         row = await db.fetch_one("SELECT status FROM tasks WHERE task_id = ?", (task_id,))
         status = row[0] if row else "未知"
         if status == 'completed':

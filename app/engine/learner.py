@@ -1,5 +1,5 @@
 import asyncio, time
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from app.core.config import config_manager
 from app.llm.pool import capability_pool
@@ -12,14 +12,14 @@ class IdleLearningLoop:
         self._last_task_time = time.time()
         self._learning = False
         self._learn_count = 0
-        self._last_reset_date = datetime.utcnow().date()
+        self._last_reset_date = datetime.now(timezone.utc).date()
         self.max_learn_sessions_per_day = 10
 
     async def run(self):
         logger.info(f"空闲学习循环已启动，触发间隔: {self.idle_trigger_minutes} 分钟")
         while True:
             await asyncio.sleep(60)
-            today = datetime.utcnow().date()
+            today = datetime.now(timezone.utc).date()
             if today != self._last_reset_date:
                 self._learn_count = 0; self._last_reset_date = today
             if self._learning: continue

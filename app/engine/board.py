@@ -6,7 +6,7 @@
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, List, Optional
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from app.core.database import db
@@ -94,7 +94,7 @@ class TaskBoard:
             completed_work=[],
             pending_actions=[f"执行阶段 {first_phase.get('phase')}"],
             active_roles=active_roles,
-            last_update=datetime.utcnow().isoformat(),
+            last_update=datetime.now(timezone.utc).isoformat(),
             notes="任务初始化完成"
         )
         await self._persist()
@@ -158,7 +158,7 @@ class TaskBoard:
         if notes:
             self.state.notes = notes
 
-        self.state.last_update = datetime.utcnow().isoformat()
+        self.state.last_update = datetime.now(timezone.utc).isoformat()
         await self._persist()
         return self.state
 

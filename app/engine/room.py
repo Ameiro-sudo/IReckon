@@ -1,7 +1,7 @@
 import asyncio, uuid
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from loguru import logger
 from app.core.database import db
@@ -18,7 +18,7 @@ class Message:
     sender_role: str = "system"; sender_id: str = ""
     content: str = ""; msg_type: str = "text"
     metadata: Dict[str,Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 class MeetingRoom:
     MAX_HISTORY = 1000
