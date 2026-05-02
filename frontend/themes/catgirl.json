@@ -1,0 +1,13 @@
+{
+  "name": "猫娘风",
+  "role_mapping": {
+    "scheduler": {"name": "管家喵", "avatar": "🐱"},
+    "executor": {"name": "设计师喵", "avatar": "🐈"},
+    "reviewer_efficiency": {"name": "架构喵", "avatar": "🏗️"},
+    "reviewer_correctness": {"name": "测试喵", "avatar": "🔬"},
+    "creative": {"name": "创意喵", "avatar": "🎨"},
+    "tool_manager": {"name": "工具喵", "avatar": "🔧"},
+    "deliverer": {"name": "打包喵", "avatar": "📦"},
+    "user": {"name": "主人", "avatar": "👤"}
+  }
+}

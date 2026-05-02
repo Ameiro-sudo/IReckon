@@ -1,0 +1,78 @@
+ai_pool:
+  concurrency:
+    max_concurrent_calls: 5
+    per_endpoint_limit:
+      http://localhost:11434: 3
+  default_endpoint: http://localhost:11434
+  default_model: qwen2.5:7b
+  instances:
+  - api_key: ''
+    cost_per_1k_tokens: 0.0
+    enabled: true
+    endpoint: http://localhost:11434
+    id: local-ollama-qwen
+    max_context: 8192
+    model: ollama/qwen2.5:7b
+    name: 本地千问7B
+    parameters:
+      max_tokens: 4096
+      temperature: 0.3
+    tags:
+    - general
+    - cheap
+    - fast
+    - python
+  retry:
+    base_delay: 1.0
+    exponential_base: 2.0
+    max_delay: 30.0
+    max_retries: 10
+database:
+  journal_mode: delete
+  timeout: 5.0
+learning:
+  high_end_model_id: ''
+  high_end_model_intervention: false
+  idle_trigger_minutes: 30
+  source_whitelist:
+  - https://github.com/trending
+persistence:
+  max_snapshots_per_task: 20
+  snapshot_interval_seconds: 60
+security:
+  code_scanner: bandit
+  local_command_levels:
+    L1_auto_exec: true
+    L2_vote_threshold: 0.5
+    L3_block: true
+  run_mode: local
+  sandbox:
+    cpu_limit: 1.0
+    engine: udocker
+    image: python:3.11-slim
+    memory_limit: 512m
+    network_disabled: false
+  supply_chain_blacklist:
+    npm: []
+    pip: []
+system:
+  data_dir: ./data
+  log_level: INFO
+  name: 俺寻思(IReckon)
+  output_dir: ./data/outputs
+  timezone: Asia/Shanghai
+  version: '2.0'
+task_defaults:
+  agent_call_timeout: 120
+  budget_limit_usd: 1.0
+  default_temperature: 0.3
+  loop_detection_max_rounds: 5
+  loop_similarity_threshold: 0.9
+  max_review_rounds: 5
+  max_task_duration_seconds: 3600
+  max_tool_calls_per_module: 10
+  monthly_token_warning_threshold: 50000
+  pass_threshold: 0.8
+ui:
+  default_view: styled
+  theme: programmer

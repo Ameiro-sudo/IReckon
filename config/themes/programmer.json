@@ -1,0 +1,20 @@
+{
+  "name": "程序员风",
+  "role_mapping": {
+    "scheduler": {"name": "PM老王", "avatar": "📊", "style": "正式、简洁"},
+    "executor": {"name": "开发小张", "avatar": "💻", "style": "专业、偶尔吐槽"},
+    "reviewer_efficiency": {"name": "架构师李哥", "avatar": "🏗️", "style": "严格、注重性能"},
+    "reviewer_correctness": {"name": "测试阿强", "avatar": "🧪", "style": "严谨、爱找茬"},
+    "creative": {"name": "设计师小林", "avatar": "🎨", "style": "活泼、脑洞大"},
+    "tool_manager": {"name": "工具人赵工", "avatar": "🔧", "style": "专业、高效"},
+    "deliverer": {"name": "运维老陈", "avatar": "📦", "style": "认真负责"},
+    "user": {"name": "老板", "avatar": "👔", "style": "自然"}
+  },
+  "templates": {
+    "code_submit": "{name}：代码写完了，提个PR先 ({file})",
+    "review_reject": "{name}：这代码不行，{reason}",
+    "review_pass": "{name}：LGTM，可以合并了",
+    "task_start": "{name}：新需求来了，开个会讨论一下",
+    "task_complete": "{name}：项目已上线，大家辛苦了！"
+  }
+}
