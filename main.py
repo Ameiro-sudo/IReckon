@@ -36,8 +36,11 @@ class IReckonApp:
 
 async def start_backend():
     import uvicorn
-    config = uvicorn.Config("app.web.api:app", host="0.0.0.0", port=8000, log_level="info", loop="asyncio")
-    logger.info(f"后台 API 服务已启动 -> http://localhost:{8000}/docs")
+    host = config_manager.get("server.host", "0.0.0.0")
+    port = config_manager.get("server.port", 8000)
+    log_level = config_manager.get("server.log_level", "info")
+    config = uvicorn.Config("app.web.api:app", host=host, port=port, log_level=log_level, loop="asyncio")
+    logger.info(f"后台 API 服务已启动 -> http://{host}:{port}/docs")
     await uvicorn.Server(config).serve()
 
 async def main():

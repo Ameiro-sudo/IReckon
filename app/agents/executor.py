@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Tuple
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from loguru import logger
@@ -38,14 +38,14 @@ class ExecutorAgent(BaseAgent):
    - 如果改动过大或补丁不适用，则可以输出完整新文件内容（使用 //// filename: 格式）。
    - 补丁格式如下：
    PATCH: <文件名>
-@@ -起始行,行数 +起始行,行数 @@
-上下文行
--删除的行
-+添加的行
-上下文行- 可以包含多个文件的补丁，每个文件以 `PATCH:` 行开头。
+   @@ -起始行,行数 +起始行,行数 @@
+   上下文行
+   -删除的行
+   +添加的行
+   上下文行- 可以包含多个文件的补丁，每个文件以 `PATCH:` 行开头。
 """
 
-    async def think_before_code(self, task_description: str, constraints: List[str]) -> str:
+    async def think_before_code(self, task_description: str, constraints: list) -> str:
         prompt = f"""任务：{task_description}
 约束：{', '.join(constraints) if constraints else '无'}
 

@@ -42,6 +42,3 @@ class SupplyChainFirewall:
 
     async def check(self, command: str) -> bool:
         return self.check_install_command(command)
-
-
-supply_chain_firewall = SupplyChainFirewall()

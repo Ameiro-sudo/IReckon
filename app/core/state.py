@@ -1,5 +1,6 @@
 import asyncio
 import json
+import copy
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,7 +43,7 @@ class StateManager:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         snapshot_file = self.states_dir / f"snapshot_{timestamp}.json"
 
-        state_copy = state.copy()
+        state_copy = copy.deepcopy(state)
         state_copy["_meta"] = {
             "task_id": self.task_id,
             "timestamp": timestamp,

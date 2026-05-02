@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role

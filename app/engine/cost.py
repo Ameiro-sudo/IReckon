@@ -26,6 +26,3 @@ class CostTracker:
 
     def _current_month(self) -> str:
         return datetime.now(timezone.utc).strftime("%Y-%m")
-
-
-cost_tracker = CostTracker()

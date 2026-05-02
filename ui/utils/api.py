@@ -1,11 +1,12 @@
 import requests
+import os
 from typing import List, Dict, Optional, Any
 from urllib.parse import urljoin
 
 class APIClient:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip('/') + '/'
-        self.timeout = 10
+        self.timeout = int(os.environ.get("IRECKON_API_TIMEOUT", "10"))
 
     def _request(self, method: str, path: str, **kwargs) -> Optional[Dict | List]:
         url = urljoin(self.base_url, path)

@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any
 from .base import BaseAgent
 from app.llm.pool import AICapability
@@ -20,10 +21,8 @@ class EfficiencyReviewerAgent(BaseAgent):
 3. 模块划分与接口设计
 4. 设计模式与最佳实践
 
-输出格式：
-- 总体评价：通过 / 需修改
-- 具体问题列表
-- 优化建议
+请始终以JSON格式输出：
+{"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
 """
         super().__init__(role="reviewer_efficiency", capability=capability, system_prompt=system_prompt)
 
@@ -36,11 +35,29 @@ class EfficiencyReviewerAgent(BaseAgent):
 【上下文】
 {context}
 
-请输出审查结论。
+请输出审查结论（JSON格式）。
 """
         response = await self.think(prompt, temperature=0.1)
-        passed = "通过" in response and "需修改" not in response
-        return {"passed": passed, "feedback": response, "reviewer_type": "efficiency"}
+        result = self._parse_review_response(response)
+        return result
+
+    def _parse_review_response(self, response: str) -> Dict[str, Any]:
+        try:
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                lines = cleaned.splitlines()
+                cleaned = "\n".join(lines[1:-1]) if len(lines) > 2 else lines[-1]
+            parsed = json.loads(cleaned)
+            return {
+                "passed": bool(parsed.get("passed", False)),
+                "feedback": parsed.get("feedback", response),
+                "reviewer_type": "efficiency",
+                "issues": parsed.get("issues", []),
+                "suggestions": parsed.get("suggestions", []),
+            }
+        except (json.JSONDecodeError, ValueError):
+            passed = "通过" in response and "需修改" not in response
+            return {"passed": passed, "feedback": response, "reviewer_type": "efficiency"}
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")
@@ -70,10 +87,8 @@ class CorrectnessReviewerAgent(BaseAgent):
 4. 潜在安全漏洞
 5. 可能的运行时错误
 
-输出格式：
-- 总体评价：通过 / 需修改
-- 具体问题列表
-- 修复建议
+请始终以JSON格式输出：
+{"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
 """
         super().__init__(role="reviewer_correctness", capability=capability, system_prompt=system_prompt)
 
@@ -86,11 +101,29 @@ class CorrectnessReviewerAgent(BaseAgent):
 【代码】
 {code}
 
-请输出审查结论。
+请输出审查结论（JSON格式）。
 """
         response = await self.think(prompt, temperature=0.1)
-        passed = "通过" in response and "需修改" not in response
-        return {"passed": passed, "feedback": response, "reviewer_type": "correctness"}
+        result = self._parse_review_response(response)
+        return result
+
+    def _parse_review_response(self, response: str) -> Dict[str, Any]:
+        try:
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                lines = cleaned.splitlines()
+                cleaned = "\n".join(lines[1:-1]) if len(lines) > 2 else lines[-1]
+            parsed = json.loads(cleaned)
+            return {
+                "passed": bool(parsed.get("passed", False)),
+                "feedback": parsed.get("feedback", response),
+                "reviewer_type": "correctness",
+                "issues": parsed.get("issues", []),
+                "suggestions": parsed.get("suggestions", []),
+            }
+        except (json.JSONDecodeError, ValueError):
+            passed = "通过" in response and "需修改" not in response
+            return {"passed": passed, "feedback": response, "reviewer_type": "correctness"}
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")

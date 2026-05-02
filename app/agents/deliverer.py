@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from datetime import datetime
 
 from .base import BaseAgent
@@ -41,7 +41,7 @@ class DelivererAgent(BaseAgent):
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-        ready_content = self._generate_ready_txt(project_info, artifacts.keys())
+        ready_content = self._generate_ready_txt(project_info, list(artifacts.keys()))
         ready_path = task_output_dir / "READY.txt"
         with open(ready_path, "w", encoding="utf-8") as f:
             f.write(ready_content)
@@ -49,7 +49,7 @@ class DelivererAgent(BaseAgent):
         logger.info(f"交付物已打包到: {task_output_dir}")
         return str(task_output_dir)
 
-    def _generate_ready_txt(self, project_info: Dict[str, Any], files: list) -> str:
+    def _generate_ready_txt(self, project_info: Dict[str, Any], files: List[str]) -> str:
         lines = [
             f"项目：{project_info.get('task_name', '未命名')}",
             f"交付时间：{datetime.now().isoformat()}",

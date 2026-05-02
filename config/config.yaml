@@ -55,6 +55,10 @@ security:
   supply_chain_blacklist:
     npm: []
     pip: []
+server:
+  host: 0.0.0.0
+  port: 8000
+  log_level: INFO
 system:
   data_dir: ./data
   log_level: INFO
@@ -75,4 +79,4 @@ task_defaults:
   pass_threshold: 0.8
 ui:
   default_view: styled
-  theme: programmer
+  theme: catgirl

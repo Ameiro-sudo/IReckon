@@ -4,7 +4,7 @@
 """
 
 import json
-from typing import Dict, Any, List, Callable, Optional
+from typing import Dict, Any, List, Optional
 from loguru import logger
 
 

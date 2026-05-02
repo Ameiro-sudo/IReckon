@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import os
 from .components.chat import render_chat_view
 from .components.dashboard import render_dashboard
 from .components.config_panel import render_config_panel
@@ -10,10 +11,15 @@ from .utils.ws import WebSocketClient, process_incoming_messages
 st.set_page_config(page_title="俺寻思 AI 工厂", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
 inject_custom_css()
 
+api_host = os.environ.get("IRECKON_API_HOST", "localhost")
+api_port = os.environ.get("IRECKON_API_PORT", "8000")
+api_base = f"http://{api_host}:{api_port}"
+ws_base = f"ws://{api_host}:{api_port}"
+
 if "api_client" not in st.session_state:
-    st.session_state.api_client = APIClient("http://localhost:8000")
+    st.session_state.api_client = APIClient(api_base)
 if "ws_client" not in st.session_state:
-    st.session_state.ws_client = WebSocketClient("ws://localhost:8000")
+    st.session_state.ws_client = WebSocketClient(ws_base)
 if "current_task_id" not in st.session_state:
     st.session_state.current_task_id = None
 if "messages" not in st.session_state:

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from loguru import logger
 from app.core.config import config_manager
 
@@ -20,7 +20,7 @@ class CommandFilter:
             if r in command: return CommandLevel.L2
         return CommandLevel.L1
 
-    def filter(self, command: str, votes: Optional[List[bool]]=None) -> Dict[str,Any]:
+    def filter(self, command: str, votes: List[bool]=None) -> Dict[str, Any]:
         level = self.classify(command)
         if level==CommandLevel.L1 and self.l1_auto: return {"executable":True,"level":"L1"}
         if level==CommandLevel.L2:

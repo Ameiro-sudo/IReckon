@@ -1,5 +1,4 @@
 import re
-from typing import List
 from loguru import logger
 
 
@@ -26,11 +25,8 @@ class MiningDetector:
                 return True
         return False
 
-    async def scan_processes(self, process_list: List[str]) -> bool:
+    async def scan_processes(self, process_list: list) -> bool:
         for proc_info in process_list:
             if self.scan_command_line(proc_info):
                 return True
         return False
-
-
-mining_detector = MiningDetector()
