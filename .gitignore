@@ -9,4 +9,4 @@ data/logs/
 data/states/
 data/outputs/
 data/knowledge_base/
-.streamlit/
+.streamlit/secrets.toml
