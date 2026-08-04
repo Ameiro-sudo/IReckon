@@ -7,9 +7,6 @@ from enum import Enum
 from loguru import logger
 from app.core.database import db
 from app.core.logger import log_conversation
-from app.web.push import push_message_to_websocket
-
-
 class MessageLayer(Enum):
     L1_PUBLIC = "L1"
     L2_MEETING = "L2"
@@ -66,6 +63,7 @@ class MeetingRoom:
             await self._persist(msg)
         log_conversation(role=f"{sender_role}->{recipient_role}@L3", content=content, metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata})
         try:
+            from app.web.push import push_message_to_websocket
             await push_message_to_websocket(self.task_id, {
                 "msg_id": msg.msg_id, "layer": msg.layer.value, "sender_role": msg.sender_role,
                 "sender_id": msg.sender_id, "content": msg.content, "msg_type": msg.msg_type,

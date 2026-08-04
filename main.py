@@ -3,6 +3,7 @@ import asyncio, signal
 from app.core.logger import setup_logging, logger
 from app.core.database import db
 from app.core.config import config_manager
+from app.core.updater import updater
 from app.llm.client import capability_pool
 from app.engine.tasks import task_manager
 from app.engine.learner import idle_loop
@@ -17,12 +18,21 @@ class IReckonApp:
     async def initialize(self):
         setup_logging()
         logger.info(f"启动 {config_manager.get('system.name')} v{config_manager.get('system.version')}")
+        await self._check_update()
         await db.connect()
         await capability_pool.refresh()
         await register_builtin_tools()
         self._tasks.append(asyncio.create_task(idle_loop.run()))
         self._tasks.append(asyncio.create_task(log_consumer()))
         logger.info("系统初始化完成")
+
+    async def _check_update(self):
+        if not updater.should_check():
+            return
+        updater.mark_checked()
+        version = await updater.check()
+        if version:
+            logger.info(f"发现新版本 v{version}，请运行 python scripts/update.py 进行更新")
 
     async def shutdown(self):
         logger.info("正在关闭系统...")

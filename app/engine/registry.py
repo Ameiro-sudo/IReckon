@@ -2,10 +2,11 @@ import importlib
 import inspect
 import sys
 from pathlib import Path
-from typing import Dict, Type, Optional, List, Any
+from typing import Dict, Type, Optional, List, Any, TYPE_CHECKING
 from loguru import logger
 
-from app.agents.base import BaseAgent
+if TYPE_CHECKING:
+    from app.agents.base import BaseAgent
 
 
 class RoleRegistry:
@@ -23,7 +24,8 @@ class RoleRegistry:
         self._roles: Dict[str, Type[BaseAgent]] = {}
         self._role_metadata: Dict[str, Dict[str, Any]] = {}
 
-    def register(self, role_name: str, agent_class: Type[BaseAgent], metadata: Optional[Dict] = None) -> None:
+    def register(self, role_name: str, agent_class: type, metadata: Optional[Dict] = None) -> None:
+        from app.agents.base import BaseAgent
         if not issubclass(agent_class, BaseAgent):
             raise TypeError(f"{agent_class} 必须继承 BaseAgent")
         self._roles[role_name] = agent_class
@@ -45,7 +47,7 @@ class RoleRegistry:
     def get_metadata(self, role_name: str) -> Dict[str, Any]:
         return self._role_metadata.get(role_name, {}).copy()
 
-    def create_agent(self, role_name: str, capability, **kwargs) -> Optional[BaseAgent]:
+    def create_agent(self, role_name: str, capability, **kwargs):
         agent_class = self.get_agent_class(role_name)
         if agent_class is None:
             logger.error(f"未注册的角色: {role_name}")
@@ -57,6 +59,7 @@ class RoleRegistry:
             return None
 
     def discover_from_directory(self, directory: Path) -> int:
+        from app.agents.base import BaseAgent
         count = 0
         if not directory.exists():
             return 0
@@ -88,7 +91,7 @@ role_registry = RoleRegistry()
 
 
 def register_role(role_name: str, metadata: Optional[Dict] = None):
-    def decorator(cls: Type[BaseAgent]) -> Type[BaseAgent]:
+    def decorator(cls):
         role_registry.register(role_name, cls, metadata)
         return cls
     return decorator

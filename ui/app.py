@@ -48,6 +48,10 @@ if "editing_instance" not in st.session_state:
     st.session_state.editing_instance = None
 if "active_task_count" not in st.session_state:
     st.session_state.active_task_count = 0
+if "update_available" not in st.session_state:
+    st.session_state.update_available = False
+if "self_improve_status" not in st.session_state:
+    st.session_state.self_improve_status = None
 
 with st.sidebar:
     st.title("🤖 俺寻思")
@@ -94,6 +98,47 @@ with st.sidebar:
         if st.button("⏹️ 撤销任务"):
             st.session_state.api_client._request("POST", f"/api/tasks/{st.session_state.current_task_id}/cancel")
             st.success("已请求撤销")
+
+    st.divider()
+    st.subheader("🧬 自我进化")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🔍 分析改进", use_container_width=True):
+            with st.spinner("AI 正在分析自身代码..."):
+                resp = st.session_state.api_client._request("POST", "/api/self-improve")
+            if resp and resp.get("status") == "ok":
+                st.session_state.self_improve_status = resp
+                st.success(f"已改进 {len(resp.get('result', {}).get('files_changed', []))} 个文件")
+            else:
+                st.error(resp.get("error", "分析失败") if resp else "请求失败")
+    with c2:
+        if st.button("📤 推送分支", use_container_width=True, disabled=not st.session_state.self_improve_status):
+            resp = st.session_state.api_client._request("POST", "/api/self-improve/push")
+            if resp and resp.get("status") == "ok":
+                st.success("已推送到远程")
+                st.session_state.self_improve_status = None
+
+    if st.session_state.self_improve_status:
+        result = st.session_state.self_improve_status.get("result", {})
+        files = result.get("files_changed", [])
+        if files:
+            with st.expander(f"📄 修改了 {len(files)} 个文件", expanded=True):
+                for f in files:
+                    st.code(f, language="")
+        branch = result.get("branch")
+        if branch:
+            st.info(f"🌿 分支: {branch}")
+
+    st.divider()
+    up_resp = st.session_state.api_client._request("GET", "/api/update/check")
+    if up_resp and up_resp.get("update_available"):
+        st.warning(f"📦 新版本 {up_resp['latest_version']} 可用")
+        if st.button("⬆️ 立即更新"):
+            apply = st.session_state.api_client._request("POST", "/api/update/apply")
+            if apply and apply.get("status") == "ok":
+                st.success("更新完成，请重启应用")
+            else:
+                st.error("更新失败")
 
     with st.expander("⚙️ 配置中心", expanded=False):
         render_config_panel()

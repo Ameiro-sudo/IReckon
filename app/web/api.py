@@ -5,15 +5,18 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
+import uuid
 import yaml
 import httpx
 from loguru import logger
 
 from app.core.database import db
 from app.core.config import config_manager
+from app.core.updater import updater
 from app.llm.pool import capability_pool, AICapability
 from app.engine.tasks import task_manager
 from app.engine.room import meeting_room_manager, MessageLayer
+from app.engine.self_improve import self_improver
 from .ws import websocket_endpoint
 
 app = FastAPI(title="IReckon AI Factory", version="2.0")
@@ -164,6 +167,43 @@ async def update_config(req: ConfigUpdateRequest):
 async def list_themes():
     from app.engine.style import style_engine
     return {name: {"name": t.get("name", name)} for name, t in style_engine._themes.items()}
+
+@app.post("/api/self-improve")
+async def trigger_self_improve():
+    task_id = f"self-{uuid.uuid4().hex[:8]}"
+    analysis = await self_improver.analyze(task_id)
+    if not analysis.get("success"):
+        return {"status": "error", "error": analysis.get("error", "分析失败")}
+    result = await self_improver.apply_improvements(task_id, analysis)
+    return {
+        "status": "ok",
+        "task_id": task_id,
+        "analysis": analysis.get("analysis", "")[:500],
+        "result": result,
+    }
+
+@app.post("/api/self-improve/push")
+async def push_self_improve():
+    ok = await self_improver.push_to_remote()
+    return {"status": "ok" if ok else "error"}
+
+@app.get("/api/update/check")
+async def check_update():
+    version = await updater.check()
+    current = config_manager.get("system.version")
+    return {
+        "current_version": current,
+        "latest_version": version,
+        "update_available": version is not None,
+    }
+
+@app.post("/api/update/apply")
+async def apply_update():
+    version = await updater.check()
+    if not version:
+        return {"status": "error", "error": "没有新版本"}
+    ok = await updater.download_and_update(version)
+    return {"status": "ok" if ok else "error", "version": version}
 
 @app.get("/api/health")
 async def health():
