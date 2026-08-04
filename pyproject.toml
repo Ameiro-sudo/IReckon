@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ireckon"
+version = "2.0.0"
+description = "多智能体自主编程系统 — AI 工厂"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "IReckon Team" },
+]
+keywords = ["ai", "agent", "code-generation", "llm", "autonomous"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "ui*"]
+
+[project.urls]
+Homepage = "https://github.com/ninasukiwww-png/IReckon"
+Repository = "https://github.com/ninasukiwww-png/IReckon.git"
+
+[project.scripts]
+ireckon = "main:main"

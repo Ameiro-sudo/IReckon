@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/.key
+data/chromadb/
+data/db/
+data/logs/
+data/states/
+data/outputs/
+data/knowledge_base/
+.streamlit/secrets.toml
