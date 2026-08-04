@@ -1,9 +1,7 @@
 import json
 import asyncio
 from typing import List, Dict, Any, Optional, Set
-from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
 from .base import BaseAgent
@@ -11,15 +9,12 @@ from app.llm.pool import AICapability, capability_pool
 from app.engine.room import meeting_room_manager, MessageLayer
 from app.engine.board import TaskBoard
 from app.core.config import config_manager
+from app.utils import create_jinja_env
 
 
 class SchedulerAgent(BaseAgent):
     def __init__(self, capability: AICapability):
-        template_dir = Path("config/prompts")
-        if not template_dir.exists():
-            template_dir = Path(__file__).parent.parent.parent / "config/prompts"
-        self.jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
-
+        self.jinja_env = create_jinja_env()
         system_prompt = self._build_system_prompt()
         super().__init__(role="scheduler", capability=capability, system_prompt=system_prompt)
 

@@ -1,0 +1,121 @@
+name: Build EXE
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+          cd frontend && npm ci && cd ..
+
+      - name: Build Vue frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Build single EXE
+        run: |
+          python -m PyInstaller `
+            --name IReckon --distpath dist/IReckon --workpath build `
+            --add-data "config;config" `
+            --add-data "frontend/dist;frontend/dist" `
+            --hidden-import "app.web.api" `
+            --hidden-import "app.web.ws" `
+            --hidden-import "app.web.push" `
+            --hidden-import "app.engine.self_improve" `
+            --hidden-import "app.engine.style" `
+            --hidden-import "app.engine.learner" `
+            --hidden-import "app.engine.registry" `
+            --hidden-import "app.engine.tasks" `
+            --hidden-import "app.engine.room" `
+            --hidden-import "app.engine.machine" `
+            --hidden-import "app.engine.board" `
+            --hidden-import "app.engine.detector" `
+            --hidden-import "app.engine.cost" `
+            --hidden-import "app.agents.base" `
+            --hidden-import "app.agents.executor" `
+            --hidden-import "app.agents.scheduler" `
+            --hidden-import "app.agents.reviewer" `
+            --hidden-import "app.agents.creative" `
+            --hidden-import "app.agents.deliverer" `
+            --hidden-import "app.agents.learner" `
+            --hidden-import "app.agents.tool_manager" `
+            --hidden-import "app.agents.content_filter" `
+            --hidden-import "app.llm.client" `
+            --hidden-import "app.llm.pool" `
+            --hidden-import "app.tools.registry" `
+            --hidden-import "app.tools.library" `
+            --hidden-import "app.tools.assembler" `
+            --hidden-import "app.security.scanner" `
+            --hidden-import "app.security.filter" `
+            --hidden-import "app.security.sandbox" `
+            --hidden-import "app.security.mining" `
+            --hidden-import "app.security.supply" `
+            --hidden-import "app.knowledge.vector" `
+            --hidden-import "app.knowledge.files" `
+            --hidden-import "app.core.updater" `
+            --hidden-import "uvicorn" `
+            --hidden-import "uvicorn.protocols" `
+            --hidden-import "uvicorn.server" `
+            --hidden-import "uvicorn.loops" `
+            --hidden-import "uvicorn.loops.auto" `
+            --hidden-import "multipart" `
+            --hidden-import "watchdog" `
+            --hidden-import "aiosqlite" `
+            --hidden-import "jinja2" `
+            --collect-submodules "chromadb" `
+            --collect-all "app" `
+            --noconfirm --onedir --console main.py
+
+      - name: Create launcher
+        run: |
+          @"
+          @echo off
+          title IReckon AI Factory
+          echo.
+          start "" "%~dp0IReckon.exe"
+          timeout /t 5 /nobreak >nul
+          start http://localhost:8000
+          echo 关闭此窗口即可停止服务
+          pause >nul
+          "@ | Out-File -Encoding Default dist/IReckon/启动IReckon.bat
+
+      - name: Zip package
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref }}" -notlike "refs/tags/*") { $tag = "dev-build" }
+          Compress-Archive -Path dist/IReckon/* -DestinationPath "IReckon-${tag}-win64.zip" -Force
+          echo "ZIP_NAME=IReckon-${tag}-win64.zip" >> $env:GITHUB_ENV
+
+      - name: Upload Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+
+      - name: Upload Artifact (manual trigger)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: IReckon-build
+          path: dist/IReckon/

@@ -1,4 +1,5 @@
 {
+  {# 猫娘风格主题 - 萌系角色映射 #}
   "name": "猫娘风",
   "role_mapping": {
     "scheduler": {"name": "管家喵", "avatar": "🐱"},

@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    environment:
+      - IRECKON_HOME=/app
+      - IRECKON_API_HOST=0.0.0.0
+      - IRECKON_API_PORT=8000
+    restart: unless-stopped
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 --cleanup
+    restart: unless-stopped
+    profiles:
+      - auto-update

@@ -1,12 +1,11 @@
 import re
 from typing import Dict, Any, Tuple
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
+from app.utils import create_jinja_env
 
 
 @register_role("executor", {
@@ -17,10 +16,7 @@ class ExecutorAgent(BaseAgent):
     __role_name__ = "executor"
 
     def __init__(self, capability: AICapability):
-        template_dir = Path("config/prompts")
-        if not template_dir.exists():
-            template_dir = Path(__file__).parent.parent.parent / "config/prompts"
-        self.jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
+        self.jinja_env = create_jinja_env()
         system_prompt = self._build_system_prompt()
         super().__init__(role="executor", capability=capability, system_prompt=system_prompt)
 
