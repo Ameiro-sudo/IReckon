@@ -23,7 +23,7 @@ class StyleEngine:
             for file in theme_dir.glob("*.json"):
                 try:
                     with open(file,"r",encoding="utf-8") as f: theme = json.load(f); self._themes[file.stem]=theme
-                    logger.info(f"加载主题: {theme.get('name', file.stem)}")
+                    logger.debug(f"加载主题: {theme.get('name', file.stem)}")
                 except Exception as e: logger.error(f"加载主题失败 {file}: {e}")
         else: logger.warning(f"主题目录不存在: {theme_dir}")
 

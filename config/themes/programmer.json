@@ -1,4 +1,5 @@
 {
+  {# 程序员风格主题 - 真实职场角色映射 #}
   "name": "程序员风",
   "role_mapping": {
     "scheduler": {"name": "PM老王", "avatar": "📊", "style": "正式、简洁"},

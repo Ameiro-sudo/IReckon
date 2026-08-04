@@ -10,6 +10,7 @@ from app.llm.pool import AICapability
 from app.llm.client import LLMClient, LLMResponse, llm_client
 from app.core.logger import log_conversation
 from app.engine.style import style_engine
+from app.utils import create_jinja_env
 
 
 @dataclass

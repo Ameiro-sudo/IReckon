@@ -1,10 +1,7 @@
 # IReckon — 俺寻思 AI 工厂
 
-<<<<<<< HEAD
 > *"IReckon" — Orkish for "I think it can work"*
 
-=======
->>>>>>> 31eb5b9 (Update README.md)
 **IReckon** 是一个**多智能体自主编程系统**。输入自然语言需求，AI 团队自动完成规划、编码、审查、修改、交付全流程，无需人工干预。
 
 ---

@@ -30,7 +30,7 @@ class RoleRegistry:
             raise TypeError(f"{agent_class} 必须继承 BaseAgent")
         self._roles[role_name] = agent_class
         self._role_metadata[role_name] = metadata or {}
-        logger.info(f"注册角色: {role_name} -> {agent_class.__name__}")
+        logger.debug(f"注册角色: {role_name} -> {agent_class.__name__}")
 
     def unregister(self, role_name: str) -> None:
         if role_name in self._roles:

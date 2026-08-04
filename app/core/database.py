@@ -1,18 +1,29 @@
+"""
+数据库模块 (๑•̀ᴗ-)✧
+负责 SQLite 数据库的连接、加密和 CRUD 操作～
+数据安全很重要，所以加了 Fernet 加密哦！
+"""
+
 import asyncio
 import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import aiosqlite
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken  # 数据加密小能手～
 from loguru import logger
 from .config import config_manager
 
 
 class Database:
+    """
+    数据库管理器 (单例模式～)
+    用 SQLite 存数据，支持加密，线程安全！
+    """
     _instance: Optional["Database"] = None
 
     def __new__(cls):
+        """单例模式，全局只有一个数据库实例～"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -21,19 +32,27 @@ class Database:
         if hasattr(self, "_init") and self._init:
             return
         self._init = True
-        self._conn = None
-        self._fernet = None
-        self._write_lock = asyncio.Lock()
-        self._connect_lock = asyncio.Lock()
+        self._conn = None              # 数据库连接
+        self._fernet = None            # 加密器
+        self._write_lock = asyncio.Lock()   # 写操作锁
+        self._connect_lock = asyncio.Lock() # 连接锁
+        
+        # 确定数据库文件位置～
         data_dir = Path(config_manager.get("system.data_dir", "./data"))
         db_dir = data_dir / "db"
         db_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = db_dir / "ireckon.db"
 
-    async def _get_cipher(self):
+    async def _get_cipher(self) -> Fernet:
+        """
+        获取或创建加密器～
+        第一次会自动生成密钥，保存到 .key 文件里～
+        """
         if self._fernet is None:
             key_path = Path(config_manager.get("system.data_dir", "./data")) / ".key"
             key_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 读取现有密钥 or 生成新密钥～
             if key_path.exists():
                 with open(key_path, "rb") as f:
                     key = f.read()
@@ -41,27 +60,36 @@ class Database:
                 key = Fernet.generate_key()
                 with open(key_path, "wb") as f:
                     f.write(key)
+                # 在 Linux/Mac 上设置权限为 600，保护密钥～
                 if os.name == "posix":
                     try:
                         await asyncio.to_thread(key_path.chmod, 0o600)
                     except Exception:
                         pass
+            
             self._fernet = Fernet(key)
         return self._fernet
 
     async def connect(self):
+        """连接到数据库，创建表结构～"""
         async with self._connect_lock:
             if self._conn is not None:
                 return
+            
+            # 配置数据库参数～
             journal = config_manager.get("database.journal_mode", "delete")
             timeout = config_manager.get("database.timeout", 5.0)
+            
             self._conn = await aiosqlite.connect(str(self.db_path), timeout=timeout, isolation_level=None)
             await self._conn.execute(f"PRAGMA journal_mode={journal}")
             await self._conn.execute("PRAGMA foreign_keys = ON")
+            
+            # 创建表～
             await self._create_tables()
             logger.info(f"DB connected {self.db_path} (journal={journal})")
 
     async def _create_tables(self):
+        """创建所有需要的表～"""
         await self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, user_request TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, config_snapshot TEXT, output_dir TEXT);
             CREATE TABLE IF NOT EXISTS ai_instances (instance_id TEXT PRIMARY KEY, name TEXT, endpoint TEXT, model TEXT, api_key_encrypted TEXT, parameters TEXT, tags TEXT, cost_per_1k REAL, max_context INTEGER, enabled INTEGER);
@@ -73,11 +101,13 @@ class Database:
         await self._conn.commit()
 
     async def close(self):
+        """关闭数据库连接～"""
         if self._conn:
             await self._conn.close()
             self._conn = None
 
     async def execute(self, sql, params=()):
+        """执行 SQL（增删改）"""
         if self._conn is None:
             await self.connect()
         async with self._write_lock:
@@ -87,6 +117,7 @@ class Database:
                 return cur.lastrowid or 0
 
     async def fetch_one(self, sql, params=()):
+        """查询单条记录～"""
         if self._conn is None:
             await self.connect()
         async with self._conn.cursor() as cur:
@@ -94,6 +125,7 @@ class Database:
             return await cur.fetchone()
 
     async def fetch_all(self, sql, params=()):
+        """查询多条记录～"""
         if self._conn is None:
             await self.connect()
         async with self._conn.cursor() as cur:
@@ -101,6 +133,9 @@ class Database:
             return await cur.fetchall()
 
     async def save_ai_instance(self, instance: Dict):
+        """
+        保存 AI 实例（加密存储 API Key！）
+        """
         cipher = await self._get_cipher()
         enc = cipher.encrypt(instance.get("api_key", "").encode()).decode() if instance.get("api_key") else ""
         await self.execute(
@@ -112,6 +147,7 @@ class Database:
         )
 
     async def get_ai_instance(self, iid):
+        """获取单个 AI 实例（自动解密 API Key）"""
         row = await self.fetch_one("SELECT * FROM ai_instances WHERE instance_id=?", (iid,))
         if not row:
             return None
@@ -127,6 +163,7 @@ class Database:
         }
 
     async def get_all_ai_instances(self, enabled_only=True):
+        """获取所有 AI 实例～"""
         sql = "SELECT instance_id FROM ai_instances" + (" WHERE enabled=1" if enabled_only else "")
         rows = await self.fetch_all(sql)
         instances = []
@@ -136,4 +173,6 @@ class Database:
                 instances.append(inst)
         return instances
 
+
+# 全局数据库实例～
 db = Database()
