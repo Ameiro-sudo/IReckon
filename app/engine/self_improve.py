@@ -14,15 +14,20 @@ class SelfImprover:
     def __init__(self):
         self._enabled = config_manager.get("self_update.enabled", True)
         self._max_files = config_manager.get("self_update.max_files_per_round", 5)
-        self._branch_prefix = config_manager.get("self_update.branch_prefix", "self-improve")
+        self._branch_prefix = config_manager.get(
+            "self_update.branch_prefix", "self-improve"
+        )
         template_dir = Path(__file__).parent.parent.parent / "config" / "prompts"
         if template_dir.exists():
             self._jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
         else:
             self._jinja_env = None
-        self._blacklist = set(config_manager.get("self_update.file_blacklist", [
-            "config/config.yaml", "data/", "app/security/", "app/core/updater.py"
-        ]))
+        self._blacklist = set(
+            config_manager.get(
+                "self_update.file_blacklist",
+                ["config/config.yaml", "data/", "app/security/", "app/core/updater.py"],
+            )
+        )
 
     async def analyze(self, task_id: str) -> Dict:
         if not self._enabled:
@@ -32,32 +37,44 @@ class SelfImprover:
         if not files:
             return {"success": False, "error": "没有可分析的源文件"}
 
-        executor = await self._get_executor()
+        executor = await self._get_executor(task_id)
         if not executor:
             return {"success": False, "error": "无法获取 Executor agent"}
 
+        analysis_prompt = self._build_analysis_prompt(files)
+        analysis = await executor.think(analysis_prompt, temperature=0.3)
+        return self._parse_analysis(analysis)
+
+    async def _get_executor(self, task_id: str):
         supported_tags = config_manager.get("ai_pool.instances", [])
         if supported_tags:
-            cap = await capability_pool.find_best_match(required_tags=["coding", "smart"])
+            cap = await capability_pool.find_best_match(
+                required_tags=["coding", "smart"]
+            )
         else:
             caps = await capability_pool.get_all()
             cap = caps[0] if caps else None
 
         if not cap:
-            return {"success": False, "error": "没有可用的 AI 实例"}
+            return None
 
-        analysis_prompt = self._build_analysis_prompt(files)
-        await role_registry.create_agent("executor", cap).bind_context(task_id)
-        executor_role = role_registry.create_agent("executor", cap)
-        executor_role.bind_context(task_id)
+        executor = role_registry.create_agent("executor", cap)
+        if executor is None:
+            return None
 
-        analysis = await executor_role.think(analysis_prompt, temperature=0.3)
-        return self._parse_analysis(analysis)
+        executor.bind_context(task_id)
+        return executor
 
     def _list_source_files(self) -> List[Dict]:
         base = Path(__file__).parent.parent.parent
         files = []
-        for pattern in ["app/**/*.py", "ui/**/*.py", "config/**/*.yaml", "config/**/*.j2", "config/**/*.json"]:
+        for pattern in [
+            "app/**/*.py",
+            "ui/**/*.py",
+            "config/**/*.yaml",
+            "config/**/*.j2",
+            "config/**/*.json",
+        ]:
             for f in base.glob(pattern):
                 rel = str(f.relative_to(base))
                 if any(rel.startswith(b) or rel == b for b in self._blacklist):
@@ -159,7 +176,9 @@ FILE: 相对路径
 2. 限制在最多 {self._max_files} 个文件
 3. 不修改黑名单中的文件"""
 
-    def _apply_patches(self, response: str, source_files: Dict[str, str]) -> Dict[str, str]:
+    def _apply_patches(
+        self, response: str, source_files: Dict[str, str]
+    ) -> Dict[str, str]:
         result = {}
         current_file = None
         current_content = []
@@ -180,20 +199,27 @@ FILE: 相对路径
         if current_file and current_content:
             result[current_file] = "\n".join(current_content)
 
-        blacklisted = [p for p in result if any(result[p].startswith(b) for b in self._blacklist)]
+        blacklisted = [
+            p for p in result if any(result[p].startswith(b) for b in self._blacklist)
+        ]
         for p in blacklisted:
             del result[p]
 
         allowed = {k: v for k, v in result.items() if k in source_files}
         if len(allowed) > self._max_files:
-            allowed = dict(list(allowed.items())[:self._max_files])
+            allowed = dict(list(allowed.items())[: self._max_files])
 
         return allowed
 
     def _git_create_branch(self, branch_name: str) -> bool:
         try:
             base = Path(__file__).parent.parent.parent
-            subprocess.run(["git", "checkout", "-b", branch_name], cwd=base, capture_output=True, timeout=10)
+            subprocess.run(
+                ["git", "checkout", "-b", branch_name],
+                cwd=base,
+                capture_output=True,
+                timeout=10,
+            )
             return True
         except Exception as e:
             logger.error(f"创建分支失败: {e}")
@@ -202,8 +228,15 @@ FILE: 相对路径
     def _git_commit(self, message: str) -> bool:
         try:
             base = Path(__file__).parent.parent.parent
-            subprocess.run(["git", "add", "-A"], cwd=base, capture_output=True, timeout=10)
-            subprocess.run(["git", "commit", "-m", message], cwd=base, capture_output=True, timeout=10)
+            subprocess.run(
+                ["git", "add", "-A"], cwd=base, capture_output=True, timeout=10
+            )
+            subprocess.run(
+                ["git", "commit", "-m", message],
+                cwd=base,
+                capture_output=True,
+                timeout=10,
+            )
             return True
         except Exception as e:
             logger.error(f"提交失败: {e}")
@@ -213,12 +246,21 @@ FILE: 相对路径
         try:
             base = Path(__file__).parent.parent.parent
             branch = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=base, capture_output=True, text=True, timeout=10
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=base,
+                capture_output=True,
+                text=True,
+                timeout=10,
             ).stdout.strip()
             if not branch or branch == "master":
                 logger.warning("当前在 master 分支，不自动推送")
                 return False
-            subprocess.run(["git", "push", "-u", "origin", branch], cwd=base, capture_output=True, timeout=30)
+            subprocess.run(
+                ["git", "push", "-u", "origin", branch],
+                cwd=base,
+                capture_output=True,
+                timeout=30,
+            )
             logger.info(f"已推送分支: {branch}")
             return True
         except Exception as e:
