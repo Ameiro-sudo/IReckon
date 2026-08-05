@@ -33,7 +33,11 @@ build/
 *.temp
 
 # Local project runtime files
+config/config.yaml
 data/.key
+data/chromadb/
+data/db/
+data/logs/
 full_validation.txt
 inspect_lines.txt
 ruff_output.txt

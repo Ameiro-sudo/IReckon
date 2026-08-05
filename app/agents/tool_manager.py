@@ -9,10 +9,13 @@ from app.tools.assembler import ToolAssembler
 from loguru import logger
 
 
-@register_role("tool_manager", {
-    "description": "工具管理AI，管理零件库，响应工具组装请求",
-    "default_required_tags": ["tooling"],
-})
+@register_role(
+    "tool_manager",
+    {
+        "description": "工具管理AI，管理零件库，响应工具组装请求",
+        "default_required_tags": ["tooling"],
+    },
+)
 class ToolManagerAgent(BaseAgent):
     __role_name__ = "tool_manager"
 
@@ -27,9 +30,13 @@ class ToolManagerAgent(BaseAgent):
 零件库中的每个零件都有：
 - 名称、描述、语言、代码、输入输出规范、标签
 """
-        super().__init__(role="tool_manager", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="tool_manager", capability=capability, system_prompt=system_prompt
+        )
 
-    async def search_parts(self, query: str, tags: Optional[List[str]] = None) -> List[Dict]:
+    async def search_parts(
+        self, query: str, tags: Optional[List[str]] = None
+    ) -> List[Dict]:
         sql = "SELECT * FROM tool_parts WHERE 1=1"
         params = []
         if tags:
@@ -42,16 +49,18 @@ class ToolManagerAgent(BaseAgent):
         rows = await db.fetch_all(sql, tuple(params))
         parts = []
         for row in rows:
-            parts.append({
-                "part_id": row[0],
-                "name": row[1],
-                "description": row[2],
-                "language": row[3],
-                "code": row[4],
-                "input_schema": json.loads(row[5]) if row[5] else {},
-                "output_schema": json.loads(row[6]) if row[6] else {},
-                "tags": json.loads(row[7]) if row[7] else []
-            })
+            parts.append(
+                {
+                    "part_id": row[0],
+                    "name": row[1],
+                    "description": row[2],
+                    "language": row[3],
+                    "code": row[4],
+                    "input_schema": json.loads(row[5]) if row[5] else {},
+                    "output_schema": json.loads(row[6]) if row[6] else {},
+                    "tags": json.loads(row[7]) if row[7] else [],
+                }
+            )
         return parts
 
     async def assemble_tool(self, requirement: str, parts: List[Dict]) -> str:
@@ -65,7 +74,9 @@ class ToolManagerAgent(BaseAgent):
 """
         return await self.think(prompt, temperature=0.2)
 
-    async def assemble_tool_simple(self, requirement: str, parts: List[Dict]) -> Optional[str]:
+    async def assemble_tool_simple(
+        self, requirement: str, parts: List[Dict]
+    ) -> Optional[str]:
         if "如果" in requirement or "条件" in requirement or "分支" in requirement:
             if len(parts) >= 3:
                 return ToolAssembler.assemble_condition(parts[0], parts[1], parts[2])
@@ -76,27 +87,47 @@ class ToolManagerAgent(BaseAgent):
             return ToolAssembler.assemble_sequence(parts)
         return None
 
-    async def add_part(self, name: str, description: str, language: str, code: str,
-                       input_schema: Dict, output_schema: Dict, tags: List[str],
-                       created_by: str) -> str:
+    async def add_part(
+        self,
+        name: str,
+        description: str,
+        language: str,
+        code: str,
+        input_schema: Dict,
+        output_schema: Dict,
+        tags: List[str],
+        created_by: str,
+    ) -> str:
         import uuid
+
         part_id = f"part-{uuid.uuid4().hex[:8]}"
-        await db.execute("""
+        await db.execute(
+            """
             INSERT INTO tool_parts
             (part_id, name, description, language, code, input_schema, output_schema, tags, created_by)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            part_id, name, description, language, code,
-            json.dumps(input_schema), json.dumps(output_schema),
-            json.dumps(tags), created_by
-        ))
+        """,
+            (
+                part_id,
+                name,
+                description,
+                language,
+                code,
+                json.dumps(input_schema),
+                json.dumps(output_schema),
+                json.dumps(tags),
+                created_by,
+            ),
+        )
         logger.info(f"零件入库: {name} ({part_id})")
         return part_id
 
     async def execute(self, request: Dict[str, Any]) -> Dict[str, Any]:
         action = request.get("action", "search")
         if action == "search":
-            parts = await self.search_parts(request.get("query", ""), request.get("tags"))
+            parts = await self.search_parts(
+                request.get("query", ""), request.get("tags")
+            )
             return {"parts": parts}
         elif action == "assemble":
             parts = request.get("parts", [])

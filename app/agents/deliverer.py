@@ -9,10 +9,13 @@ from app.core.config import config_manager
 from loguru import logger
 
 
-@register_role("deliverer", {
-    "description": "交付AI，负责打包产物、归档、生成交付报告",
-    "default_required_tags": ["general"],
-})
+@register_role(
+    "deliverer",
+    {
+        "description": "交付AI，负责打包产物、归档、生成交付报告",
+        "default_required_tags": ["general"],
+    },
+)
 class DelivererAgent(BaseAgent):
     __role_name__ = "deliverer"
 
@@ -24,13 +27,12 @@ class DelivererAgent(BaseAgent):
 2. 生成 READY.txt
 3. 生成交付报告
 """
-        super().__init__(role="deliverer", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="deliverer", capability=capability, system_prompt=system_prompt
+        )
 
     async def package(
-        self,
-        task_id: str,
-        artifacts: Dict[str, str],
-        project_info: Dict[str, Any]
+        self, task_id: str, artifacts: Dict[str, str], project_info: Dict[str, Any]
     ) -> str:
         output_dir = Path(config_manager.get("system.output_dir", "./data/outputs"))
         task_output_dir = output_dir / task_id
@@ -49,7 +51,9 @@ class DelivererAgent(BaseAgent):
         logger.info(f"交付物已打包到: {task_output_dir}")
         return str(task_output_dir)
 
-    def _generate_ready_txt(self, project_info: Dict[str, Any], files: List[str]) -> str:
+    def _generate_ready_txt(
+        self, project_info: Dict[str, Any], files: List[str]
+    ) -> str:
         lines = [
             f"项目：{project_info.get('task_name', '未命名')}",
             f"交付时间：{datetime.now().isoformat()}",
@@ -58,20 +62,22 @@ class DelivererAgent(BaseAgent):
         ]
         for f in files:
             lines.append(f"  - {f}")
-        lines.extend([
-            "",
-            "使用方法：",
-            project_info.get('usage', '请参考各文件'),
-            "",
-            "注意事项：",
-            project_info.get('notes', '无'),
-        ])
+        lines.extend(
+            [
+                "",
+                "使用方法：",
+                project_info.get("usage", "请参考各文件"),
+                "",
+                "注意事项：",
+                project_info.get("notes", "无"),
+            ]
+        )
         return "\n".join(lines)
 
     async def execute(self, delivery_data: Dict[str, Any]) -> Dict[str, Any]:
         output_path = await self.package(
             delivery_data["task_id"],
             delivery_data["artifacts"],
-            delivery_data.get("project_info", {})
+            delivery_data.get("project_info", {}),
         )
         return {"output_path": output_path, "status": "success"}

@@ -29,7 +29,7 @@ class BaseAgent(ABC):
         role: str,
         capability: AICapability,
         system_prompt: str,
-        llm: Optional[LLMClient] = None
+        llm: Optional[LLMClient] = None,
     ):
         self.role = role
         self.capability = capability
@@ -43,14 +43,16 @@ class BaseAgent(ABC):
         self.system_prompt = system_prompt
         self.messages: List[Dict[str, str]] = []
 
-    def bind_context(self, task_id: str, cancellation_event: Optional[asyncio.Event] = None, **extra) -> None:
+    def bind_context(
+        self, task_id: str, cancellation_event: Optional[asyncio.Event] = None, **extra
+    ) -> None:
         self.context = AgentContext(
             task_id=task_id,
             agent_id=f"{self.role}-{uuid.uuid4().hex[:8]}",
             role=self.role,
             capability=self.capability,
             cancellation_event=cancellation_event or asyncio.Event(),
-            extra=extra
+            extra=extra,
         )
         self.messages = [{"role": "system", "content": self.system_prompt}]
 
@@ -64,7 +66,7 @@ class BaseAgent(ABC):
                     "task_id": self.context.task_id,
                     "agent_id": self.context.agent_id,
                     "model": self.capability.model,
-                }
+                },
             )
 
     async def think(
@@ -83,7 +85,9 @@ class BaseAgent(ABC):
                 self.messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                cancellation_event=self.context.cancellation_event if self.context else None,
+                cancellation_event=self.context.cancellation_event
+                if self.context
+                else None,
                 infinite_retry=infinite_retry,
             )
             self.add_message("assistant", response.content)
@@ -109,7 +113,9 @@ class BaseAgent(ABC):
                 self.messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                cancellation_event=self.context.cancellation_event if self.context else None,
+                cancellation_event=self.context.cancellation_event
+                if self.context
+                else None,
                 stream=True,
             ):
                 full_response += chunk

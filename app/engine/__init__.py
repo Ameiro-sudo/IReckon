@@ -30,9 +30,11 @@ _import_map = {
     "loop_detector": ("app.engine.detector", "loop_detector"),
 }
 
+
 def __getattr__(name):
     if name in _import_map:
         import sys
+
         module_name, attr_name = _import_map[name]
         module = __import__(module_name, fromlist=[attr_name])
         return getattr(module, attr_name)

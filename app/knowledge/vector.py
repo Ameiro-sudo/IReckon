@@ -25,31 +25,55 @@ class VectorStore:
     def _get_collection(self, name: str):
         if name not in self._collections:
             try:
-                self._collections[name] = self._client.get_collection(name, embedding_function=self._ef)
+                self._collections[name] = self._client.get_collection(
+                    name, embedding_function=self._ef
+                )
             except Exception:
-                self._collections[name] = self._client.create_collection(name, embedding_function=self._ef)
+                self._collections[name] = self._client.create_collection(
+                    name, embedding_function=self._ef
+                )
         return self._collections[name]
 
-    async def add_documents(self, collection: str, ids: List[str], documents: List[str], metadatas: Optional[List[Dict]] = None):
+    async def add_documents(
+        self,
+        collection: str,
+        ids: List[str],
+        documents: List[str],
+        metadatas: Optional[List[Dict]] = None,
+    ):
         lock = self._get_lock(collection)
         async with lock:
             col = self._get_collection(collection)
-            await asyncio.to_thread(col.add, ids=ids, documents=documents, metadatas=metadatas)
+            await asyncio.to_thread(
+                col.add, ids=ids, documents=documents, metadatas=metadatas
+            )
 
-    async def search(self, collection: str, query: str, n_results: int = 5) -> List[Dict]:
+    async def search(
+        self, collection: str, query: str, n_results: int = 5
+    ) -> List[Dict]:
         lock = self._get_lock(collection)
         async with lock:
             col = self._get_collection(collection)
-            results = await asyncio.to_thread(col.query, query_texts=[query], n_results=n_results)
+            results = await asyncio.to_thread(
+                col.query, query_texts=[query], n_results=n_results
+            )
         mapped = []
-        if results['ids'] and results['ids'][0]:
-            for i, doc_id in enumerate(results['ids'][0]):
-                mapped.append({
-                    "id": doc_id,
-                    "document": results['documents'][0][i] if results['documents'] else "",
-                    "metadata": results['metadatas'][0][i] if results['metadatas'] else {},
-                    "distance": results['distances'][0][i] if results['distances'] else 0
-                })
+        if results["ids"] and results["ids"][0]:
+            for i, doc_id in enumerate(results["ids"][0]):
+                mapped.append(
+                    {
+                        "id": doc_id,
+                        "document": results["documents"][0][i]
+                        if results["documents"]
+                        else "",
+                        "metadata": results["metadatas"][0][i]
+                        if results["metadatas"]
+                        else {},
+                        "distance": results["distances"][0][i]
+                        if results["distances"]
+                        else 0,
+                    }
+                )
         return mapped
 
 

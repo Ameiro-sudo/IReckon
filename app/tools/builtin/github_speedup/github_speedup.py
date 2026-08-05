@@ -1,5 +1,7 @@
 """
-宸ュ叿闆朵欢锛欸itHub 鍔犻€熻闂姪鎵?鑷姩妫€娴嬫渶蹇暅鍍忎唬鐞嗭紝鎻愪緵鍏嬮殕銆佷笅杞姐€丷elease 鑾峰彇绛夊姛鑳姐€?"""
+GitHub speedup tool helper.
+Provides proxy mirror selection, clone/download support, and release access helpers.
+"""
 
 import subprocess
 import time
@@ -10,7 +12,6 @@ import os
 import concurrent.futures
 from typing import Optional, List, Tuple, Dict
 
-# 鈹€鈹€ 闀滃儚绔欏垪琛紙鎸変紭鍏堢骇锛夆攢鈹€
 MIRROR_POOL = [
     "https://edgeone.gh-proxy.com",
     "https://hk.gh-proxy.com/",
@@ -23,34 +24,36 @@ MIRROR_POOL = [
 ]
 
 SPEED_TEST_TIMEOUT = 5
-# 鐢ㄤ簬缂撳瓨鏈€杩戜竴娆℃娴嬬殑鏈€蹇暅鍍忥紝閬垮厤閲嶅娴嬮€?_cached_best_mirror: Optional[str] = None
+_cached_best_mirror: Optional[str] = None
 _cached_best_time: float = float('inf')
 _cache_timestamp: float = 0.0
-_CACHE_TTL = 60  # 缂撳瓨 60 绉?
+_CACHE_TTL = 60
+
 
 def _test_one_mirror(mirror: str) -> Tuple[str, float]:
-    """娴嬭瘯鍗曚釜闀滃儚寤惰繜锛岃繑鍥?(mirror, 鑰楁椂绉掓暟)銆傚け璐ュ垯鑰楁椂 inf銆?""
+    """Test a single mirror and return (mirror, elapsed)."""
     test_raw = "https://raw.githubusercontent.com/octocat/Hello-World/master/README"
-    # 浣跨敤 GET + Range 澶存潵閬垮厤涓嬭浇澶ч噺鏁版嵁锛屽悓鏃跺吋瀹逛粎鏀寔 GET 鐨勯暅鍍?    url = mirror.rstrip("/") + "/" + test_raw
+    url = mirror.rstrip("/") + "/" + test_raw
     start = time.time()
     try:
-        req = urllib.request.Request(url, method='GET')
+        req = urllib.request.Request(url, method="GET")
         req.add_header("Range", "bytes=0-0")
-        # 璁剧疆鐭秴鏃?        resp = urllib.request.urlopen(req, timeout=SPEED_TEST_TIMEOUT)
-        resp.read(1)   # 璇诲彇鏋佸皬鏁版嵁纭杩為€?        elapsed = time.time() - start
-        return (mirror, elapsed)
+        resp = urllib.request.urlopen(req, timeout=SPEED_TEST_TIMEOUT)
+        resp.read(1)
+        elapsed = time.time() - start
+        return mirror, elapsed
     except Exception:
-        return (mirror, float('inf'))
+        return mirror, float("inf")
 
 
 def _select_fastest_mirror(force: bool = False) -> Optional[str]:
-    """閫夋嫨褰撳墠鏈€蹇暅鍍忥紙浣跨敤缂撳瓨閬垮厤棰戠箒娴嬮€燂級銆?""
+    """Choose the fastest mirror, using cached results."""
     global _cached_best_mirror, _cached_best_time, _cache_timestamp
     now = time.time()
     if not force and (_cached_best_mirror is not None) and (now - _cache_timestamp < _CACHE_TTL):
-        return _cached_best_mirror if _cached_best_time != float('inf') else None
+        return _cached_best_mirror if _cached_best_time != float("inf") else None
 
-    # 骞跺彂娴嬭瘯鎵€鏈夐暅鍍?    with concurrent.futures.ThreadPoolExecutor(max_workers=len(MIRROR_POOL)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(MIRROR_POOL)) as executor:
         futures = {executor.submit(_test_one_mirror, m): m for m in MIRROR_POOL}
         best_mirror = None
         best_time = float('inf')
@@ -81,7 +84,6 @@ def _run_command(cmd: list, cwd: str = None, timeout: int = 60) -> Tuple[int, st
 
 
 def _build_api_request(url: str):
-    """鏋勫缓甯︽湁 User鈥慉gent 鐨?Request锛岄伩鍏?GitHub API 403銆?""
     req = urllib.request.Request(url)
     req.add_header("User-Agent", "IReckon-AI-Factory/2.0")
     req.add_header("Accept", "application/vnd.github.v3+json")
@@ -89,20 +91,16 @@ def _build_api_request(url: str):
 
 
 def github_access_helper(operation: str, *args, **kwargs):
-    """
-    鎵ц GitHub 璁块棶鎿嶄綔銆?
-    鏀寔鎿嶄綔锛?        - clone:             鍏嬮殕浠撳簱锛岃嚜鍔ㄤ娇鐢ㄦ渶蹇暅鍍忋€?        - raw_download:      涓嬭浇 raw 鏂囦欢鍐呭锛岃繑鍥炴枃鏈€?        - release_info:      鑾峰彇鏈€鏂?Release 淇℃伅锛圝SON锛夈€?        - release_download:  涓嬭浇鏈€鏂?Release 鐨勭涓€涓祫浜ф枃浠讹紝淇濆瓨鍒版寚瀹氱洰褰曘€?        - speed_test:        娴嬭瘯鎵€鏈夐暅鍍忓欢杩燂紝杩斿洖缁撴灉銆?        - direct_clone:      鐩存帴浣跨敤鍘熷 URL 鍏嬮殕锛堜笉鍔犻€燂級銆?    """
+    """Handle GitHub access operations."""
     if operation == "speed_test":
         results = {}
-        # 寮哄埗鍒锋柊缂撳瓨
-        best = _select_fastest_mirror(force=True)
+        _select_fastest_mirror(force=True)
         for m in MIRROR_POOL:
-            # 杩欓噷鐩存帴娴嬭瘯涓€閬嶅嵆鍙紝浣嗘垜浠凡缁忔湁缁撴灉锛屼粠缂撳瓨鍐嶆祴涓€娆′細閲嶅锛屽鐢?_test_one_mirror
             _, t = _test_one_mirror(m)
             results[m] = f"{t:.3f}s" if t != float('inf') else "timeout"
         return results
 
-    # 瀵逛簬闇€瑕侀暅鍍忓姞閫熺殑鎿嶄綔锛屾寜闇€鑾峰彇鏈€蹇暅鍍忥紙浣跨敤缂撳瓨锛?    if operation in ("clone", "raw_download", "release_info", "release_download"):
+    if operation in ("clone", "raw_download", "release_info", "release_download"):
         best_mirror = _select_fastest_mirror()
     else:
         best_mirror = None
@@ -110,41 +108,40 @@ def github_access_helper(operation: str, *args, **kwargs):
     if operation == "clone":
         repo_url = args[0] if args else None
         if not repo_url:
-            return "缂哄皯浠撳簱 URL"
+            return "Repository URL is required"
         target = args[1] if len(args) > 1 else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
         if not best_mirror:
             returncode, stdout, stderr = _run_command(["git", "clone", repo_url, target])
             if returncode == 0:
-                return f"鐩磋繛鍏嬮殕鎴愬姛 -> {target}"
-            return f"鍏嬮殕澶辫触锛堢洿杩烇級: {stderr}"
+                return f"Clone succeeded -> {target}"
+            return f"Clone failed: {stderr}"
         proxy_url = _proxy_url(best_mirror, repo_url)
         returncode, stdout, stderr = _run_command(["git", "clone", proxy_url, target])
         if returncode == 0:
-            return f"鍏嬮殕鎴愬姛锛堜娇鐢?{best_mirror}) -> {target}"
-        return f"鍏嬮殕澶辫触: {stderr}"
+            return f"Clone succeeded via {best_mirror} -> {target}"
+        return f"Clone failed: {stderr}"
 
     elif operation == "raw_download":
         raw_url = args[0] if args else None
         if not raw_url:
-            return "缂哄皯 raw URL"
+            return "Raw URL is required"
         urls_to_try = []
         if best_mirror:
             urls_to_try.append(_proxy_url(best_mirror, raw_url))
         urls_to_try.append(raw_url)
         for url in urls_to_try:
             try:
-                req = _build_api_request(url)  # User-Agent 鏃犲Θ
+                req = _build_api_request(url)
                 with urllib.request.urlopen(req, timeout=10) as resp:
-                    content = resp.read().decode('utf-8', errors='replace')
-                    return content
+                    return resp.read().decode("utf-8", errors="replace")
             except Exception:
                 continue
-        return "涓嬭浇澶辫触"
+        return "Download failed"
 
     elif operation == "release_info":
         repo = args[0] if args else None
         if not repo:
-            return "缂哄皯浠撳簱鍏ㄥ悕锛坥wner/repo锛?
+            return "Repository name is required"
         api_url = f"https://api.github.com/repos/{repo}/releases/latest"
         urls = []
         if best_mirror:
@@ -154,27 +151,30 @@ def github_access_helper(operation: str, *args, **kwargs):
             try:
                 req = _build_api_request(url)
                 with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = json.loads(resp.read().decode())
+                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
                     return {
                         "tag_name": data.get("tag_name"),
                         "name": data.get("name"),
-                        "assets": [{"name": a["name"], "browser_download_url": a["browser_download_url"]} for a in data.get("assets", [])]
+                        "assets": [
+                            {"name": a["name"], "browser_download_url": a["browser_download_url"]}
+                            for a in data.get("assets", [])
+                        ],
                     }
             except Exception:
                 continue
-        return "鑾峰彇 Release 淇℃伅澶辫触"
+        return "Release info fetch failed"
 
     elif operation == "release_download":
         repo = args[0] if args else None
         save_dir = args[1] if len(args) > 1 else "."
         if not repo:
-            return "缂哄皯浠撳簱鍏ㄥ悕"
+            return "Repository name is required"
         info = github_access_helper("release_info", repo)
         if isinstance(info, str):
             return info
         assets = info.get("assets", [])
         if not assets:
-            return "璇?Release 娌℃湁璧勪骇鏂囦欢"
+            return "Release has no assets"
         asset = assets[0]
         download_url = asset["browser_download_url"]
         file_name = asset["name"]
@@ -188,22 +188,22 @@ def github_access_helper(operation: str, *args, **kwargs):
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     content = resp.read()
                     save_path = os.path.join(save_dir, file_name)
-                    with open(save_path, 'wb') as f:
+                    with open(save_path, "wb") as f:
                         f.write(content)
-                    return f"涓嬭浇鎴愬姛: {save_path}"
+                    return f"Download succeeded: {save_path}"
             except Exception:
                 continue
-        return "涓嬭浇澶辫触"
+        return "Download failed"
 
     elif operation == "direct_clone":
         repo_url = args[0] if args else None
         if not repo_url:
-            return "缂哄皯浠撳簱 URL"
+            return "Repository URL is required"
         target = args[1] if len(args) > 1 else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
         returncode, stdout, stderr = _run_command(["git", "clone", repo_url, target])
         if returncode == 0:
-            return f"鐩磋繛鍏嬮殕鎴愬姛 -> {target}"
-        return f"鐩磋繛鍏嬮殕澶辫触: {stderr}"
+            return f"Clone succeeded -> {target}"
+        return f"Clone failed: {stderr}"
 
     else:
-        return f"涓嶆敮鎸佺殑鎿嶄綔: {operation}"
+        return f"Unsupported operation: {operation}"

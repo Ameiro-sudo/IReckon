@@ -24,7 +24,9 @@ class CodeScanner:
             return []
         filepath = None
         try:
-            with tempfile.NamedTemporaryFile(suffix=f".{language}", delete=False, mode="w") as f:
+            with tempfile.NamedTemporaryFile(
+                suffix=f".{language}", delete=False, mode="w"
+            ) as f:
                 f.write(code)
                 f.flush()
                 filepath = f.name
@@ -44,20 +46,31 @@ class CodeScanner:
         try:
             if self.tool == "bandit":
                 proc = await asyncio.create_subprocess_exec(
-                    "bandit", "-f", "json", filepath,
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    "bandit",
+                    "-f",
+                    "json",
+                    filepath,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
                 if proc.returncode == 0:
                     import json
+
                     return json.loads(stdout.decode()).get("results", [])
             elif self.tool == "semgrep":
                 proc = await asyncio.create_subprocess_exec(
-                    "semgrep", "--config", "auto", "--json", filepath,
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    "semgrep",
+                    "--config",
+                    "auto",
+                    "--json",
+                    filepath,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
                 import json
+
                 return json.loads(stdout.decode()).get("results", [])
         except asyncio.TimeoutError:
             if proc:

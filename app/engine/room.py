@@ -7,6 +7,8 @@ from enum import Enum
 from loguru import logger
 from app.core.database import db
 from app.core.logger import log_conversation
+
+
 class MessageLayer(Enum):
     L1_PUBLIC = "L1"
     L2_MEETING = "L2"
@@ -34,42 +36,100 @@ class MeetingRoom:
         self.members = {}
         self.history = {layer: [] for layer in MessageLayer}
         self._private_queues = {}
-        self._broadcast_queues = {MessageLayer.L1_PUBLIC: [], MessageLayer.L2_MEETING: []}
+        self._broadcast_queues = {
+            MessageLayer.L1_PUBLIC: [],
+            MessageLayer.L2_MEETING: [],
+        }
         self._lock = asyncio.Lock()
 
     def add_member(self, role, agent_id):
         self.members.setdefault(role, []).append(agent_id)
 
-    async def broadcast(self, layer, sender_role, sender_id, content, msg_type="text", metadata=None, persist=True):
-        msg = Message(layer=layer, sender_role=sender_role, sender_id=sender_id, content=content, msg_type=msg_type, metadata=metadata or {})
+    async def broadcast(
+        self,
+        layer,
+        sender_role,
+        sender_id,
+        content,
+        msg_type="text",
+        metadata=None,
+        persist=True,
+    ):
+        msg = Message(
+            layer=layer,
+            sender_role=sender_role,
+            sender_id=sender_id,
+            content=content,
+            msg_type=msg_type,
+            metadata=metadata or {},
+        )
         async with self._lock:
             self.history[layer].append(msg)
             if len(self.history[layer]) > self.MAX_HISTORY:
-                self.history[layer] = self.history[layer][-self.MAX_HISTORY:]
+                self.history[layer] = self.history[layer][-self.MAX_HISTORY :]
         if persist:
             await self._persist(msg)
-        log_conversation(role=f"{sender_role}@{layer.value}", content=content, metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata})
+        log_conversation(
+            role=f"{sender_role}@{layer.value}",
+            content=content,
+            metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata},
+        )
         for q in self._broadcast_queues.get(layer, []):
             await q.put(msg)
         return msg
 
-    async def send_private(self, sender_role, sender_id, recipient_role, recipient_id, content, msg_type="tool_request", metadata=None, persist=True):
-        msg = Message(layer=MessageLayer.L3_PRIVATE, sender_role=sender_role, sender_id=sender_id, content=content, msg_type=msg_type, metadata=metadata or {})
+    async def send_private(
+        self,
+        sender_role,
+        sender_id,
+        recipient_role,
+        recipient_id,
+        content,
+        msg_type="tool_request",
+        metadata=None,
+        persist=True,
+    ):
+        msg = Message(
+            layer=MessageLayer.L3_PRIVATE,
+            sender_role=sender_role,
+            sender_id=sender_id,
+            content=content,
+            msg_type=msg_type,
+            metadata=metadata or {},
+        )
         async with self._lock:
             self.history[MessageLayer.L3_PRIVATE].append(msg)
             if len(self.history[MessageLayer.L3_PRIVATE]) > self.MAX_HISTORY:
-                self.history[MessageLayer.L3_PRIVATE] = self.history[MessageLayer.L3_PRIVATE][-self.MAX_HISTORY:]
+                self.history[MessageLayer.L3_PRIVATE] = self.history[
+                    MessageLayer.L3_PRIVATE
+                ][-self.MAX_HISTORY :]
         if persist:
             await self._persist(msg)
-        log_conversation(role=f"{sender_role}->{recipient_role}@L3", content=content, metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata})
+        log_conversation(
+            role=f"{sender_role}->{recipient_role}@L3",
+            content=content,
+            metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata},
+        )
         try:
             from app.web.push import push_message_to_websocket
-            await push_message_to_websocket(self.task_id, {
-                "msg_id": msg.msg_id, "layer": msg.layer.value, "sender_role": msg.sender_role,
-                "sender_id": msg.sender_id, "content": msg.content, "msg_type": msg.msg_type,
-                "metadata": {**msg.metadata, "recipient_role": recipient_role, "recipient_id": recipient_id},
-                "timestamp": msg.timestamp.isoformat(),
-            })
+
+            await push_message_to_websocket(
+                self.task_id,
+                {
+                    "msg_id": msg.msg_id,
+                    "layer": msg.layer.value,
+                    "sender_role": msg.sender_role,
+                    "sender_id": msg.sender_id,
+                    "content": msg.content,
+                    "msg_type": msg.msg_type,
+                    "metadata": {
+                        **msg.metadata,
+                        "recipient_role": recipient_role,
+                        "recipient_id": recipient_id,
+                    },
+                    "timestamp": msg.timestamp.isoformat(),
+                },
+            )
         except Exception as e:
             logger.warning(f"WebSocket 私聊推送失败: {e}")
         return msg
@@ -77,7 +137,16 @@ class MeetingRoom:
     async def _persist(self, msg):
         await db.execute(
             "INSERT INTO conversation_messages(msg_id,task_id,layer,sender_role,sender_id,content,metadata,timestamp) VALUES(?,?,?,?,?,?,?,?)",
-            (msg.msg_id, self.task_id, msg.layer.value, msg.sender_role, msg.sender_id, msg.content, str(msg.metadata), msg.timestamp.isoformat())
+            (
+                msg.msg_id,
+                self.task_id,
+                msg.layer.value,
+                msg.sender_role,
+                msg.sender_id,
+                msg.content,
+                str(msg.metadata),
+                msg.timestamp.isoformat(),
+            ),
         )
 
 

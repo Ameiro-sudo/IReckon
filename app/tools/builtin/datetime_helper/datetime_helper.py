@@ -6,6 +6,7 @@ from dateutil import parser, relativedelta
 import time
 from zoneinfo import ZoneInfo
 
+
 def datetime_helper(operation: str, *args, **kwargs):
     ops = {
         # 褰撳墠鏃堕棿
@@ -15,14 +16,28 @@ def datetime_helper(operation: str, *args, **kwargs):
         "parse": lambda dt_str: parser.parse(dt_str).isoformat(),
         # 鏍煎紡鍖栵紙杈撳嚭鎸囧畾鏍煎紡锛?        "strftime": lambda dt_str, fmt: parser.parse(dt_str).strftime(fmt),
         # 鏃ユ湡宸?        "days_between": lambda d1, d2: abs((parser.parse(d1) - parser.parse(d2)).days),
-        "seconds_between": lambda d1, d2: abs((parser.parse(d1) - parser.parse(d2)).total_seconds()),
+        "seconds_between": lambda d1, d2: abs(
+            (parser.parse(d1) - parser.parse(d2)).total_seconds()
+        ),
         # 鍔犲噺鏃堕棿
-        "add_days": lambda dt_str, days: (parser.parse(dt_str) + timedelta(days=days)).isoformat(),
-        "add_months": lambda dt_str, months: (parser.parse(dt_str) + relativedelta(months=months)).isoformat(),
-        "add_years": lambda dt_str, years: (parser.parse(dt_str) + relativedelta(years=years)).isoformat(),
+        "add_days": lambda dt_str, days: (
+            parser.parse(dt_str) + timedelta(days=days)
+        ).isoformat(),
+        "add_months": lambda dt_str, months: (
+            parser.parse(dt_str) + relativedelta(months=months)
+        ).isoformat(),
+        "add_years": lambda dt_str, years: (
+            parser.parse(dt_str) + relativedelta(years=years)
+        ).isoformat(),
         # 鏃跺尯杞崲
-        "to_utc": lambda dt_str: parser.parse(dt_str).astimezone(timezone.utc).isoformat(),
-        "to_timezone": lambda dt_str, tz_name: parser.parse(dt_str).astimezone(ZoneInfo(tz_name)).isoformat() if tz_name else None,
+        "to_utc": lambda dt_str: (
+            parser.parse(dt_str).astimezone(timezone.utc).isoformat()
+        ),
+        "to_timezone": lambda dt_str, tz_name: (
+            parser.parse(dt_str).astimezone(ZoneInfo(tz_name)).isoformat()
+            if tz_name
+            else None
+        ),
         # 鏄熸湡鐩稿叧
         "weekday": lambda dt_str: parser.parse(dt_str).strftime("%A"),
         "week_number": lambda dt_str: parser.parse(dt_str).isocalendar()[1],

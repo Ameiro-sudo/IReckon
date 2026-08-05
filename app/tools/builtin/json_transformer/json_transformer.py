@@ -4,7 +4,8 @@
 import json
 from collections.abc import MutableMapping
 
-def flatten(d, parent_key='', sep='_'):
+
+def flatten(d, parent_key="", sep="_"):
     items = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
@@ -14,7 +15,8 @@ def flatten(d, parent_key='', sep='_'):
             items.append((new_key, v))
     return dict(items)
 
-def unflatten(d, sep='_'):
+
+def unflatten(d, sep="_"):
     result = {}
     for k, v in d.items():
         parts = k.split(sep)
@@ -25,6 +27,7 @@ def unflatten(d, sep='_'):
             current = current[part]
         current[parts[-1]] = v
     return result
+
 
 def json_transformer(operation: str, *args, **kwargs):
     ops = {

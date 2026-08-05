@@ -20,6 +20,7 @@ class Database:
     数据库管理器 (单例模式～)
     用 SQLite 存数据，支持加密，线程安全！
     """
+
     _instance: Optional["Database"] = None
 
     def __new__(cls):
@@ -32,11 +33,11 @@ class Database:
         if hasattr(self, "_init") and self._init:
             return
         self._init = True
-        self._conn = None              # 数据库连接
-        self._fernet = None            # 加密器
-        self._write_lock = asyncio.Lock()   # 写操作锁
-        self._connect_lock = asyncio.Lock() # 连接锁
-        
+        self._conn = None  # 数据库连接
+        self._fernet = None  # 加密器
+        self._write_lock = asyncio.Lock()  # 写操作锁
+        self._connect_lock = asyncio.Lock()  # 连接锁
+
         # 确定数据库文件位置～
         data_dir = Path(config_manager.get("system.data_dir", "./data"))
         db_dir = data_dir / "db"
@@ -51,7 +52,7 @@ class Database:
         if self._fernet is None:
             key_path = Path(config_manager.get("system.data_dir", "./data")) / ".key"
             key_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # 读取现有密钥 or 生成新密钥～
             if key_path.exists():
                 with open(key_path, "rb") as f:
@@ -66,7 +67,7 @@ class Database:
                         await asyncio.to_thread(key_path.chmod, 0o600)
                     except Exception:
                         pass
-            
+
             self._fernet = Fernet(key)
         return self._fernet
 
@@ -75,15 +76,17 @@ class Database:
         async with self._connect_lock:
             if self._conn is not None:
                 return
-            
+
             # 配置数据库参数～
             journal = config_manager.get("database.journal_mode", "delete")
             timeout = config_manager.get("database.timeout", 5.0)
-            
-            self._conn = await aiosqlite.connect(str(self.db_path), timeout=timeout, isolation_level=None)
+
+            self._conn = await aiosqlite.connect(
+                str(self.db_path), timeout=timeout, isolation_level=None
+            )
             await self._conn.execute(f"PRAGMA journal_mode={journal}")
             await self._conn.execute("PRAGMA foreign_keys = ON")
-            
+
             # 创建表～
             await self._create_tables()
             logger.info(f"DB connected {self.db_path} (journal={journal})")
@@ -137,18 +140,32 @@ class Database:
         保存 AI 实例（加密存储 API Key！）
         """
         cipher = await self._get_cipher()
-        enc = cipher.encrypt(instance.get("api_key", "").encode()).decode() if instance.get("api_key") else ""
+        enc = (
+            cipher.encrypt(instance.get("api_key", "").encode()).decode()
+            if instance.get("api_key")
+            else ""
+        )
         await self.execute(
             "INSERT OR REPLACE INTO ai_instances(instance_id,name,endpoint,model,api_key_encrypted,parameters,tags,cost_per_1k,max_context,enabled) VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (instance["id"], instance["name"], instance["endpoint"], instance["model"], enc,
-             json.dumps(instance.get("parameters", {})), json.dumps(instance.get("tags", [])),
-             instance.get("cost_per_1k_tokens", 0.0), instance.get("max_context", 4096),
-             1 if instance.get("enabled", True) else 0)
+            (
+                instance["id"],
+                instance["name"],
+                instance["endpoint"],
+                instance["model"],
+                enc,
+                json.dumps(instance.get("parameters", {})),
+                json.dumps(instance.get("tags", [])),
+                instance.get("cost_per_1k_tokens", 0.0),
+                instance.get("max_context", 4096),
+                1 if instance.get("enabled", True) else 0,
+            ),
         )
 
     async def get_ai_instance(self, iid):
         """获取单个 AI 实例（自动解密 API Key）"""
-        row = await self.fetch_one("SELECT * FROM ai_instances WHERE instance_id=?", (iid,))
+        row = await self.fetch_one(
+            "SELECT * FROM ai_instances WHERE instance_id=?", (iid,)
+        )
         if not row:
             return None
         try:
@@ -157,14 +174,23 @@ class Database:
         except Exception:
             key = ""
         return {
-            "id": row[0], "name": row[1], "endpoint": row[2], "model": row[3],
-            "api_key": key, "parameters": json.loads(row[5]), "tags": json.loads(row[6]),
-            "cost_per_1k_tokens": row[7], "max_context": row[8], "enabled": bool(row[9]),
+            "id": row[0],
+            "name": row[1],
+            "endpoint": row[2],
+            "model": row[3],
+            "api_key": key,
+            "parameters": json.loads(row[5]),
+            "tags": json.loads(row[6]),
+            "cost_per_1k_tokens": row[7],
+            "max_context": row[8],
+            "enabled": bool(row[9]),
         }
 
     async def get_all_ai_instances(self, enabled_only=True):
         """获取所有 AI 实例～"""
-        sql = "SELECT instance_id FROM ai_instances" + (" WHERE enabled=1" if enabled_only else "")
+        sql = "SELECT instance_id FROM ai_instances" + (
+            " WHERE enabled=1" if enabled_only else ""
+        )
         rows = await self.fetch_all(sql)
         instances = []
         for (iid,) in rows:

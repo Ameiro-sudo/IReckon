@@ -129,8 +129,9 @@ def multi_calculator(operation: str, *args) -> Any:
         return f"杩愮畻鍑洪敊: {e}"
 
 
-# 濡傛灉浣滀负鐙珛鑴氭湰杩愯锛屾彁渚涚畝鍗曟祴璇?if __name__ == "__main__":
-    print("澶氬姛鑳借绠楀櫒娴嬭瘯锛?)
+# 如果作为脚本运行，输出简单测试
+if __name__ == "__main__":
+    print("Multi-calculator self-test:")
     print("add(1,2,3):", multi_calculator("add", 1, 2, 3))
     print("sqrt(16):", multi_calculator("sqrt", 16))
     print("sin(pi/2):", multi_calculator("sin", math.pi / 2))

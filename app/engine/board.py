@@ -73,10 +73,14 @@ class TaskBoard:
         self.state: Optional[TaskBoardState] = None
         self._phases: List[Dict] = []
 
-    async def initialize(self, plan: Dict[str, Any], team: Dict[str, List]) -> TaskBoardState:
+    async def initialize(
+        self, plan: Dict[str, Any], team: Dict[str, List]
+    ) -> TaskBoardState:
         self._phases = plan.get("phases", [])
         total_stages = len(self._phases)
-        first_phase = self._phases[0] if self._phases else {"phase": "默认", "description": ""}
+        first_phase = (
+            self._phases[0] if self._phases else {"phase": "默认", "description": ""}
+        )
 
         active_roles = {}
         for role, members in team.items():
@@ -95,7 +99,7 @@ class TaskBoard:
             pending_actions=[f"执行阶段 {first_phase.get('phase')}"],
             active_roles=active_roles,
             last_update=datetime.now(timezone.utc).isoformat(),
-            notes="任务初始化完成"
+            notes="任务初始化完成",
         )
         await self._persist()
         logger.info(f"[{self.task_id}] 任务看板初始化")
@@ -104,11 +108,13 @@ class TaskBoard:
     async def load(self) -> Optional[TaskBoardState]:
         row = await db.fetch_one(
             "SELECT state_json FROM task_board_states WHERE task_id = ? ORDER BY updated_at DESC LIMIT 1",
-            (self.task_id,)
+            (self.task_id,),
         )
         if row:
             self.state = TaskBoardState.from_dict(json.loads(row[0]))
-            plan_row = await db.fetch_one("SELECT config_snapshot FROM tasks WHERE task_id = ?", (self.task_id,))
+            plan_row = await db.fetch_one(
+                "SELECT config_snapshot FROM tasks WHERE task_id = ?", (self.task_id,)
+            )
             if plan_row and plan_row[0]:
                 plan = json.loads(plan_row[0])
                 self._phases = plan.get("phases", [])
@@ -123,7 +129,7 @@ class TaskBoard:
         expected_artifacts: Optional[List[str]] = None,
         completed_work: Optional[List[str]] = None,
         pending_actions: Optional[List[str]] = None,
-        notes: str = ""
+        notes: str = "",
     ) -> TaskBoardState:
         if self.state is None:
             await self.load()
@@ -165,7 +171,7 @@ class TaskBoard:
     async def _persist(self):
         await db.execute(
             "INSERT INTO task_board_states (task_id, state_json) VALUES (?, ?)",
-            (self.task_id, json.dumps(self.state.to_dict(), ensure_ascii=False))
+            (self.task_id, json.dumps(self.state.to_dict(), ensure_ascii=False)),
         )
 
     async def broadcast_to_room(self, room):
@@ -175,6 +181,7 @@ class TaskBoard:
         if not self.state:
             return
         from .room import MessageLayer
+
         summary = self.state.generate_context_prompt(for_role="全体成员")
         await room.broadcast(
             layer=MessageLayer.L2_MEETING,
@@ -182,21 +189,25 @@ class TaskBoard:
             sender_id="task_board",
             content=f"📋 任务状态更新\n\n{summary}",
             msg_type="task_board_update",
-            metadata={"state": self.state.to_dict()}
+            metadata={"state": self.state.to_dict()},
         )
 
     def get_state_dict(self) -> Dict[str, Any]:
         return self.state.to_dict() if self.state else {}
 
     @classmethod
-    async def from_state_dict(cls, task_id: str, state_dict: Dict[str, Any]) -> "TaskBoard":
+    async def from_state_dict(
+        cls, task_id: str, state_dict: Dict[str, Any]
+    ) -> "TaskBoard":
         board = cls(task_id)
         if state_dict:
             board.state = TaskBoardState.from_dict(state_dict)
         else:
             await board.load()
         if board.state and not board._phases:
-            plan_row = await db.fetch_one("SELECT config_snapshot FROM tasks WHERE task_id = ?", (task_id,))
+            plan_row = await db.fetch_one(
+                "SELECT config_snapshot FROM tasks WHERE task_id = ?", (task_id,)
+            )
             if plan_row and plan_row[0]:
                 plan = json.loads(plan_row[0])
                 board._phases = plan.get("phases", [])

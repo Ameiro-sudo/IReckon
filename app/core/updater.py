@@ -19,9 +19,13 @@ class Updater:
     def __init__(self):
         self._repo = config_manager.get("self_update.repo", "ninasukiwww-png/IReckon")
         self._current_version = config_manager.get("system.version", "2.0.0")
-        self._check_interval = config_manager.get("self_update.check_interval_hours", 24)
+        self._check_interval = config_manager.get(
+            "self_update.check_interval_hours", 24
+        )
         self._github_api = f"https://api.github.com/repos/{self._repo}"
-        self._last_check_file = Path(config_manager.get("system.data_dir", "./data")) / ".last_update_check"
+        self._last_check_file = (
+            Path(config_manager.get("system.data_dir", "./data")) / ".last_update_check"
+        )
 
     async def check(self) -> Optional[str]:
         try:
@@ -71,7 +75,11 @@ class Updater:
             return False
 
     async def _apply_update(self, zip_path: str, version: str) -> bool:
-        base_dir = Path(sys.argv[0]).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).parent.parent.parent
+        base_dir = (
+            Path(sys.argv[0]).resolve().parent
+            if getattr(sys, "frozen", False)
+            else Path(__file__).parent.parent.parent
+        )
         backup_dir = base_dir.parent / f"backup_v{self._current_version}"
 
         try:
@@ -83,7 +91,11 @@ class Updater:
             with zipfile.ZipFile(zip_path, "r") as zf:
                 zf.extractall(temp_dir := tempfile.mkdtemp())
 
-            extracted = list(Path(temp_dir).iterdir())[0] if Path(temp_dir).is_dir() else Path(temp_dir)
+            extracted = (
+                list(Path(temp_dir).iterdir())[0]
+                if Path(temp_dir).is_dir()
+                else Path(temp_dir)
+            )
 
             for item in extracted.rglob("*"):
                 if item.is_file():
@@ -98,7 +110,9 @@ class Updater:
             config_path = base_dir / "config" / "config.yaml"
             if config_path.exists():
                 content = config_path.read_text(encoding="utf-8")
-                content = content.replace(f"version: '{self._current_version}'", f"version: '{version}'")
+                content = content.replace(
+                    f"version: '{self._current_version}'", f"version: '{version}'"
+                )
                 config_path.write_text(content, encoding="utf-8")
 
             logger.info(f"已更新到 v{version}")
@@ -123,6 +137,7 @@ class Updater:
         try:
             mtime = self._last_check_file.stat().st_mtime
             import time
+
             return (time.time() - mtime) > self._check_interval * 3600
         except Exception:
             return True

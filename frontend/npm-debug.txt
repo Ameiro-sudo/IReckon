@@ -1,0 +1,196 @@
+CWD=D:\project\IReckon
+PY='C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe'
+CMD=where node
+RC=0
+OUT=C:\Program Files\nodejs\node.exe
+
+ERR=
+CMD=where npm
+RC=0
+OUT=C:\Program Files\nodejs\npm
+C:\Program Files\nodejs\npm.cmd
+
+ERR=
+CMD=node --version
+RC=0
+OUT=v24.18.1
+
+ERR=
+EXC=FileNotFoundError(2, '系统找不到指定的文件。', None, 2, None)
+CMD=cmd /c cd /d d:\project\IReckon\frontend && dir
+RC=0
+OUT= 驱动器 D 中的卷没有标签。
+ 卷的序列号是 3E81-D664
+
+ d:\project\IReckon\frontend 的目录
+
+2026/08/05  03:28    <DIR>          .
+2026/08/05  03:28    <DIR>          ..
+2026/08/05  03:28             1,014 README.md
+2026/08/05  03:28               446 package.json
+2026/08/05  03:28    <DIR>          src
+2026/08/05  03:28               809 index.html
+2026/08/05  03:28               389 vite.config.js
+2026/08/05  03:28            55,458 package-lock.json
+2026/08/05  20:16               399 npm-debug.txt
+               6 个文件         58,515 字节
+               3 个目录 136,485,404,672 可用字节
+
+ERR=
+CMD=cmd /c cd /d d:\project\IReckon\frontend && npm install --verbose
+RC=0
+OUT=
+added 62 packages, and audited 63 packages in 3s
+
+16 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (1 moderate, 4 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+ERR=npm verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+npm info using npm@11.16.0
+npm info using node@v24.18.1
+npm verbose title npm install
+npm verbose argv "install" "--loglevel" "verbose"
+npm verbose logfile logs-max:10 dir:C:\Users\Administrator\AppData\Local\npm-cache\_logs\2026-08-05T12_16_07_160Z-
+npm verbose logfile C:\Users\Administrator\AppData\Local\npm-cache\_logs\2026-08-05T12_16_07_160Z-debug-0.log
+npm http cache vue@https://registry.npmjs.org/vue/-/vue-3.5.33.tgz 0ms (cache hit)
+npm http cache vue-router@https://registry.npmjs.org/vue-router/-/vue-router-4.6.4.tgz 0ms (cache hit)
+npm http cache vite@https://registry.npmjs.org/vite/-/vite-5.4.21.tgz 0ms (cache hit)
+npm http cache source-map-js@https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz 0ms (cache hit)
+npm http cache proxy-from-env@https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz 0ms (cache hit)
+npm http cache rollup@https://registry.npmjs.org/rollup/-/rollup-4.60.2.tgz 0ms (cache hit)
+npm http cache postcss@https://registry.npmjs.org/postcss/-/postcss-8.5.13.tgz 0ms (cache hit)
+npm http cache pinia@https://registry.npmjs.org/pinia/-/pinia-2.3.1.tgz 0ms (cache hit)
+npm http cache nanoid@https://registry.npmjs.org/nanoid/-/nanoid-3.3.12.tgz 0ms (cache hit)
+npm http cache picocolors@https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz 0ms (cache hit)
+npm http cache mime-types@https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz 0ms (cache hit)
+npm http cache mime-db@https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz 0ms (cache hit)
+npm http cache math-intrinsics@https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz 0ms (cache hit)
+npm http cache magic-string@https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz 0ms (cache hit)
+npm http cache hasown@https://registry.npmjs.org/hasown/-/hasown-2.0.3.tgz 0ms (cache hit)
+npm http cache has-tostringtag@https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz 0ms (cache hit)
+npm http cache has-symbols@https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz 0ms (cache hit)
+npm http cache gopd@https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz 0ms (cache hit)
+npm http cache get-proto@https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz 0ms (cache hit)
+npm http cache get-intrinsic@https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz 0ms (cache hit)
+npm http cache function-bind@https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz 0ms (cache hit)
+npm http cache form-data@https://registry.npmjs.org/form-data/-/form-data-4.0.5.tgz 0ms (cache hit)
+npm http cache follow-redirects@https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz 0ms (cache hit)
+npm http cache estree-walker@https://registry.npmjs.org/estree-walker/-/estree-walker-2.0.2.tgz 0ms (cache hit)
+npm http cache esbuild@https://registry.npmjs.org/esbuild/-/esbuild-0.21.5.tgz 0ms (cache hit)
+npm http cache es-set-tostringtag@https://registry.npmjs.org/es-set-tostringtag/-/es-set-tostringtag-2.1.0.tgz 0ms (cache hit)
+npm http cache es-object-atoms@https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.1.tgz 0ms (cache hit)
+npm http cache es-errors@https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz 0ms (cache hit)
+npm http cache es-define-property@https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz 0ms (cache hit)
+npm http cache entities@https://registry.npmjs.org/entities/-/entities-7.0.1.tgz 0ms (cache hit)
+npm http cache dunder-proto@https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz 0ms (cache hit)
+npm http cache delayed-stream@https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz 0ms (cache hit)
+npm http cache csstype@https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz 0ms (cache hit)
+npm http cache combined-stream@https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz 0ms (cache hit)
+npm http cache call-bind-apply-helpers@https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz 0ms (cache hit)
+npm http cache axios@https://registry.npmjs.org/axios/-/axios-1.16.0.tgz 0ms (cache hit)
+npm http cache asynckit@https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz 0ms (cache hit)
+npm http cache @vueuse/shared@https://registry.npmjs.org/@vueuse/shared/-/shared-10.11.1.tgz 0ms (cache hit)
+npm http cache @vueuse/metadata@https://registry.npmjs.org/@vueuse/metadata/-/metadata-10.11.1.tgz 0ms (cache hit)
+npm http cache @vue/shared@https://registry.npmjs.org/@vue/shared/-/shared-3.5.33.tgz 0ms (cache hit)
+npm http cache @vueuse/core@https://registry.npmjs.org/@vueuse/core/-/core-10.11.1.tgz 0ms (cache hit)
+npm http cache @vue/server-renderer@https://registry.npmjs.org/@vue/server-renderer/-/server-renderer-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/runtime-dom@https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/runtime-core@https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/reactivity@https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/devtools-api@https://registry.npmjs.org/@vue/devtools-api/-/devtools-api-6.6.4.tgz 0ms (cache hit)
+npm http cache @vue/compiler-ssr@https://registry.npmjs.org/@vue/compiler-ssr/-/compiler-ssr-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/compiler-sfc@https://registry.npmjs.org/@vue/compiler-sfc/-/compiler-sfc-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/compiler-dom@https://registry.npmjs.org/@vue/compiler-dom/-/compiler-dom-3.5.33.tgz 0ms (cache hit)
+npm http cache @vue/compiler-core@https://registry.npmjs.org/@vue/compiler-core/-/compiler-core-3.5.33.tgz 0ms (cache hit)
+npm http cache @vitejs/plugin-vue@https://registry.npmjs.org/@vitejs/plugin-vue/-/plugin-vue-5.2.4.tgz 0ms (cache hit)
+npm http cache @types/web-bluetooth@https://registry.npmjs.org/@types/web-bluetooth/-/web-bluetooth-0.0.20.tgz 0ms (cache hit)
+npm http cache @types/estree@https://registry.npmjs.org/@types/estree/-/estree-1.0.8.tgz 0ms (cache hit)
+npm http cache @rollup/rollup-win32-x64-msvc@https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.60.2.tgz 0ms (cache hit)
+npm http cache @rollup/rollup-win32-x64-gnu@https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.60.2.tgz 0ms (cache hit)
+npm http cache @jridgewell/sourcemap-codec@https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz 0ms (cache hit)
+npm http cache @esbuild/win32-x64@https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz 0ms (cache hit)
+npm http cache @babel/types@https://registry.npmjs.org/@babel/types/-/types-7.29.0.tgz 0ms (cache hit)
+npm http cache @babel/parser@https://registry.npmjs.org/@babel/parser/-/parser-7.29.3.tgz 0ms (cache hit)
+npm http cache @babel/helper-validator-identifier@https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.28.5.tgz 0ms (cache hit)
+npm http cache @babel/helper-string-parser@https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.27.1.tgz 0ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/form-data/-/form-data-4.0.5.tgz 362ms (cache miss)
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 427ms
+npm http cache https://registry.npmjs.org/vite 13ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz 489ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/hasown/-/hasown-2.0.3.tgz 502ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/vue-demi 540ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz 521ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/esbuild/-/esbuild-0.21.5.tgz 530ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz 545ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/es-set-tostringtag/-/es-set-tostringtag-2.1.0.tgz 572ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz 579ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.1.tgz 588ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/estree-walker/-/estree-walker-2.0.2.tgz 593ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz 597ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz 595ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/pinia/-/pinia-2.3.1.tgz 618ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/nanoid/-/nanoid-3.3.12.tgz 629ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vueuse/metadata/-/metadata-10.11.1.tgz 623ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/shared/-/shared-3.5.33.tgz 649ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vueuse/shared/-/shared-10.11.1.tgz 655ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz 667ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/devtools-api/-/devtools-api-6.6.4.tgz 672ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/vue-router/-/vue-router-4.6.4.tgz 697ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/compiler-ssr/-/compiler-ssr-3.5.33.tgz 724ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/server-renderer/-/server-renderer-3.5.33.tgz 758ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@types/web-bluetooth/-/web-bluetooth-0.0.20.tgz 785ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@types/estree/-/estree-1.0.8.tgz 793ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/postcss/-/postcss-8.5.13.tgz 810ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.33.tgz 814ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/compiler-dom/-/compiler-dom-3.5.33.tgz 813ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vueuse/core/-/core-10.11.1.tgz 818ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/vue/-/vue-3.5.33.tgz 853ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/rollup/-/rollup-4.60.2.tgz 852ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.33.tgz 848ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.33.tgz 851ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/vite/-/vite-5.4.21.tgz 876ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vitejs/plugin-vue/-/plugin-vue-5.2.4.tgz 875ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/form-data 522ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/axios 537ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.28.5.tgz 916ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.27.1.tgz 932ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/compiler-core/-/compiler-core-3.5.33.tgz 951ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@babel/parser/-/parser-7.29.3.tgz 983ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/vue-demi/-/vue-demi-0.14.10.tgz 485ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz 992ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/postcss 667ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue/compiler-sfc/-/compiler-sfc-3.5.33.tgz 1073ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.60.2.tgz 1087ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/axios/-/axios-1.16.0.tgz 1111ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/esbuild 740ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/entities/-/entities-7.0.1.tgz 1231ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.60.2.tgz 1297ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@babel/types/-/types-7.29.0.tgz 1351ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vue%2fcompiler-sfc 190ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz 1629ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/@vitejs%2fplugin-vue 237ms (cache miss)
+npm info run esbuild@0.21.5 postinstall node_modules/esbuild node install.js
+npm info run vue-demi@0.14.10 postinstall node_modules/vue-demi node -e "try{require('./scripts/postinstall.js')}catch(e){}"
+npm info run vue-demi@0.14.10 postinstall { code: 0, signal: null }
+npm info run esbuild@0.21.5 postinstall { code: 0, signal: null }
+npm warn allow-scripts 2 packages have install scripts not yet covered by allowScripts:
+npm warn allow-scripts   esbuild@0.21.5 (postinstall: node install.js)
+npm warn allow-scripts   vue-demi@0.14.10 (postinstall: node -e "try{require('./scripts/postinstall.js')}catch(e){}")
+npm warn allow-scripts
+npm warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+npm verbose cwd d:\project\IReckon\frontend
+npm verbose os Windows_NT 10.0.26200
+npm verbose node v24.18.1
+npm verbose npm  v11.16.0
+npm verbose exit 0
+npm info ok

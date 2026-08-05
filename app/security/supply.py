@@ -7,18 +7,20 @@ from app.core.config import config_manager
 class SupplyChainFirewall:
     def __init__(self):
         self._pip_blacklist = [
-            "malicious-package", "pycrypto-demo", "secrethash",
-            "thisisafakedpy", "urllib", "requests-fake"
+            "malicious-package",
+            "pycrypto-demo",
+            "secrethash",
+            "thisisafakedpy",
+            "urllib",
+            "requests-fake",
         ]
-        self._npm_blacklist = [
-            "evil-package", "node-stealer", "fake-react"
-        ]
+        self._npm_blacklist = ["evil-package", "node-stealer", "fake-react"]
         custom_blacklist = config_manager.get("security.supply_chain_blacklist", {})
         self._pip_blacklist.extend(custom_blacklist.get("pip", []))
         self._npm_blacklist.extend(custom_blacklist.get("npm", []))
 
     def _extract_package_name(self, word: str) -> str:
-        return re.split(r'[=<>~!;\[]', word)[0]
+        return re.split(r"[=<>~!;\[]", word)[0]
 
     def check_install_command(self, command: str) -> bool:
         parts = command.split()

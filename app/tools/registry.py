@@ -44,7 +44,7 @@ async def register_builtin_tools(builtin_dir: str = "app/tools/builtin"):
             input_schema=manifest.get("input_schema", {}),
             output_schema=manifest.get("output_schema", {}),
             tags=manifest.get("tags", []),
-            created_by=manifest.get("created_by", "builtin")
+            created_by=manifest.get("created_by", "builtin"),
         )
         registered_count += 1
 
