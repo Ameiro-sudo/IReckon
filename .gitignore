@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache and build artifacts
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.pyre/
+.pytype/
+
+# Node and frontend
+node_modules/
+dist/
+build/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Local project runtime files
+data/.key
+full_validation.txt
+inspect_lines.txt
+ruff_output.txt
+syntax_inspect.txt
