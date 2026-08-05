@@ -16,7 +16,7 @@ class ToolAssembler:
             func_name = f"part_{i}"
             code_lines.append(f"# 零件{i}: {part['name']}")
             code_lines.append(f"{func_name}_output = None")
-            code_lines.append(part['code'])
+            code_lines.append(part["code"])
             code_lines.append("")
         code_lines.append("def assembled_tool(input_data):")
         code_lines.append("    data = input_data")
@@ -27,18 +27,20 @@ class ToolAssembler:
         return "\n".join(code_lines)
 
     @staticmethod
-    def assemble_condition(condition_part: Dict[str, Any],
-                           true_part: Dict[str, Any],
-                           false_part: Dict[str, Any]) -> str:
+    def assemble_condition(
+        condition_part: Dict[str, Any],
+        true_part: Dict[str, Any],
+        false_part: Dict[str, Any],
+    ) -> str:
         code_lines = ["import json", ""]
         code_lines.append(f"# 条件零件: {condition_part['name']}")
-        code_lines.append(condition_part['code'])
+        code_lines.append(condition_part["code"])
         code_lines.append("")
         code_lines.append(f"# True分支: {true_part['name']}")
-        code_lines.append(true_part['code'])
+        code_lines.append(true_part["code"])
         code_lines.append("")
         code_lines.append(f"# False分支: {false_part['name']}")
-        code_lines.append(false_part['code'])
+        code_lines.append(false_part["code"])
         code_lines.append("")
         code_lines.append("def assembled_tool(input_data):")
         code_lines.append(f"    if condition(input_data):")
@@ -51,7 +53,7 @@ class ToolAssembler:
     def assemble_loop(loop_body: Dict[str, Any], max_iter: int = 100) -> str:
         code_lines = ["import json", ""]
         code_lines.append(f"# 循环体零件: {loop_body['name']}")
-        code_lines.append(loop_body['code'])
+        code_lines.append(loop_body["code"])
         code_lines.append("")
         code_lines.append("def assembled_tool(input_data, max_iter=100):")
         code_lines.append("    data = input_data")

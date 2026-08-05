@@ -1,15 +1,18 @@
 """
-宸ュ叿闆朵欢锛欻TTP 璇锋眰鍔╂墜
-鎻愪緵 GET銆丳OST銆丳UT銆丏ELETE 绛夊父瑙?HTTP 鎿嶄綔锛屾敮鎸佽嚜瀹氫箟澶淬€佽秴鏃躲€佽嚜鍔ㄨВ鏋?JSON銆?"""
+HTTP request helper.
+Provides GET, POST, PUT, DELETE wrappers using httpx.
+"""
 
 import httpx
 from typing import Optional, Dict, Any, Union
 
-# 榛樿瓒呮椂锛堢锛?DEFAULT_TIMEOUT = 15.0
+DEFAULT_TIMEOUT = 15.0
+
 
 def _make_client(timeout: float = DEFAULT_TIMEOUT) -> httpx.Client:
-    """鍒涘缓涓€涓甫瓒呮椂鐨勫悓姝?httpx 瀹㈡埛绔紙杩炴帴姹犲鐢ㄧ敱涓婁笅鏂囩鐞嗭級銆?""
+    """Create a client with a timeout."""
     return httpx.Client(timeout=httpx.Timeout(timeout))
+
 
 def http_request(
     method: str,
@@ -19,19 +22,7 @@ def http_request(
     data: Optional[Union[str, bytes]] = None,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
-    """
-    鎵ц HTTP 璇锋眰銆?
-    Args:
-        method: GET, POST, PUT, DELETE 绛?        url: 璇锋眰鍦板潃
-        headers: 璇锋眰澶村瓧鍏?        json_data: JSON 璇锋眰浣擄紙鑷姩璁剧疆 Content-Type: application/json锛?        data: 鍘熷璇锋眰浣擄紙瀛楃涓叉垨瀛楄妭锛?        timeout: 瓒呮椂绉掓暟
-
-    Returns:
-        瀛楀吀鍖呭惈 {
-            "status_code": int,
-            "headers": dict,          # 鍝嶅簲澶?            "text": str,              # 鍝嶅簲浣撴枃鏈?            "json": Any,              # 鑷姩瑙ｆ瀽鐨?JSON 瀵硅薄锛堝鏋滃搷搴旀槸 JSON锛?            "elapsed": float          # 璇锋眰鑰楁椂(绉?
-        }
-        鍑洪敊鏃惰繑鍥?{"error": str}
-    """
+    """Send an HTTP request and return a normalized result."""
     method = method.upper()
     try:
         with _make_client(timeout) as client:
@@ -42,14 +33,12 @@ def http_request(
                 request_kwargs["content"] = data if isinstance(data, bytes) else data.encode()
 
             response = client.request(method, url, **request_kwargs)
-
             result = {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),
                 "text": response.text,
                 "elapsed": response.elapsed.total_seconds(),
             }
-            # 灏濊瘯瑙ｆ瀽 JSON
             try:
                 result["json"] = response.json()
             except Exception:

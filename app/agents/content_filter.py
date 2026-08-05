@@ -3,10 +3,13 @@ from app.llm.pool import AICapability
 from app.engine.registry import register_role
 
 
-@register_role("content_filter", {
-    "description": "内容过滤AI，检查敏感信息",
-    "default_required_tags": ["security"],
-})
+@register_role(
+    "content_filter",
+    {
+        "description": "内容过滤AI，检查敏感信息",
+        "default_required_tags": ["security"],
+    },
+)
 class ContentFilterAgent(BaseAgent):
     __role_name__ = "content_filter"
 
@@ -18,7 +21,9 @@ class ContentFilterAgent(BaseAgent):
 
 输出 JSON：{"passed": true/false, "reason": "..."}
 """
-        super().__init__(role="content_filter", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="content_filter", capability=capability, system_prompt=system_prompt
+        )
 
     async def filter(self, content: str, context: str = "") -> dict:
         prompt = f"""审查以下内容：
@@ -30,6 +35,7 @@ class ContentFilterAgent(BaseAgent):
 """
         response = await self.think(prompt, temperature=0.0)
         import json
+
         try:
             return json.loads(response)
         except:

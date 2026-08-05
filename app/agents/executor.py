@@ -8,17 +8,22 @@ from app.engine.registry import register_role
 from app.utils import create_jinja_env
 
 
-@register_role("executor", {
-    "description": "执行AI，负责编写代码、调试、撰写文档，支持补丁修改",
-    "default_required_tags": ["python", "coding"],
-})
+@register_role(
+    "executor",
+    {
+        "description": "执行AI，负责编写代码、调试、撰写文档，支持补丁修改",
+        "default_required_tags": ["python", "coding"],
+    },
+)
 class ExecutorAgent(BaseAgent):
     __role_name__ = "executor"
 
     def __init__(self, capability: AICapability):
         self.jinja_env = create_jinja_env()
         system_prompt = self._build_system_prompt()
-        super().__init__(role="executor", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="executor", capability=capability, system_prompt=system_prompt
+        )
 
     def _build_system_prompt(self) -> str:
         return """你是一位资深软件工程师，负责将需求转化为高质量代码。
@@ -43,7 +48,7 @@ class ExecutorAgent(BaseAgent):
 
     async def think_before_code(self, task_description: str, constraints: list) -> str:
         prompt = f"""任务：{task_description}
-约束：{', '.join(constraints) if constraints else '无'}
+约束：{", ".join(constraints) if constraints else "无"}
 
 请按思维链要求输出分析：
 """
@@ -70,7 +75,9 @@ class ExecutorAgent(BaseAgent):
         response = await self.think(prompt, temperature=0.2)
         return self._parse_artifacts(response)
 
-    async def apply_patch(self, current_files: Dict[str, str], feedback: str) -> Tuple[Dict[str, str], bool]:
+    async def apply_patch(
+        self, current_files: Dict[str, str], feedback: str
+    ) -> Tuple[Dict[str, str], bool]:
         files_desc = []
         for fname, content in current_files.items():
             files_desc.append(f"文件: {fname}\n```\n{content}\n```\n")
@@ -98,9 +105,13 @@ class ExecutorAgent(BaseAgent):
                 new_files = dict(current_files)
                 for fname, patch_content in patches.items():
                     if fname not in new_files:
-                        logger.warning(f"补丁指定了不存在的文件 {fname}，回退到完整重写")
+                        logger.warning(
+                            f"补丁指定了不存在的文件 {fname}，回退到完整重写"
+                        )
                         return current_files, False
-                    new_content = self._apply_unified_diff(new_files[fname], patch_content)
+                    new_content = self._apply_unified_diff(
+                        new_files[fname], patch_content
+                    )
                     new_files[fname] = new_content
                 logger.info("补丁应用成功")
                 return new_files, True
@@ -110,14 +121,19 @@ class ExecutorAgent(BaseAgent):
         else:
             return current_files, False
 
-    async def debug_code(self, current_files: Dict[str, str], error_info: str) -> Dict[str, str]:
+    async def debug_code(
+        self, current_files: Dict[str, str], error_info: str
+    ) -> Dict[str, str]:
         modified_files, success = await self.apply_patch(current_files, error_info)
         if success:
             return modified_files
 
         logger.info("局部修改失败，执行完整重写")
         context = "\n".join(
-            [f"//// filename: {name}\n{content}" for name, content in current_files.items()]
+            [
+                f"//// filename: {name}\n{content}"
+                for name, content in current_files.items()
+            ]
         )
         prompt = f"""以下代码存在问题，请修复：
 
@@ -142,7 +158,7 @@ class ExecutorAgent(BaseAgent):
                 if current_fname is not None:
                     patches[current_fname] = "\n".join(current_lines)
                     current_lines = []
-                current_fname = line[len("PATCH:"):].strip()
+                current_fname = line[len("PATCH:") :].strip()
             elif current_fname is not None:
                 current_lines.append(line)
         if current_fname is not None and current_lines:
@@ -153,13 +169,13 @@ class ExecutorAgent(BaseAgent):
         original_lines = original.splitlines(keepends=True)
         patch_lines = patch_text.splitlines()
         result = list(original_lines)
-        hunk_header_re = re.compile(r'^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@')
+        hunk_header_re = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
         idx = 0
         line_offset = 0
         while idx < len(patch_lines):
             line = patch_lines[idx]
-            if line.startswith('@@'):
+            if line.startswith("@@"):
                 match = hunk_header_re.match(line)
                 if not match:
                     idx += 1
@@ -168,30 +184,34 @@ class ExecutorAgent(BaseAgent):
                 idx += 1
 
                 hunk_lines = []
-                while idx < len(patch_lines) and not patch_lines[idx].startswith('@@') and not patch_lines[idx].startswith('PATCH:'):
+                while (
+                    idx < len(patch_lines)
+                    and not patch_lines[idx].startswith("@@")
+                    and not patch_lines[idx].startswith("PATCH:")
+                ):
                     hunk_lines.append(patch_lines[idx])
                     idx += 1
 
                 old_idx = old_start
                 temp = []
                 for h in hunk_lines:
-                    if h.startswith(' '):
+                    if h.startswith(" "):
                         temp.append(h[1:])
                         old_idx += 1
-                    elif h.startswith('-'):
+                    elif h.startswith("-"):
                         old_idx += 1
-                    elif h.startswith('+'):
+                    elif h.startswith("+"):
                         temp.append(h[1:])
-                added = sum(1 for h in hunk_lines if h.startswith('+'))
-                removed = sum(1 for h in hunk_lines if h.startswith('-'))
+                added = sum(1 for h in hunk_lines if h.startswith("+"))
+                removed = sum(1 for h in hunk_lines if h.startswith("-"))
                 net_change = added - removed
 
                 del_count = old_idx - old_start
-                result[old_start:old_start + del_count] = [l + '\n' for l in temp]
+                result[old_start : old_start + del_count] = [l + "\n" for l in temp]
                 line_offset += net_change
             else:
                 idx += 1
-        return ''.join(result)
+        return "".join(result)
 
     def _parse_artifacts(self, response: str) -> Dict[str, str]:
         artifacts = {}

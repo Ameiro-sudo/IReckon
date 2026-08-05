@@ -4,10 +4,13 @@ from app.llm.pool import AICapability
 from app.engine.registry import register_role
 
 
-@register_role("creative", {
-    "description": "创意AI，提供惊喜功能、交互设计、补全设计留白",
-    "default_required_tags": ["creative", "design"],
-})
+@register_role(
+    "creative",
+    {
+        "description": "创意AI，提供惊喜功能、交互设计、补全设计留白",
+        "default_required_tags": ["creative", "design"],
+    },
+)
 class CreativeAgent(BaseAgent):
     __role_name__ = "creative"
 
@@ -21,7 +24,9 @@ class CreativeAgent(BaseAgent):
 
 注意：不改变核心功能。
 """
-        super().__init__(role="creative", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="creative", capability=capability, system_prompt=system_prompt
+        )
 
     async def suggest(self, project_description: str, current_state: str) -> str:
         prompt = f"""项目：{project_description}
@@ -33,7 +38,6 @@ class CreativeAgent(BaseAgent):
 
     async def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         suggestion = await self.suggest(
-            context.get("project_description", ""),
-            context.get("current_state", "")
+            context.get("project_description", ""), context.get("current_state", "")
         )
         return {"suggestion": suggestion}

@@ -14,6 +14,7 @@ class Sandbox:
 
     def _check_engine(self) -> bool:
         import subprocess
+
         try:
             subprocess.run(["udocker", "--version"], capture_output=True, check=True)
             return True
@@ -27,25 +28,26 @@ class Sandbox:
             return {"stdout": "", "stderr": "sandbox unavailable", "returncode": -1}
 
         cmd = [
-            "udocker", "run",
+            "udocker",
+            "run",
             f"--memory={self.memory_limit}",
             f"--cpus={self.cpu_limit}",
             "--rm",
             self.image,
-            "bash", "-c", command
+            "bash",
+            "-c",
+            command,
         ]
         proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             return {
-                "stdout": stdout.decode(errors='replace'),
-                "stderr": stderr.decode(errors='replace'),
-                "returncode": proc.returncode
+                "stdout": stdout.decode(errors="replace"),
+                "stderr": stderr.decode(errors="replace"),
+                "returncode": proc.returncode,
             }
         except asyncio.TimeoutError:
             if proc:

@@ -5,10 +5,13 @@ from app.llm.pool import AICapability
 from app.engine.registry import register_role
 
 
-@register_role("reviewer_efficiency", {
-    "description": "效能评审AI，审查代码效率、冗余、架构合理性",
-    "default_required_tags": ["architecture", "review"],
-})
+@register_role(
+    "reviewer_efficiency",
+    {
+        "description": "效能评审AI，审查代码效率、冗余、架构合理性",
+        "default_required_tags": ["architecture", "review"],
+    },
+)
 class EfficiencyReviewerAgent(BaseAgent):
     __role_name__ = "reviewer_efficiency"
 
@@ -24,7 +27,11 @@ class EfficiencyReviewerAgent(BaseAgent):
 请始终以JSON格式输出：
 {"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
 """
-        super().__init__(role="reviewer_efficiency", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="reviewer_efficiency",
+            capability=capability,
+            system_prompt=system_prompt,
+        )
 
     async def review(self, code: str, context: str = "") -> Dict[str, Any]:
         prompt = f"""审查以下代码：
@@ -57,7 +64,11 @@ class EfficiencyReviewerAgent(BaseAgent):
             }
         except (json.JSONDecodeError, ValueError):
             passed = "通过" in response and "需修改" not in response
-            return {"passed": passed, "feedback": response, "reviewer_type": "efficiency"}
+            return {
+                "passed": passed,
+                "feedback": response,
+                "reviewer_type": "efficiency",
+            }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")
@@ -70,10 +81,13 @@ class EfficiencyReviewerAgent(BaseAgent):
         return await self.review(code, context)
 
 
-@register_role("reviewer_correctness", {
-    "description": "正确性评审AI，审查逻辑漏洞、边界条件、潜在错误",
-    "default_required_tags": ["review", "careful"],
-})
+@register_role(
+    "reviewer_correctness",
+    {
+        "description": "正确性评审AI，审查逻辑漏洞、边界条件、潜在错误",
+        "default_required_tags": ["review", "careful"],
+    },
+)
 class CorrectnessReviewerAgent(BaseAgent):
     __role_name__ = "reviewer_correctness"
 
@@ -90,7 +104,11 @@ class CorrectnessReviewerAgent(BaseAgent):
 请始终以JSON格式输出：
 {"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
 """
-        super().__init__(role="reviewer_correctness", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="reviewer_correctness",
+            capability=capability,
+            system_prompt=system_prompt,
+        )
 
     async def review(self, code: str, requirements: str = "") -> Dict[str, Any]:
         prompt = f"""审查代码正确性：
@@ -123,7 +141,11 @@ class CorrectnessReviewerAgent(BaseAgent):
             }
         except (json.JSONDecodeError, ValueError):
             passed = "通过" in response and "需修改" not in response
-            return {"passed": passed, "feedback": response, "reviewer_type": "correctness"}
+            return {
+                "passed": passed,
+                "feedback": response,
+                "reviewer_type": "correctness",
+            }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")
@@ -131,6 +153,8 @@ class CorrectnessReviewerAgent(BaseAgent):
         requirements = task_data.get("requirements", "")
 
         if task_context:
-            requirements = f"{task_context}\n\n{requirements}" if requirements else task_context
+            requirements = (
+                f"{task_context}\n\n{requirements}" if requirements else task_context
+            )
 
         return await self.review(code, requirements)

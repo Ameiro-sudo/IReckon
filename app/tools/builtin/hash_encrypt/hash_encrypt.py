@@ -8,6 +8,7 @@ import hmac
 import binascii
 import os
 
+
 def hash_encrypt(operation: str, *args, **kwargs):
     ops = {
         "md5": lambda s: hashlib.md5(s.encode()).hexdigest(),
@@ -16,7 +17,9 @@ def hash_encrypt(operation: str, *args, **kwargs):
         "sha512": lambda s: hashlib.sha512(s.encode()).hexdigest(),
         "base64_encode": lambda s: base64.b64encode(s.encode()).decode(),
         "base64_decode": lambda s: base64.b64decode(s.encode()).decode(),
-        "hmac_sha256": lambda key, msg: hmac.new(key.encode(), msg.encode(), hashlib.sha256).hexdigest(),
+        "hmac_sha256": lambda key, msg: hmac.new(
+            key.encode(), msg.encode(), hashlib.sha256
+        ).hexdigest(),
         "crc32": lambda s: binascii.crc32(s.encode()),
         "random_hex": lambda length: binascii.hexlify(os.urandom(length)).decode(),
     }

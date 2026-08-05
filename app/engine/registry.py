@@ -24,8 +24,11 @@ class RoleRegistry:
         self._roles: Dict[str, Type[BaseAgent]] = {}
         self._role_metadata: Dict[str, Dict[str, Any]] = {}
 
-    def register(self, role_name: str, agent_class: type, metadata: Optional[Dict] = None) -> None:
+    def register(
+        self, role_name: str, agent_class: type, metadata: Optional[Dict] = None
+    ) -> None:
         from app.agents.base import BaseAgent
+
         if not issubclass(agent_class, BaseAgent):
             raise TypeError(f"{agent_class} 必须继承 BaseAgent")
         self._roles[role_name] = agent_class
@@ -60,10 +63,12 @@ class RoleRegistry:
 
     def discover_from_directory(self, directory: Path) -> int:
         from app.agents.base import BaseAgent
+
         count = 0
         if not directory.exists():
             return 0
         import importlib.util
+
         for file in directory.glob("*.py"):
             if file.name.startswith("_"):
                 continue
@@ -94,4 +99,5 @@ def register_role(role_name: str, metadata: Optional[Dict] = None):
     def decorator(cls):
         role_registry.register(role_name, cls, metadata)
         return cls
+
     return decorator

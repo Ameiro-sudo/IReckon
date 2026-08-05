@@ -1,12 +1,13 @@
 """
-宸ュ叿闆朵欢锛氬瓧绗︿覆宸ュ叿绠?鎻愪緵甯哥敤瀛楃涓叉搷浣滐紝閫氳繃鎿嶄綔鍚嶇О鍜屽弬鏁拌皟鐢ㄣ€?"""
+String toolbox helper.
+Provides common string transformation and inspection operations.
+"""
 
 import re
 import textwrap
 from typing import List, Union, Optional
 
 OPERATIONS = {
-    # 鍩烘湰鍙樻崲
     "upper": lambda s: s.upper(),
     "lower": lambda s: s.lower(),
     "capitalize": lambda s: s.capitalize(),
@@ -15,8 +16,7 @@ OPERATIONS = {
     "strip": lambda s, chars=None: s.strip(chars) if chars else s.strip(),
     "lstrip": lambda s, chars=None: s.lstrip(chars) if chars else s.lstrip(),
     "rstrip": lambda s, chars=None: s.rstrip(chars) if chars else s.rstrip(),
-
-    # 鏌ユ壘涓庢浛鎹?    "replace": lambda s, old, new: s.replace(old, new),
+    "replace": lambda s, old, new: s.replace(old, new),
     "count": lambda s, sub: s.count(sub),
     "find": lambda s, sub: s.find(sub),
     "rfind": lambda s, sub: s.rfind(sub),
@@ -24,17 +24,13 @@ OPERATIONS = {
     "rindex": lambda s, sub: s.rindex(sub),
     "startswith": lambda s, prefix: s.startswith(prefix),
     "endswith": lambda s, suffix: s.endswith(suffix),
-
-    # 鎷兼帴涓庡垎鍓?    "split": lambda s, sep=None, maxsplit=-1: s.split(sep, maxsplit) if sep else s.split(),
+    "split": lambda s, sep=None, maxsplit=-1: s.split(sep, maxsplit) if sep else s.split(),
     "rsplit": lambda s, sep=None, maxsplit=-1: s.rsplit(sep, maxsplit) if sep else s.rsplit(),
     "join": lambda sep, *args: sep.join(args),
     "partition": lambda s, sep: s.partition(sep),
     "rpartition": lambda s, sep: s.rpartition(sep),
-
-    # 鏍煎紡鍖?    "format": lambda s, *args, **kwargs: s.format(*args, **kwargs),
+    "format": lambda s, *args, **kwargs: s.format(*args, **kwargs),
     "template": lambda template, **kwargs: template.format(**kwargs),
-
-    # 鍒ゆ柇
     "isalpha": lambda s: s.isalpha(),
     "isdigit": lambda s: s.isdigit(),
     "isalnum": lambda s: s.isalnum(),
@@ -42,26 +38,23 @@ OPERATIONS = {
     "islower": lambda s: s.islower(),
     "isupper": lambda s: s.isupper(),
     "istitle": lambda s: s.istitle(),
-
-    # 鏉傞」
     "len": lambda s: len(s),
     "reverse": lambda s: s[::-1],
     "truncate": lambda s, max_len, suffix="...": s[:max_len] + suffix if len(s) > max_len else s,
     "wrap": lambda s, width=70: textwrap.wrap(s, width),
     "dedent": lambda s: textwrap.dedent(s),
     "indent": lambda s, prefix="    ": textwrap.indent(s, prefix),
-
-    # 姝ｅ垯鎼滅储
     "regex_findall": lambda pattern, s: re.findall(pattern, s),
     "regex_search": lambda pattern, s: (m.group() if (m := re.search(pattern, s)) else None),
     "regex_sub": lambda pattern, repl, s: re.sub(pattern, repl, s),
 }
 
+
 def string_toolbox(operation: str, *args, **kwargs):
-    """鎵ц瀛楃涓叉搷浣?""
+    """Execute a string toolbox operation."""
     if operation not in OPERATIONS:
-        return f"涓嶆敮鎸佺殑鎿嶄綔: {operation}. 鏀寔: {', '.join(sorted(OPERATIONS.keys()))}"
+        return f"Unsupported operation: {operation}. Supported: {', '.join(sorted(OPERATIONS.keys()))}"
     try:
         return OPERATIONS[operation](*args, **kwargs)
     except Exception as e:
-        return f"杩愮畻鍑洪敊: {e}"
+        return f"Error performing string operation: {e}"

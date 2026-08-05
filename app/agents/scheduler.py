@@ -16,7 +16,9 @@ class SchedulerAgent(BaseAgent):
     def __init__(self, capability: AICapability):
         self.jinja_env = create_jinja_env()
         system_prompt = self._build_system_prompt()
-        super().__init__(role="scheduler", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="scheduler", capability=capability, system_prompt=system_prompt
+        )
 
     def _build_system_prompt(self) -> str:
         return """你是一个高级任务调度员（老调），负责将用户的自然语言需求转化为可执行的软件项目计划，并组建合适的 AI 团队。
@@ -87,7 +89,9 @@ class SchedulerAgent(BaseAgent):
                 "recruitment_plan": {"executor": {"count": 1}},
             }
 
-    async def recruit_team(self, recruitment_plan: Dict[str, Any]) -> Dict[str, List[AICapability]]:
+    async def recruit_team(
+        self, recruitment_plan: Dict[str, Any]
+    ) -> Dict[str, List[AICapability]]:
         team = {}
         global_assigned_ids: Set[str] = set()
 
@@ -118,7 +122,10 @@ class SchedulerAgent(BaseAgent):
 
         recruitment = plan.get("recruitment_plan", {})
         if not recruitment:
-            recruitment = {"executor": {"count": 1}, "reviewer_correctness": {"count": 1}}
+            recruitment = {
+                "executor": {"count": 1},
+                "reviewer_correctness": {"count": 1},
+            }
         team = await self.recruit_team(recruitment)
 
         room = await meeting_room_manager.create_room(task_id)
@@ -133,9 +140,7 @@ class SchedulerAgent(BaseAgent):
         announcement = self._generate_announcement(plan, team)
         self.add_message("assistant", announcement)
         await room.broadcast(
-            MessageLayer.L1_PUBLIC,
-            "scheduler", self.context.agent_id,
-            announcement
+            MessageLayer.L1_PUBLIC, "scheduler", self.context.agent_id, announcement
         )
 
         return {
@@ -146,7 +151,9 @@ class SchedulerAgent(BaseAgent):
             "task_board_state": task_board.get_state_dict(),
         }
 
-    def _generate_announcement(self, plan: Dict[str, Any], team: Dict[str, List]) -> str:
+    def _generate_announcement(
+        self, plan: Dict[str, Any], team: Dict[str, List]
+    ) -> str:
         lines = [
             f"📋 任务启动：{plan.get('task_name', '新任务')}",
             f"📝 概述：{plan.get('summary', '')}",

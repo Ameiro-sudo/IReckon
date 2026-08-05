@@ -6,10 +6,13 @@ from app.knowledge.files import FileKnowledgeBase
 from app.tools.library import parts_library
 
 
-@register_role("learner", {
-    "description": "学习AI，抓取高星项目，提炼模式，生成工具",
-    "default_required_tags": ["learning", "cheap"],
-})
+@register_role(
+    "learner",
+    {
+        "description": "学习AI，抓取高星项目，提炼模式，生成工具",
+        "default_required_tags": ["learning", "cheap"],
+    },
+)
 class LearnerAgent(BaseAgent):
     __role_name__ = "learner"
 
@@ -26,7 +29,9 @@ class LearnerAgent(BaseAgent):
 - 提炼的模式：名称 + 描述 + 代码示例
 - 工具零件：名称 + 语言 + 完整代码
 """
-        super().__init__(role="learner", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="learner", capability=capability, system_prompt=system_prompt
+        )
         self.kb = FileKnowledgeBase()
 
     async def learn_from_source(self, url: str, content: str) -> Dict[str, Any]:
@@ -43,61 +48,53 @@ URL: {url}
         return {
             "summary": response,
             "source": url,
-            "tool_suggestions": self._extract_tool_suggestions(response)
+            "tool_suggestions": self._extract_tool_suggestions(response),
         }
 
     def _extract_tool_suggestions(self, response: str) -> List[Dict[str, str]]:
         suggestions = []
-        lines = response.split('\n')
+        lines = response.split("\n")
         current = {}
         in_code = False
         code_lines = []
         for line in lines:
-            if line.startswith('工具名称：') or line.startswith('名称：'):
+            if line.startswith("工具名称：") or line.startswith("名称："):
                 if current:
                     if code_lines:
-                        current['code'] = '\n'.join(code_lines)
+                        current["code"] = "\n".join(code_lines)
                     suggestions.append(current)
-                current = {'name': line.split('：', 1)[1].strip()}
+                current = {"name": line.split("：", 1)[1].strip()}
                 in_code = False
                 code_lines = []
-            elif line.startswith('描述：'):
+            elif line.startswith("描述："):
                 if current is not None:
-                    current['description'] = line.split('：', 1)[1].strip()
-            elif line.startswith('语言：'):
+                    current["description"] = line.split("：", 1)[1].strip()
+            elif line.startswith("语言："):
                 if current is not None:
-                    current['language'] = line.split('：', 1)[1].strip()
-            elif '```' in line and not in_code:
+                    current["language"] = line.split("：", 1)[1].strip()
+            elif "```" in line and not in_code:
                 in_code = True
                 code_lines = []
-            elif '```' in line and in_code:
+            elif "```" in line and in_code:
                 in_code = False
                 if current is not None:
-                    current['code'] = '\n'.join(code_lines)
+                    current["code"] = "\n".join(code_lines)
                 code_lines = []
             elif in_code:
                 code_lines.append(line)
         if current:
-            if code_lines and 'code' not in current:
-                current['code'] = '\n'.join(code_lines)
+            if code_lines and "code" not in current:
+                current["code"] = "\n".join(code_lines)
             suggestions.append(current)
         return suggestions
 
     async def save_pattern(self, title: str, content: str, source: str) -> str:
         return await self.kb.add_entry(
-            entry_type="patterns",
-            title=title,
-            content=content,
-            source=source
+            entry_type="patterns", title=title, content=content, source=source
         )
 
     async def extract_tool(
-        self,
-        name: str,
-        description: str,
-        language: str,
-        code: str,
-        tags: List[str]
+        self, name: str, description: str, language: str, code: str, tags: List[str]
     ) -> str:
         return await parts_library.add_part(
             name=name,
@@ -107,15 +104,14 @@ URL: {url}
             input_schema={},
             output_schema={},
             tags=tags,
-            created_by="learner"
+            created_by="learner",
         )
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         action = task_data.get("action", "learn")
         if action == "learn":
             result = await self.learn_from_source(
-                task_data.get("url", ""),
-                task_data.get("content", "")
+                task_data.get("url", ""), task_data.get("content", "")
             )
             if result.get("tool_suggestions"):
                 for tool in result["tool_suggestions"]:
@@ -125,12 +121,12 @@ URL: {url}
                             description=tool.get("description", ""),
                             language=tool.get("language", "python"),
                             code=tool.get("code", ""),
-                            tags=["auto-generated", "learned"]
+                            tags=["auto-generated", "learned"],
                         )
             await self.save_pattern(
                 title=f"学习笔记: {task_data.get('url', '')[:50]}",
                 content=result.get("summary", ""),
-                source=task_data.get("url", "")
+                source=task_data.get("url", ""),
             )
             return result
         return {"status": "unknown action", "action": action}

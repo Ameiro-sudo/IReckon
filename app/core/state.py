@@ -18,8 +18,12 @@ class StateManager:
         data_dir = Path(config_manager.get("system.data_dir", "./data"))
         self.states_dir = data_dir / "states" / task_id
         self.states_dir.mkdir(parents=True, exist_ok=True)
-        self.snapshot_interval = config_manager.get("persistence.snapshot_interval_seconds", 60)
-        self.max_snapshots = config_manager.get("persistence.max_snapshots_per_task", 20)
+        self.snapshot_interval = config_manager.get(
+            "persistence.snapshot_interval_seconds", 60
+        )
+        self.max_snapshots = config_manager.get(
+            "persistence.max_snapshots_per_task", 20
+        )
 
     def _default_serializer(self, obj: Any, depth: int = 0) -> Any:
         if depth > 5:
@@ -47,7 +51,7 @@ class StateManager:
         state_copy["_meta"] = {
             "task_id": self.task_id,
             "timestamp": timestamp,
-            "utc_time": datetime.now(timezone.utc).isoformat()
+            "utc_time": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
@@ -55,14 +59,13 @@ class StateManager:
                 state_copy,
                 default=lambda o: self._default_serializer(o),
                 ensure_ascii=False,
-                indent=2
+                indent=2,
             )
         except TypeError as e:
             logger.error(f"状态序列化失败: {e}")
-            json_str = json.dumps({
-                "_meta": state_copy["_meta"],
-                "error": "State serialization failed"
-            })
+            json_str = json.dumps(
+                {"_meta": state_copy["_meta"], "error": "State serialization failed"}
+            )
 
         async with aiofiles.open(snapshot_file, "w", encoding="utf-8") as f:
             await f.write(json_str)
@@ -71,7 +74,7 @@ class StateManager:
 
         snapshots = sorted(self.states_dir.glob("snapshot_*.json"))
         if len(snapshots) > self.max_snapshots:
-            for old in snapshots[:-self.max_snapshots]:
+            for old in snapshots[: -self.max_snapshots]:
                 old.unlink()
 
     async def load_latest_snapshot(self) -> Optional[Dict[str, Any]]:

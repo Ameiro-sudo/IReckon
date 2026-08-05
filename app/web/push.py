@@ -48,6 +48,7 @@ class ConnectionManager:
         for ws in dead:
             self.disconnect(ws)
 
+
 manager = ConnectionManager()
 
 
@@ -56,4 +57,6 @@ async def push_message_to_websocket(task_id: str, msg: dict):
 
 
 async def push_progress(task_id: str, progress: float, status: str):
-    await manager.broadcast_to_task(task_id, {"type": "progress", "progress": progress, "status": status})
+    await manager.broadcast_to_task(
+        task_id, {"type": "progress", "progress": progress, "status": status}
+    )
