@@ -33,11 +33,15 @@ build/
 *.temp
 
 # Local project runtime files
-config/config.yaml
 data/.key
+data/.last_update_check
 data/chromadb/
 data/db/
 data/logs/
+data/states/
+data/outputs/
+data/knowledge_base/
+frontend/npm-debug.txt
 full_validation.txt
 inspect_lines.txt
 ruff_output.txt

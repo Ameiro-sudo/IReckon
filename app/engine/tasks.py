@@ -7,7 +7,7 @@ from app.core.database import db
 from app.core.config import config_manager
 from app.agents.scheduler import SchedulerAgent
 from app.llm.pool import capability_pool, AICapability
-from .room import meeting_room_manager, MeetingRoom, MessageLayer
+from .room import meeting_room_manager, MeetingRoom
 from .board import TaskBoard
 from .learner import idle_loop
 
@@ -67,35 +67,46 @@ class TaskManager:
         )
         return tid
 
-    async def start_task(self, tid: str, scid: Optional[str] = None):
-        if tid in self._running:
-            return
-        ce = asyncio.Event()
-        self._cancel_events[tid] = ce
+    async def _launch(self, tid: str, ce: asyncio.Event, body):
+        """统一的任务执行包装：超时/取消/异常处理 + 状态落库 + 资源清理。"""
 
         async def _run():
             try:
                 md = config_manager.get("task_defaults.max_task_duration_seconds", 3600)
-                await asyncio.wait_for(self._execute_task(tid, scid, ce), timeout=md)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                logger.error(f"任务{tid}超时/取消")
-                ce.set()
-                await db.execute(
-                    "UPDATE tasks SET status=? WHERE task_id=?",
-                    (TaskStatus.FAILED.value, tid),
-                )
+                await asyncio.wait_for(body(), timeout=md)
+            except asyncio.TimeoutError:
+                logger.error(f"任务{tid}超时")
+                await self._mark_status(tid, TaskStatus.FAILED)
+            except asyncio.CancelledError:
+                # 用户取消 -> 暂停，保留快照以便恢复
+                status = TaskStatus.PAUSED if ce.is_set() else TaskStatus.FAILED
+                logger.info(f"任务{tid}被取消，状态: {status.value}")
+                await self._mark_status(tid, status)
             except Exception as e:
                 logger.exception(f"任务{tid}异常: {e}")
-                await db.execute(
-                    "UPDATE tasks SET status=? WHERE task_id=?",
-                    (TaskStatus.FAILED.value, tid),
-                )
+                await self._mark_status(tid, TaskStatus.FAILED)
             finally:
                 self._running.pop(tid, None)
                 self._cancel_events.pop(tid, None)
                 await meeting_room_manager.close_room(tid)
 
         self._running[tid] = asyncio.create_task(_run())
+
+    async def _mark_status(self, tid: str, status: TaskStatus):
+        try:
+            await db.execute(
+                "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
+                (status.value, tid),
+            )
+        except Exception as e:
+            logger.warning(f"任务{tid}状态更新失败: {e}")
+
+    async def start_task(self, tid: str, scid: Optional[str] = None):
+        if tid in self._running:
+            return
+        ce = asyncio.Event()
+        self._cancel_events[tid] = ce
+        await self._launch(tid, ce, lambda: self._execute_task(tid, scid, ce))
 
     async def _execute_task(self, tid, scid, ce):
         idle_loop.notify_task_started()
@@ -118,6 +129,9 @@ class TaskManager:
             sr["team"],
             await meeting_room_manager.get_room(tid),
         )
+        phases = plan.get("phases")
+        if not phases:
+            raise ValueError(f"任务{tid}计划为空，无法执行")
         tbs = sr.get("task_board_state", {})
         await db.execute(
             "UPDATE tasks SET status=?,config_snapshot=? WHERE task_id=?",
@@ -128,7 +142,7 @@ class TaskManager:
             "user_request": req,
             "plan": plan,
             "current_phase": 0,
-            "phases": plan.get("phases", [{"phase": "默认", "description": req}]),
+            "phases": phases,
             "team": team,
             "artifacts": {},
             "messages": [],
@@ -145,10 +159,10 @@ class TaskManager:
         from .machine import WorkflowEngine
 
         sm = StateManager(tid)
+        await sm.save_snapshot(st)
         engine = WorkflowEngine()
         fs = await engine.run(st)
         await sm.save_snapshot(fs)
-        await sm.cleanup()
         await db.execute(
             "UPDATE tasks SET status=?,updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
             (fs["status"].value, tid),
@@ -163,10 +177,19 @@ class TaskManager:
         return False
 
     async def resume_task(self, tid: str) -> bool:
+        if tid in self._running:
+            return False
         sm = StateManager(tid)
         snap = await sm.load_latest_snapshot()
         if not snap:
             return False
+        snap_status = snap.get("status")
+        if snap_status in (TaskStatus.COMPLETED.value, TaskStatus.COMPLETED):
+            logger.warning(f"任务{tid}已完成，无需恢复")
+            return False
+
+        ce = asyncio.Event()
+        self._cancel_events[tid] = ce
         room = await meeting_room_manager.create_room(tid)
         task_board = await TaskBoard.from_state_dict(
             tid, snap.get("task_board_state", {})
@@ -202,6 +225,11 @@ class TaskManager:
             "room": room,
             "task_board_state": task_board.get_state_dict(),
         }
+        if not resumed_state["phases"]:
+            resumed_state["phases"] = [
+                {"phase": "默认", "description": resumed_state["user_request"]}
+            ]
+
         from .machine import WorkflowEngine
 
         engine = WorkflowEngine()
@@ -211,23 +239,25 @@ class TaskManager:
                 md = config_manager.get("task_defaults.max_task_duration_seconds", 3600)
                 final = await asyncio.wait_for(engine.run(resumed_state), timeout=md)
                 await sm.save_snapshot(final)
-                await sm.cleanup()
                 await db.execute(
                     "UPDATE tasks SET status=? WHERE task_id=?",
                     (final["status"].value, tid),
                 )
+            except asyncio.TimeoutError:
+                logger.error(f"任务{tid}恢复后超时")
+                await self._mark_status(tid, TaskStatus.FAILED)
+            except asyncio.CancelledError:
+                status = TaskStatus.PAUSED if ce.is_set() else TaskStatus.FAILED
+                await self._mark_status(tid, status)
             except Exception as e:
                 logger.exception(f"恢复失败: {e}")
-                await db.execute(
-                    "UPDATE tasks SET status=? WHERE task_id=?",
-                    (TaskStatus.FAILED.value, tid),
-                )
+                await self._mark_status(tid, TaskStatus.FAILED)
             finally:
                 self._running.pop(tid, None)
+                self._cancel_events.pop(tid, None)
                 await meeting_room_manager.close_room(tid)
 
-        task = asyncio.create_task(_run_resumed())
-        self._running[tid] = task
+        self._running[tid] = asyncio.create_task(_run_resumed())
         return True
 
 

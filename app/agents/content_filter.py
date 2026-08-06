@@ -1,3 +1,5 @@
+import json
+
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
@@ -34,11 +36,10 @@ class ContentFilterAgent(BaseAgent):
 输出 JSON。
 """
         response = await self.think(prompt, temperature=0.0)
-        import json
 
         try:
             return json.loads(response)
-        except:
+        except Exception:
             return {"passed": False, "reason": "审查失败"}
 
     async def execute(self, data: dict) -> dict:

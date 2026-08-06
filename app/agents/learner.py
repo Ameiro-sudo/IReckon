@@ -1,4 +1,5 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
+
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
@@ -23,15 +24,8 @@ class LearnerAgent(BaseAgent):
 1. 阅读提供的项目摘要或代码片段
 2. 提炼出跨语言的优化模式和最佳实践
 3. 若发现通用功能，生成一个独立的可复用工具零件（包含代码和说明）
-
-输出格式：
-- 学习要点：简短的要点列表
-- 提炼的模式：名称 + 描述 + 代码示例
-- 工具零件：名称 + 语言 + 完整代码
 """
-        super().__init__(
-            role="learner", capability=capability, system_prompt=system_prompt
-        )
+        super().__init__(role="learner", capability=capability, system_prompt=system_prompt)
         self.kb = FileKnowledgeBase()
 
     async def learn_from_source(self, url: str, content: str) -> Dict[str, Any]:
@@ -93,9 +87,7 @@ URL: {url}
             entry_type="patterns", title=title, content=content, source=source
         )
 
-    async def extract_tool(
-        self, name: str, description: str, language: str, code: str, tags: List[str]
-    ) -> str:
+    async def extract_tool(self, name: str, description: str, language: str, code: str, tags: List[str]) -> str:
         return await parts_library.add_part(
             name=name,
             description=description,

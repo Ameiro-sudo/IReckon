@@ -1,8 +1,5 @@
-import asyncio
-import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import zipfile
@@ -89,7 +86,12 @@ class Updater:
             logger.info(f"已备份当前版本到: {backup_dir}")
 
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(temp_dir := tempfile.mkdtemp())
+                for member in zf.infolist():
+                    member_path = Path(member.filename)
+                    if member_path.is_absolute() or ".." in member_path.parts:
+                        raise ValueError(f"更新包包含非法路径: {member.filename}")
+                temp_dir = tempfile.mkdtemp()
+                zf.extractall(temp_dir)
 
             extracted = (
                 list(Path(temp_dir).iterdir())[0]
@@ -122,7 +124,7 @@ class Updater:
             if backup_dir.exists():
                 logger.info("正在还原备份...")
                 for item in backup_dir.iterdir():
-                    target = base_dir.parent / item.name
+                    target = base_dir / item.name
                     if target.exists():
                         if target.is_dir():
                             shutil.rmtree(target)
