@@ -1,8 +1,7 @@
-import asyncio
 import json
 import copy
-import shutil
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -33,6 +32,8 @@ class StateManager:
             return obj.isoformat()
         if isinstance(obj, Path):
             return str(obj)
+        if isinstance(obj, Enum):
+            return obj.value
         if hasattr(obj, "to_dict") and callable(obj.to_dict):
             return obj.to_dict()
         if hasattr(obj, "__dict__"):
@@ -47,7 +48,13 @@ class StateManager:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         snapshot_file = self.states_dir / f"snapshot_{timestamp}.json"
 
-        state_copy = copy.deepcopy(state)
+        # MeetingRoom 含 asyncio 对象不可深拷贝/序列化，仅保留 room_id
+        state_copy = dict(state)
+        room = state_copy.pop("room", None)
+        if room is not None:
+            state_copy["room_id"] = getattr(room, "room_id", None)
+
+        state_copy = copy.deepcopy(state_copy)
         state_copy["_meta"] = {
             "task_id": self.task_id,
             "timestamp": timestamp,
@@ -97,8 +104,12 @@ class StateManager:
             return None
 
     async def cleanup(self) -> None:
+        """清理旧快照，但保留最新一份用于任务恢复。"""
         try:
-            await asyncio.to_thread(shutil.rmtree, self.states_dir, ignore_errors=True)
-            logger.info(f"已清理任务状态目录: {self.states_dir}")
+            snapshots = sorted(self.states_dir.glob("snapshot_*.json"))
+            if len(snapshots) > 1:
+                for old in snapshots[:-1]:
+                    old.unlink()
+                logger.info(f"已清理任务状态目录: {self.states_dir}")
         except Exception as e:
             logger.warning(f"清理状态目录失败: {e}")

@@ -31,6 +31,14 @@ class DelivererAgent(BaseAgent):
             role="deliverer", capability=capability, system_prompt=system_prompt
         )
 
+    @staticmethod
+    def _safe_filename(name: str) -> str:
+        """净化 LLM 提供的文件名，防止路径穿越。"""
+        base = str(name).replace("\\", "/").split("/")[-1].strip()
+        if not base or base in (".", "..") or ":" in base or "\x00" in base:
+            return "unnamed.txt"
+        return base
+
     async def package(
         self, task_id: str, artifacts: Dict[str, str], project_info: Dict[str, Any]
     ) -> str:
@@ -39,7 +47,8 @@ class DelivererAgent(BaseAgent):
         task_output_dir.mkdir(parents=True, exist_ok=True)
 
         for filename, content in artifacts.items():
-            file_path = task_output_dir / filename
+            safe_name = self._safe_filename(filename)
+            file_path = task_output_dir / safe_name
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 

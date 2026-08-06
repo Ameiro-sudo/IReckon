@@ -1,7 +1,6 @@
-import asyncio
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict
 from loguru import logger
 from jinja2 import Environment, FileSystemLoader
 
@@ -77,12 +76,19 @@ class SelfImprover:
         ]:
             for f in base.glob(pattern):
                 rel = str(f.relative_to(base))
-                if any(rel.startswith(b) or rel == b for b in self._blacklist):
+                if self._is_blacklisted(rel):
                     continue
                 if f.stat().st_size > 50000:
                     continue
                 files.append({"path": rel, "size": f.stat().st_size})
         return files
+
+    def _is_blacklisted(self, rel: str) -> bool:
+        for b in self._blacklist:
+            b = b.rstrip("/")
+            if rel == b or rel.startswith(b + "/"):
+                return True
+        return False
 
     def _build_analysis_prompt(self, files: List[Dict]) -> str:
         summary = "\n".join(f"  {f['path']} ({f['size']} bytes)" for f in files[:30])
@@ -199,9 +205,7 @@ FILE: 相对路径
         if current_file and current_content:
             result[current_file] = "\n".join(current_content)
 
-        blacklisted = [
-            p for p in result if any(result[p].startswith(b) for b in self._blacklist)
-        ]
+        blacklisted = [p for p in result if self._is_blacklisted(p)]
         for p in blacklisted:
             del result[p]
 

@@ -4,7 +4,16 @@ IReckon 主入口文件 (๑•̀ᴗ-)✧
 项目的启动点，整合所有模块让系统跑起来～
 """
 
-import asyncio, io, logging, os, signal, socket, subprocess, sys, time, webbrowser, shutil
+import asyncio
+import io
+import logging
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import webbrowser
 
 # 让输出更乖，不闹脾气～ (防止编码问题)
 os.environ["UVICORN_ACCESS_LOGGING"] = "0"
@@ -18,9 +27,8 @@ from app.core.database import db
 from app.core.config import config_manager
 from app.core.updater import updater
 from app.llm.client import capability_pool
-from app.engine.tasks import task_manager
 from app.engine.learner import idle_loop
-from app.web.ws import log_consumer
+from app.web.push import log_consumer
 from app.tools.registry import register_builtin_tools
 
 
@@ -37,6 +45,17 @@ def _get_lan_ip():
         if s is not None:
             s.close()
 
+
+async def _check_update():
+    """检查更新，看看有没有新版本可以玩呀～"""
+    if not updater.should_check():
+        return
+    updater.mark_checked()
+    version = await updater.check()
+    if version:
+        logger.info(f"发现新版本 v{version}，请运行 python scripts/update.py 进行更新")
+
+
 class IReckonApp:
     """IReckon 应用主类，统筹管理整个系统～"""
     
@@ -51,7 +70,7 @@ class IReckonApp:
         setup_logging()
         logger.info(f"启动 {config_manager.get('system.name')} v{config_manager.get('system.version')}")
         
-        await self._check_update()        # 检查更新（看看有没有新版本呀～）
+        await _check_update()        # 检查更新（看看有没有新版本呀～）
         await db.connect()                # 连接数据库
         await capability_pool.refresh()   # 刷新AI能力池
         await register_builtin_tools()    # 注册内置工具
@@ -115,15 +134,6 @@ class IReckonApp:
 
         logger.warning(f"前端启动失败，尝试命令: {tried}")
         self._frontend_proc = None
-    
-    async def _check_update(self):
-        """检查更新，看看有没有新版本可以玩呀～"""
-        if not updater.should_check():
-            return
-        updater.mark_checked()
-        version = await updater.check()
-        if version:
-            logger.info(f"发现新版本 v{version}，请运行 python scripts/update.py 进行更新")
 
     async def shutdown(self):
         """优雅地关闭系统，各回各家各找各妈～"""
@@ -150,6 +160,10 @@ class IReckonApp:
         await db.close()
         logger.info("系统已关闭")
 
+    @property
+    def shutdown_event(self):
+        return self._shutdown_event
+
 
 async def start_backend(shutdown_event: asyncio.Event):
     """启动 FastAPI 后端服务～"""
@@ -170,8 +184,8 @@ async def start_backend(shutdown_event: asyncio.Event):
     lan_ip = _get_lan_ip()
     lan_line = f"  局域网访问  http://{lan_ip}:{port}\n" if lan_ip else ""
     logger.info(f"\n{'=' * 46}\n  IReckon v{config_manager.get('system.version')} 已启动\n{'=' * 46}\n"
-                f"  后端 API   https://{host}:{port}\n"
-                f"  交互https://tp://{host}:{port}/docs\n"
+                f"  后端 API   http://{host}:{port}\n"
+                f"  交互文档   http://{host}:{port}/docs\n"
                 f"  前端界面   http://{host}:{port}\n"
                 f"{lan_line}"
                 f"  健康检查   http://{host}:{port}/api/health\n"
@@ -202,7 +216,7 @@ async def main():
     
     # 启动后端，然后等待关闭信号
     backend_task = asyncio.create_task(start_backend(app._shutdown_event))
-    backend_task.add_done_callback(lambda task: app._shutdown_event.set() if not app._shutdown_event.is_set() else None)
+    backend_task.add_done_callback(lambda task: app.shutdown_event.set() if not app._shutdown_event.is_set() else None)
     try:
         await app._shutdown_event.wait()
     finally:

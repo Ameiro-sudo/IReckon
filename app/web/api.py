@@ -21,7 +21,7 @@ from app.llm.pool import capability_pool, AICapability
 from app.engine.tasks import task_manager
 from app.engine.room import meeting_room_manager, MessageLayer
 from app.engine.self_improve import self_improver
-from .ws import websocket_endpoint
+from .push import websocket_endpoint
 
 app = FastAPI(title="IReckon AI Factory", version="2.0")
 app.add_middleware(

@@ -24,9 +24,7 @@ class CreativeAgent(BaseAgent):
 
 注意：不改变核心功能。
 """
-        super().__init__(
-            role="creative", capability=capability, system_prompt=system_prompt
-        )
+        super().__init__(role="creative", capability=capability, system_prompt=system_prompt)
 
     async def suggest(self, project_description: str, current_state: str) -> str:
         prompt = f"""项目：{project_description}

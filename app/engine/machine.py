@@ -1,15 +1,18 @@
-from typing import List, Dict, Any, Optional
-import asyncio
+from typing import List, Dict
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
-from app.llm.pool import AICapability, capability_pool
+from app.llm.pool import capability_pool
+from app.core.database import db
+from app.core.state import StateManager
 from .tasks import TaskStatus, TaskState
 from .registry import role_registry
-from .room import MeetingRoom, MessageLayer
+from .room import MessageLayer
 from .board import TaskBoard, TaskPhase
 from .detector import loop_detector
 from app.security.scanner import code_scanner
+from app.security.supply import SupplyChainFirewall
+from app.security.mining import MiningDetector
 from app.web.push import push_progress
 
 
@@ -18,6 +21,8 @@ class WorkflowEngine:
         self.checkpointer = MemorySaver()
         self.graph = self._build_graph()
         self.output_history: Dict[str, List[str]] = {}
+        self._supply_firewall = SupplyChainFirewall()
+        self._mining_detector = MiningDetector()
 
     def _build_graph(self):
         wf = StateGraph(TaskState)
@@ -38,6 +43,34 @@ class WorkflowEngine:
         wf.add_edge("handle_error", END)
         return wf.compile(checkpointer=self.checkpointer)
 
+    async def _checkpoint(self, s: dict) -> None:
+        """节点级持久化：保存快照 + 更新任务状态，用于暂停/恢复/崩溃恢复。"""
+        tid = s.get("task_id")
+        if not tid:
+            return
+        try:
+            sm = StateManager(tid)
+            await sm.save_snapshot(s)
+        except Exception as e:
+            logger.warning(f"任务{tid}快照保存失败: {e}")
+        status = s.get("status")
+        if status is not None:
+            try:
+                await db.execute(
+                    "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
+                    (status.value if isinstance(status, TaskStatus) else str(status), tid),
+                )
+            except Exception as e:
+                logger.warning(f"任务{tid}状态更新失败: {e}")
+
+    async def _security_violations(self, code: str) -> List[str]:
+        violations = []
+        if self._mining_detector.scan_command_line(code):
+            violations.append("检测到挖矿相关命令")
+        if not self._supply_firewall.check(code):
+            violations.append("供应链防火墙拦截：检测到黑名单依赖")
+        return violations
+
     async def planning_node(self, s):
         await push_progress(s["task_id"], 0.05, "规划中...")
         return {
@@ -55,6 +88,7 @@ class WorkflowEngine:
                 "task_board_state": s.get("task_board_state", {}),
             }
 
+        await self._checkpoint(s)
         phase = phases[pi]
         await self._push_execute_progress(tid, pi, len(phases), phase)
 
@@ -107,6 +141,15 @@ class WorkflowEngine:
                 "task_board_state": s.get("task_board_state", {}),
             }
 
+        violations = await self._security_violations(cc)
+        if violations:
+            await self._broadcast_security_violation(tid, room, violations)
+            return {
+                "status": TaskStatus.FAILED,
+                "error": "; ".join(violations),
+                "task_board_state": s.get("task_board_state", {}),
+            }
+
         await self._scan_and_broadcast(cc, room)
         await tb.update(
             completed_work=[f"已产出: {', '.join(artifacts.keys())}"],
@@ -143,6 +186,17 @@ class WorkflowEngine:
             msg_type="code",
         )
 
+    async def _broadcast_security_violation(self, tid: str, room, violations: List[str]):
+        if not room:
+            return
+        await room.broadcast(
+            MessageLayer.L2_MEETING,
+            "security_scanner",
+            "guard",
+            f"安全拦截: {'; '.join(violations)}",
+            msg_type="security_warning",
+        )
+
     async def _scan_and_broadcast(self, code: str, room):
         scans = await code_scanner.scan(code)
         if scans and room:
@@ -160,6 +214,8 @@ class WorkflowEngine:
         bp = pi / len(phases) if phases else 0
         await push_progress(tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}")
 
+        await self._checkpoint(s)
+
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
@@ -167,19 +223,22 @@ class WorkflowEngine:
         code = s["last_code"]
         reqs = phases[pi].get("description", "")
         room = s.get("room")
-        rv = self._create_reviewer(s)
+        reviewers = self._create_reviewers(s)
 
         await tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"])
         await tb.broadcast_to_room(room)
 
         ctx = tb.state.generate_context_prompt("reviewer")
-        res = await rv.execute(
-            {"code": code, "requirements": reqs, "task_context": ctx}
-        )
-        passed = res.get("passed", False)
-        fb = res.get("feedback", "")
+        results = []
+        for rv in reviewers:
+            res = await rv.execute(
+                {"code": code, "requirements": reqs, "task_context": ctx}
+            )
+            results.append((rv, res))
+            await self._broadcast_review_result(tid, room, rv, res)
 
-        await self._broadcast_review_result(tid, room, rv, passed, fb)
+        passed = all(res.get("passed", False) for _, res in results)
+        fb = "\n\n".join(res.get("feedback", "") for _, res in results)
 
         if passed:
             await tb.update(
@@ -200,27 +259,30 @@ class WorkflowEngine:
             "task_board_state": tb.get_state_dict(),
         }
 
-    def _create_reviewer(self, s):
-        rc = (
-            s["team"].get("reviewer_correctness", [None])[0] or s["team"]["executor"][0]
-        )
-        rv = role_registry.create_agent("reviewer_correctness", rc)
-        rv.bind_context(s["task_id"])
-        return rv
+    def _create_reviewers(self, s) -> List:
+        reviewers = []
+        for role in ("reviewer_correctness", "reviewer_efficiency"):
+            rc = s["team"].get(role, [None])[0] or s["team"]["executor"][0]
+            rv = role_registry.create_agent(role, rc)
+            if rv:
+                rv.bind_context(s["task_id"])
+                reviewers.append(rv)
+        return reviewers or [self._create_executor(s)]
 
-    async def _broadcast_review_result(
-        self, tid: str, room, rv, passed: bool, feedback: str
-    ):
-        if room:
-            await room.broadcast(
-                MessageLayer.L2_MEETING, "reviewer", rv.context.agent_id, "开始审查..."
-            )
-            await room.broadcast(
-                MessageLayer.L2_MEETING,
-                "reviewer",
-                rv.context.agent_id,
-                f"结论:{'通过' if passed else '需修改'}\n{feedback}",
-            )
+    async def _broadcast_review_result(self, tid: str, room, rv, res: dict):
+        if not room:
+            return
+        passed = res.get("passed", False)
+        fb = res.get("feedback", "")
+        await room.broadcast(
+            MessageLayer.L2_MEETING, "reviewer", rv.context.agent_id, "开始审查..."
+        )
+        await room.broadcast(
+            MessageLayer.L2_MEETING,
+            "reviewer",
+            rv.context.agent_id,
+            f"[{rv.role}] 结论:{'通过' if passed else '需修改'}\n{fb}",
+        )
 
     def review_router(self, s):
         if s.get("review_passed_this_round"):
@@ -237,6 +299,8 @@ class WorkflowEngine:
 
         if s.get("review_passed_this_round"):
             return await self._advance_phase(s, tid, phases, pi)
+
+        await self._checkpoint(s)
 
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
@@ -298,6 +362,16 @@ class WorkflowEngine:
 
         arts = await ex.debug_code(s["artifacts"], s["review_feedback"])
         rc = "\n".join(arts.values())
+
+        violations = await self._security_violations(rc)
+        if violations:
+            await self._broadcast_security_violation(tid, room, violations)
+            return {
+                "status": TaskStatus.FAILED,
+                "error": "; ".join(violations),
+                "task_board_state": s.get("task_board_state", {}),
+            }
+
         scans = await code_scanner.scan(rc)
         if scans and room:
             await room.broadcast(
@@ -329,6 +403,9 @@ class WorkflowEngine:
     async def deliver_node(self, s):
         tid = s["task_id"]
         await push_progress(tid, 0.9, "交付中...")
+
+        await self._checkpoint(s)
+
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
@@ -374,6 +451,7 @@ class WorkflowEngine:
     async def error_node(self, s):
         tid = s["task_id"]
         await push_progress(tid, 0.0, "失败")
+        await self._checkpoint(s)
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if tb.state:
             await tb.update(phase=TaskPhase.FAILED, notes="执行失败")

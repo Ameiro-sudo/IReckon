@@ -10,7 +10,6 @@ from app.llm.pool import AICapability
 from app.llm.client import LLMClient, LLMResponse, llm_client
 from app.core.logger import log_conversation
 from app.engine.style import style_engine
-from app.utils import create_jinja_env
 
 
 @dataclass
@@ -91,11 +90,30 @@ class BaseAgent(ABC):
                 infinite_retry=infinite_retry,
             )
             self.add_message("assistant", response.content)
+            await self._record_usage(response)
             return response.content
 
         except Exception as e:
             logger.error(f"Agent {self.role} 思考失败: {e}")
             raise
+
+    async def _record_usage(self, response: "LLMResponse") -> None:
+        if not self.context:
+            return
+        usage = response.usage or {}
+        tokens = int(usage.get("total_tokens") or 0)
+        if tokens <= 0:
+            return
+        cost = tokens / 1000 * self.capability.cost_per_1k_tokens
+        from app.engine.cost import cost_tracker
+
+        over = await cost_tracker.add_usage(self.context.task_id, tokens, cost)
+        if over:
+            from app.llm.client import LLMCallError
+
+            raise LLMCallError(
+                f"任务 {self.context.task_id} 超出 Token 预算，执行已中止"
+            )
 
     async def think_stream(
         self,

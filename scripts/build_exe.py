@@ -30,7 +30,6 @@ def build():
         "--add-data", f"config{os.pathsep}config",
         "--add-data", f"frontend/dist{os.pathsep}frontend/dist",
         "--hidden-import", "app.web.api",
-        "--hidden-import", "app.web.ws",
         "--hidden-import", "app.web.push",
         "--hidden-import", "app.engine.self_improve",
         "--hidden-import", "app.engine.style",
