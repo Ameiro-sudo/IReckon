@@ -3,9 +3,7 @@
 支持顺序执行、条件分支、循环三种基本组合，使用 Python 代码生成
 """
 
-import json
-from typing import Dict, Any, List, Optional
-from loguru import logger
+from typing import Dict, Any, List
 
 
 class ToolAssembler:
@@ -43,10 +41,10 @@ class ToolAssembler:
         code_lines.append(false_part["code"])
         code_lines.append("")
         code_lines.append("def assembled_tool(input_data):")
-        code_lines.append(f"    if condition(input_data):")
-        code_lines.append(f"        return true_branch(input_data)")
-        code_lines.append(f"    else:")
-        code_lines.append(f"        return false_branch(input_data)")
+        code_lines.append("    if condition(input_data):")
+        code_lines.append("        return true_branch(input_data)")
+        code_lines.append("    else:")
+        code_lines.append("        return false_branch(input_data)")
         return "\n".join(code_lines)
 
     @staticmethod

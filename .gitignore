@@ -46,3 +46,9 @@ full_validation.txt
 inspect_lines.txt
 ruff_output.txt
 syntax_inspect.txt
+
+# Test artifacts
+coverage_html/
+.coverage
+htmlcov/
+

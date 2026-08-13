@@ -2,7 +2,6 @@ import asyncio
 from typing import List, Dict, Optional
 import chromadb
 from chromadb.utils import embedding_functions
-from loguru import logger
 from pathlib import Path
 from app.core.config import config_manager
 

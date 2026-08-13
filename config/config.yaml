@@ -1,73 +1,76 @@
-system:
-  name: IReckon
-  version: 2.1.0
-  data_dir: ./data
-  log_level: INFO
-
-server:
-  host: 0.0.0.0
-  port: 8000
-  log_level: INFO
-  open_browser: false
-  frontend_dev_url: http://127.0.0.1:3000
-
 ai_pool:
-  default_model: qwen2.5:7b
+  default_model: auto
   instances:
-    - id: local-ollama-qwen
-      name: Local Ollama Qwen
-      model: qwen2.5:7b
-      endpoint: http://localhost:11434
-      api_key: ""
-      parameters: {}
-      tags: [general, cheap, fast, python]
-      cost_per_1k_tokens: 0.0
-      max_context: 8192
-      enabled: true
-
-ui:
-  theme: catgirl
-  default_view: styled
-
-task_defaults:
-  max_review_rounds: 5
-  loop_detection_max_rounds: 5
-  loop_similarity_threshold: 0.9
-  max_task_duration_seconds: 3600
-  max_task_tokens_per_task: 200000
-
+  - api_key: ${FREELMAPI_KEY}
+    cost_per_1k_tokens: 0.0
+    enabled: true
+    endpoint: http://localhost:3003/v1
+    id: freellmapi
+    max_context: 131072
+    model: auto
+    name: FreeLLM API
+    parameters: {}
+    tags:
+    - general
+    - cheap
+    - fast
+    - python
+    - code
+    - cli
+    - testing
+    - review
+    - architecture
+    - web
+    - documentation
+learning:
+  idle_trigger_minutes: 30
+  source_whitelist:
+  - https://github.com/trending
 persistence:
-  snapshot_interval_seconds: 60
   max_snapshots_per_task: 20
-
+  snapshot_interval_seconds: 60
 security:
+  code_scanner: bandit
   local_command_levels:
     L1_auto_exec: true
     L2_vote_threshold: 0.5
     L3_block: true
   sandbox:
+    cpu_limit: 1.0
     engine: udocker
     image: python:3.11-slim
     memory_limit: 512m
-    cpu_limit: 1.0
-  code_scanner: bandit
   supply_chain_blacklist:
-    pip: []
     npm: []
-
+    pip: []
 self_update:
-  repo: ninasukiwww-png/IReckon
-  enabled: true
-  check_interval_hours: 24
   branch_prefix: self-improve
-  max_files_per_round: 5
+  check_interval_hours: 24
+  enabled: true
   file_blacklist:
-    - config/config.yaml
-    - data/
-    - app/security/
-    - app/core/updater.py
-
-learning:
-  idle_trigger_minutes: 30
-  source_whitelist:
-    - https://github.com/trending
+  - config/config.yaml
+  - data/
+  - app/security/
+  - app/core/updater.py
+  max_files_per_round: 5
+  repo: ninasukiwww-png/IReckon
+server:
+  frontend_dev_url: http://127.0.0.1:3000
+  host: 0.0.0.0
+  log_level: INFO
+  open_browser: false
+  port: 8000
+system:
+  data_dir: ./data
+  log_level: INFO
+  name: IReckon
+  version: 2.1.0
+task_defaults:
+  loop_detection_max_rounds: 5
+  loop_similarity_threshold: 0.9
+  max_review_rounds: 5
+  max_task_duration_seconds: 7200
+  max_task_tokens_per_task: 1000000
+ui:
+  default_view: styled
+  theme: catgirl

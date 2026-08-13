@@ -28,6 +28,12 @@ class ExecutorAgent(BaseAgent):
     def _build_system_prompt(self) -> str:
         return """你是一位资深软件工程师，负责将需求转化为高质量代码。
 
+工作原则（YAGNI）：
+- 只实现需求要求的内容，不要添加需求未要求的额外文件、功能或工程化设施。
+- simple 任务：直接产出可运行的代码，不写需求文档、不生成 Dockerfile/CI/测试脚手架。
+- 代码规模与任务复杂度匹配：hello world 就是 hello world，不要把它做成生产级项目。
+- 如果需求含糊，按最直接的合理解释实现。
+
 工作流程：
 1. 对于复杂任务，首先进行思维链外化（问题重述、方案发散、抉择、执行步骤）。
 2. 编写代码时遵循以下要求：
@@ -215,17 +221,43 @@ class ExecutorAgent(BaseAgent):
 
     def _parse_artifacts(self, response: str) -> Dict[str, str]:
         artifacts = {}
+
+        def clean(content: str) -> str:
+            content = content.strip()
+            if content.startswith("```"):
+                lines = content.splitlines()
+                if lines and lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip().startswith("```"):
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+            return content
+
         parts = response.split("//// filename:")
         if len(parts) == 1:
-            artifacts["main.py"] = response.strip()
+            artifacts["main.py"] = clean(response)
         else:
             for part in parts[1:]:
                 lines = part.strip().split("\n", 1)
                 if len(lines) >= 2:
                     filename = lines[0].strip()
-                    content = lines[1].strip()
+                    filename = filename.strip("`").strip().strip("*").strip()
+                    if not filename:
+                        continue
+                    content = clean(lines[1])
                     artifacts[filename] = content
         return artifacts
+
+    def _syntax_errors(self, code_dict: Dict[str, str]) -> list[str]:
+        errors = []
+        for fname, content in code_dict.items():
+            if not fname.endswith(".py"):
+                continue
+            try:
+                compile(content, fname, "exec")
+            except SyntaxError as e:
+                errors.append(f"{fname}: {e.msg} (行 {e.lineno})")
+        return errors
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")
@@ -241,4 +273,15 @@ class ExecutorAgent(BaseAgent):
             context=context,
             language=language,
         )
-        return {"artifacts": code_dict}
+
+        for attempt in range(2):
+            errs = self._syntax_errors(code_dict)
+            if not errs:
+                break
+            logger.warning(f"语法检查失败(第{attempt + 1}次): {errs}")
+            code_dict = await self.debug_code(code_dict, "请修复以下 Python 语法错误:\n" + "\n".join(errs))
+
+        errs = self._syntax_errors(code_dict)
+        if errs:
+            logger.error(f"语法修复失败，仍存在错误: {errs}")
+        return {"artifacts": code_dict, "syntax_errors": errs}

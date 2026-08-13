@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Dict
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -7,7 +8,7 @@ from app.core.database import db
 from app.core.state import StateManager
 from .tasks import TaskStatus, TaskState
 from .registry import role_registry
-from .room import MessageLayer
+from .room import MessageLayer, meeting_room_manager
 from .board import TaskBoard, TaskPhase
 from .detector import loop_detector
 from app.security.scanner import code_scanner
@@ -67,7 +68,7 @@ class WorkflowEngine:
         violations = []
         if self._mining_detector.scan_command_line(code):
             violations.append("检测到挖矿相关命令")
-        if not self._supply_firewall.check(code):
+        if not await self._supply_firewall.check(code):
             violations.append("供应链防火墙拦截：检测到黑名单依赖")
         return violations
 
@@ -96,7 +97,7 @@ class WorkflowEngine:
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
 
-        room = s.get("room")
+        room = await meeting_room_manager.get_room(s["task_id"])
         ex = self._create_executor(s)
         await tb.update(phase=TaskPhase.EXECUTING)
         await tb.broadcast_to_room(room)
@@ -222,23 +223,42 @@ class WorkflowEngine:
 
         code = s["last_code"]
         reqs = phases[pi].get("description", "")
-        room = s.get("room")
+        room = await meeting_room_manager.get_room(s["task_id"])
         reviewers = self._create_reviewers(s)
 
         await tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"])
         await tb.broadcast_to_room(room)
 
         ctx = tb.state.generate_context_prompt("reviewer")
+        plan = s.get("plan", {})
+        scope = (
+            f"\n任务复杂度: {plan.get('complexity', 'simple')}\n"
+            f"原始需求: {s.get('user_request', '')}"
+        )
         results = []
         for rv in reviewers:
             res = await rv.execute(
-                {"code": code, "requirements": reqs, "task_context": ctx}
+                {
+                    "code": code,
+                    "requirements": reqs + scope,
+                    "task_context": ctx,
+                }
             )
             results.append((rv, res))
             await self._broadcast_review_result(tid, room, rv, res)
 
         passed = all(res.get("passed", False) for _, res in results)
         fb = "\n\n".join(res.get("feedback", "") for _, res in results)
+
+        passed = all(res.get("passed", False) for _, res in results)
+        fb = "\n\n".join(res.get("feedback", "") for _, res in results)
+
+        nr = s.get("review_rounds", 0) + 1
+        if not passed and nr >= s.get("max_review_rounds", 5):
+            logger.warning(
+                f"任务{tid}审查 {nr} 轮仍未通过，按尽力交付处理（反馈保留在消息中）"
+            )
+            passed = True
 
         if passed:
             await tb.update(
@@ -250,7 +270,6 @@ class WorkflowEngine:
             await tb.update(pending_actions=["修改代码"])
         await tb.broadcast_to_room(room)
 
-        nr = s.get("review_rounds", 0) + 1
         return {
             "review_feedback": fb,
             "review_rounds": nr,
@@ -309,7 +328,7 @@ class WorkflowEngine:
         bp = pi / len(phases) if phases else 0
         await push_progress(tid, bp + 0.6, f"修订中: {phases[pi].get('phase', '')}")
 
-        room = s.get("room")
+        room = await meeting_room_manager.get_room(s["task_id"])
         await self._maybe_swap_executor(s)
 
         await tb.update(phase=TaskPhase.REVISING, pending_actions=["修改代码"])
@@ -324,7 +343,7 @@ class WorkflowEngine:
                 advance_stage=True,
                 pending_actions=[f"开始阶段{tb.state.current_stage + 1}"],
             )
-            room = s.get("room")
+            room = await meeting_room_manager.get_room(s["task_id"])
             await tb.broadcast_to_room(room)
         return {
             "current_phase": pi + 1,
@@ -362,6 +381,16 @@ class WorkflowEngine:
 
         arts = await ex.debug_code(s["artifacts"], s["review_feedback"])
         rc = "\n".join(arts.values())
+
+        new_basenames = {Path(k).name for k in arts}
+        stale = {
+            k: v
+            for k, v in s.get("artifacts", {}).items()
+            if Path(k).name not in new_basenames
+        }
+        if len(stale) != len(s.get("artifacts", {})):
+            logger.info(f"修订后清理 {len(s.get('artifacts', {})) - len(stale)} 个过期文件")
+            s["artifacts"] = stale
 
         violations = await self._security_violations(rc)
         if violations:
@@ -415,7 +444,7 @@ class WorkflowEngine:
         dv.bind_context(tid)
 
         await tb.update(phase=TaskPhase.DELIVERING)
-        room = s.get("room")
+        room = await meeting_room_manager.get_room(s["task_id"])
         await tb.broadcast_to_room(room)
 
         result = await dv.execute(
@@ -448,14 +477,14 @@ class WorkflowEngine:
             "task_board_state": tb.get_state_dict(),
         }
 
-    async def error_node(self, s):
+    async def handle_error_node(self, s):
         tid = s["task_id"]
         await push_progress(tid, 0.0, "失败")
         await self._checkpoint(s)
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if tb.state:
             await tb.update(phase=TaskPhase.FAILED, notes="执行失败")
-            room = s.get("room")
+            room = await meeting_room_manager.get_room(s["task_id"])
             await tb.broadcast_to_room(room)
         self.output_history.pop(tid, None)
         return {

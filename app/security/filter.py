@@ -1,6 +1,5 @@
 from enum import Enum
 from typing import List, Dict, Any
-from loguru import logger
 from app.core.config import config_manager
 
 

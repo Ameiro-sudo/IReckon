@@ -8,9 +8,9 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 import aiosqlite
-from cryptography.fernet import Fernet, InvalidToken  # 数据加密小能手～
+from cryptography.fernet import Fernet  # 数据加密小能手～
 from loguru import logger
 from .config import config_manager
 

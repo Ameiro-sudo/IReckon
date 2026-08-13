@@ -1,7 +1,6 @@
-import os
 import sys
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, WebSocket, Request
+from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -42,7 +41,6 @@ _frontend_candidates.append(Path(__file__).parent.parent.parent / "frontend" / "
 _frontend_available = False
 for fp in _frontend_candidates:
     if fp.is_dir():
-        app.mount("/", StaticFiles(directory=str(fp), html=True), name="frontend")
         _frontend_available = True
         break
 
@@ -206,6 +204,7 @@ async def create_ai_instance(inst: AIInstanceRequest):
     data = inst.model_dump()
     if not data.get("id"):
         data["id"] = f"ai-{uuid.uuid4().hex[:12]}"
+    data.setdefault("api_key", "")
     cap = AICapability(**data)
     await capability_pool.add_instance(cap)
     return {"status": "ok", "id": data["id"]}
@@ -215,6 +214,7 @@ async def create_ai_instance(inst: AIInstanceRequest):
 async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
     data = inst.model_dump(exclude_unset=True)
     data["id"] = instance_id
+    data.setdefault("api_key", "")
     cap = AICapability(**data)
     await capability_pool.update_instance(cap)
     return {"status": "ok"}
@@ -340,7 +340,10 @@ async def ws_global(websocket: WebSocket):
     await websocket_endpoint(websocket, task_id=None)
 
 
-if not _frontend_available:
+if _frontend_available:
+    frontend_dir = next(fp for fp in _frontend_candidates if fp.is_dir())
+    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+elif not _frontend_available:
 
     @app.get("/{path:path}", include_in_schema=False)
     async def redirect_to_frontend(path: str):

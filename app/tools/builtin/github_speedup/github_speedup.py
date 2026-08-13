@@ -10,7 +10,7 @@ import urllib.error
 import json
 import os
 import concurrent.futures
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, Tuple
 
 MIRROR_POOL = [
     "https://edgeone.gh-proxy.com",

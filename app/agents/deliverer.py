@@ -33,11 +33,16 @@ class DelivererAgent(BaseAgent):
 
     @staticmethod
     def _safe_filename(name: str) -> str:
-        """净化 LLM 提供的文件名，防止路径穿越。"""
-        base = str(name).replace("\\", "/").split("/")[-1].strip()
-        if not base or base in (".", "..") or ":" in base or "\x00" in base:
-            return "unnamed.txt"
-        return base
+        """净化 LLM 提供的文件名，保留相对目录结构，防止路径穿越。"""
+        parts = []
+        for seg in str(name).replace("\\", "/").split("/"):
+            seg = seg.strip()
+            if not seg or seg in (".", ".."):
+                continue
+            seg = seg.replace(":", "_").replace("\x00", "")
+            if seg:
+                parts.append(seg)
+        return "/".join(parts) if parts else "unnamed.txt"
 
     async def package(
         self, task_id: str, artifacts: Dict[str, str], project_info: Dict[str, Any]
@@ -49,6 +54,7 @@ class DelivererAgent(BaseAgent):
         for filename, content in artifacts.items():
             safe_name = self._safe_filename(filename)
             file_path = task_output_dir / safe_name
+            file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 

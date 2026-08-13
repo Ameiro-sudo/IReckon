@@ -5,7 +5,6 @@ Provides common string transformation and inspection operations.
 
 import re
 import textwrap
-from typing import List, Union, Optional
 
 OPERATIONS = {
     "upper": lambda s: s.upper(),

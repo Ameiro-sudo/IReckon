@@ -4,7 +4,7 @@ LLM 客户端模块 (๑•̀ᴗ-)✧
 """
 
 import asyncio, random, time
-from typing import List, Dict, Any, Optional, Union, AsyncGenerator
+from typing import Dict, Any
 from enum import Enum
 from dataclasses import dataclass
 import litellm
@@ -12,7 +12,6 @@ from litellm import acompletion
 import httpx
 from loguru import logger
 from app.core.config import config_manager
-from app.llm.pool import AICapability, CapabilityPool, capability_pool
 
 # 可以重试的异常类型～
 RETRYABLE_EXCEPTIONS = (
@@ -21,6 +20,8 @@ RETRYABLE_EXCEPTIONS = (
     litellm.exceptions.Timeout,
     litellm.exceptions.RateLimitError,
     litellm.exceptions.ServiceUnavailableError,
+    litellm.exceptions.BadGatewayError,
+    litellm.exceptions.InternalServerError,
     ConnectionError,
     TimeoutError,
 )

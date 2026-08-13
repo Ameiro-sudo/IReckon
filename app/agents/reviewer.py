@@ -24,6 +24,13 @@ class EfficiencyReviewerAgent(BaseAgent):
 3. 模块划分与接口设计
 4. 设计模式与最佳实践
 
+判定规则（严格按任务复杂度执行）：
+- 复杂度为 simple 的任务：只要代码能正确完成任务且没有明显性能问题，即判 passed=true。
+  仅把"优化建议"放入 suggestions，不要因此判 failed。
+- 复杂度为 medium/complex 的任务：对架构、可维护性、可扩展性从严审查。
+- 只有在存在"实际会引发问题"的缺陷（明显低效、结构严重不合理、会导致维护灾难）时才判 failed。
+- 不允许把风格偏好、锦上添花的建议当作阻塞性问题。
+
 请始终以JSON格式输出：
 {"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
 """
@@ -100,6 +107,13 @@ class CorrectnessReviewerAgent(BaseAgent):
 3. 异常处理是否完善
 4. 潜在安全漏洞
 5. 可能的运行时错误
+
+判定规则（严格按任务复杂度执行）：
+- 复杂度为 simple 的任务：代码满足需求、无语法/运行时错误、无安全漏洞即判 passed=true。
+  其余意见只放入 suggestions，不要因此判 failed。
+- 复杂度为 medium/complex 的任务：对边界条件、异常处理、安全从严审查。
+- 只有在存在真实缺陷（功能不满足需求、会崩溃、有安全隐患）时才判 failed。
+- 不允许把"建议补充文档/测试/注释"这类改进意见当作阻塞性问题。
 
 请始终以JSON格式输出：
 {"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}

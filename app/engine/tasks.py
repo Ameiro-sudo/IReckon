@@ -1,4 +1,4 @@
-import asyncio, uuid, operator
+import asyncio, uuid, operator, json
 from typing import Dict, Any, Optional, TypedDict, List, Annotated
 from enum import Enum
 from loguru import logger
@@ -7,7 +7,7 @@ from app.core.database import db
 from app.core.config import config_manager
 from app.agents.scheduler import SchedulerAgent
 from app.llm.pool import capability_pool, AICapability
-from .room import meeting_room_manager, MeetingRoom
+from .room import meeting_room_manager
 from .board import TaskBoard
 from .learner import idle_loop
 
@@ -32,7 +32,7 @@ class TaskState(TypedDict):
     phases: List[Dict[str, Any]]
     team: Dict[str, List[AICapability]]
     artifacts: Annotated[Dict[str, str], operator.ior]
-    messages: Annotated[List[Dict], operator.ior]
+    messages: Annotated[List[Dict], operator.add]
     status: TaskStatus
     review_rounds: int
     max_review_rounds: int
@@ -40,7 +40,6 @@ class TaskState(TypedDict):
     review_feedback: str
     review_passed_this_round: bool
     error: Optional[str]
-    room: Optional[MeetingRoom]
     task_board_state: Dict[str, Any]
 
 
@@ -124,18 +123,14 @@ class TaskManager:
         sch = SchedulerAgent(cap)
         sch.bind_context(tid, cancellation_event=ce)
         sr = await sch.execute(req, tid)
-        plan, team, room = (
-            sr["plan"],
-            sr["team"],
-            await meeting_room_manager.get_room(tid),
-        )
+        plan, team = sr["plan"], sr["team"]
         phases = plan.get("phases")
         if not phases:
             raise ValueError(f"任务{tid}计划为空，无法执行")
         tbs = sr.get("task_board_state", {})
         await db.execute(
             "UPDATE tasks SET status=?,config_snapshot=? WHERE task_id=?",
-            (TaskStatus.EXECUTING.value, str(plan), tid),
+            (TaskStatus.EXECUTING.value, json.dumps(plan, ensure_ascii=False), tid),
         )
         st: TaskState = {
             "task_id": tid,
@@ -153,7 +148,6 @@ class TaskManager:
             "review_feedback": "",
             "review_passed_this_round": False,
             "error": None,
-            "room": room,
             "task_board_state": tbs,
         }
         from .machine import WorkflowEngine
@@ -190,7 +184,7 @@ class TaskManager:
 
         ce = asyncio.Event()
         self._cancel_events[tid] = ce
-        room = await meeting_room_manager.create_room(tid)
+        await meeting_room_manager.create_room(tid)
         task_board = await TaskBoard.from_state_dict(
             tid, snap.get("task_board_state", {})
         )
@@ -222,7 +216,6 @@ class TaskManager:
             "review_feedback": snap.get("review_feedback", ""),
             "review_passed_this_round": snap.get("review_passed_this_round", False),
             "error": snap.get("error"),
-            "room": room,
             "task_board_state": task_board.get_state_dict(),
         }
         if not resumed_state["phases"]:

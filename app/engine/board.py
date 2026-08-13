@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from datetime import datetime, timezone
 import json
+import ast
 
 from app.core.database import db
 from app.core.logger import logger
@@ -116,7 +117,10 @@ class TaskBoard:
                 "SELECT config_snapshot FROM tasks WHERE task_id = ?", (self.task_id,)
             )
             if plan_row and plan_row[0]:
-                plan = json.loads(plan_row[0])
+                try:
+                    plan = json.loads(plan_row[0])
+                except json.JSONDecodeError:
+                    plan = ast.literal_eval(plan_row[0])
                 self._phases = plan.get("phases", [])
             return self.state
         return None
@@ -209,6 +213,9 @@ class TaskBoard:
                 "SELECT config_snapshot FROM tasks WHERE task_id = ?", (task_id,)
             )
             if plan_row and plan_row[0]:
-                plan = json.loads(plan_row[0])
+                try:
+                    plan = json.loads(plan_row[0])
+                except json.JSONDecodeError:
+                    plan = ast.literal_eval(plan_row[0])
                 board._phases = plan.get("phases", [])
         return board

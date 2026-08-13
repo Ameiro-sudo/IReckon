@@ -26,7 +26,7 @@ from app.core.logger import setup_logging, logger
 from app.core.database import db
 from app.core.config import config_manager
 from app.core.updater import updater
-from app.llm.client import capability_pool
+from app.llm.pool import capability_pool
 from app.engine.learner import idle_loop
 from app.web.push import log_consumer
 from app.tools.registry import register_builtin_tools
@@ -114,11 +114,22 @@ class IReckonApp:
         # 启动Vue前端（优先 npm run dev）
         logger.info("启动Vue前端...")
         tried = []
-        cmds = [["npm", "run", "dev"], ["npx", "vite", "--host", "127.0.0.1", "--port", "3000"]]
+        vite_js = os.path.join(frontend_dir, "node_modules", "vite", "bin", "vite.js")
+        bin_vite = os.path.join(frontend_dir, "node_modules", ".bin", "vite")
+        if os.path.exists(bin_vite):
+            cmds = [["npm", "run", "dev"], ["npx", "vite", "--host", "127.0.0.1", "--port", "3000"]]
+        else:
+            cmds = []
+            if os.path.exists(vite_js) and shutil.which("node"):
+                cmds.append(["node", vite_js, "--host", "127.0.0.1", "--port", "3000"])
+            elif npm_path:
+                cmds.append(["npm", "run", "dev"])
         for cmd in cmds:
             if cmd[0] == "npm" and npm_path is None:
                 continue
             if cmd[0] == "npx" and npx_path is None:
+                continue
+            if cmd[0] == "node" and shutil.which("node") is None:
                 continue
             try:
                 self._frontend_proc = subprocess.Popen(

@@ -4,7 +4,6 @@
 
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
-from typing import Optional
 
 
 def get_prompt_template_dir() -> Path:

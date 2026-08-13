@@ -1,6 +1,5 @@
 import json
-import asyncio
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Set
 
 from loguru import logger
 
@@ -8,7 +7,6 @@ from .base import BaseAgent
 from app.llm.pool import AICapability, capability_pool
 from app.engine.room import meeting_room_manager, MessageLayer
 from app.engine.board import TaskBoard
-from app.core.config import config_manager
 from app.utils import create_jinja_env
 
 
@@ -28,6 +26,13 @@ class SchedulerAgent(BaseAgent):
 2. 将任务拆解为清晰的阶段（需求分析、设计、编码、测试、交付）。
 3. 根据任务特点，从能力池中为每个阶段招募合适的 AI 角色（执行员、评审员、创意师等）。
 4. 输出结构化的《绩效任务计划书》，包含角色分配、里程碑、预期产出。
+
+阶段规划原则（复杂度感知）：
+- simple 任务（单文件脚本、小工具、简单页面）：只规划 1~2 个阶段。
+  典型做法："implementation"（直接产出代码）+ 可选 "delivery"。不要规划独立的"需求分析"阶段。
+- medium 任务：可包含"设计 + 实现 + 审查"。
+- complex 任务：才需要完整的多阶段流水线（需求分析、设计、实现、测试、交付）。
+- 阶段数量与需求复杂度和产出规模成正比，禁止过度规划。
 
 输出格式要求：使用 JSON 结构，便于程序解析。同时提供人类可读的摘要。
 
@@ -111,7 +116,14 @@ class SchedulerAgent(BaseAgent):
                     candidates.append(cap)
                     global_assigned_ids.add(cap.id)
                 else:
-                    logger.error(f"无法为角色 {role} 找到合适的能力实例")
+                    cap = await capability_pool.find_best_match(
+                        prefer_cheapest=prefer_cheap,
+                    )
+                    if cap:
+                        logger.warning(f"角色 {role} 标签不匹配({required_tags})，复用能力实例 {cap.id}")
+                        candidates.append(cap)
+                    else:
+                        logger.error(f"无法为角色 {role} 找到合适的能力实例")
             team[role] = candidates
         return team
 
@@ -134,7 +146,7 @@ class SchedulerAgent(BaseAgent):
                 room.add_member(role, cap.id)
 
         task_board = TaskBoard(task_id)
-        board_state = await task_board.initialize(plan, team)
+        await task_board.initialize(plan, team)
         await task_board.broadcast_to_room(room)
 
         announcement = self._generate_announcement(plan, team)
