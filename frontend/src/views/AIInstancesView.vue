@@ -1,131 +1,145 @@
 <template>
-  <div class="page-view">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">AI 实例</h1>
-        <p class="page-subtitle">管理 AI 模型连接与能力实例</p>
-      </div>
+  <div class="view-root">
+    <PageHeader title="AI 实例" subtitle="管理 AI 模型连接与能力实例">
+    <template #actions>
       <button class="btn btn-primary" @click="openCreate">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         添加实例
       </button>
-    </div>
+    </template>
+  </PageHeader>
 
-    <div class="instances-grid">
-      <div v-for="inst in instances" :key="inst.id" class="instance-card card">
-        <div class="instance-top">
-          <div class="instance-avatar">{{ inst.name?.charAt(0) || '?' }}</div>
-          <div class="instance-info">
-            <span class="instance-name">{{ inst.name }}</span>
-            <span class="instance-model">{{ inst.model }}</span>
-          </div>
-          <span class="badge" :class="inst.enabled ? 'badge-success' : 'badge-warning'">
-            {{ inst.enabled ? '启用' : '禁用' }}
+  <div class="inst-grid">
+    <div v-for="inst in instances" :key="inst.id" class="panel inst-card card-hover">
+      <div class="inst-top">
+        <div class="inst-avatar">{{ inst.name?.charAt(0) || '?' }}</div>
+        <div class="inst-info">
+          <div class="inst-name overflow-ellipsis">{{ inst.name }}</div>
+          <div class="mono inst-model overflow-ellipsis">{{ inst.model }}</div>
+        </div>
+        <span class="pill" :class="inst.enabled ? 'st-completed' : 'st-paused'">{{ inst.enabled ? '启用' : '禁用' }}</span>
+        <span v-if="inst.has_key" class="pill st-key" title="已配置 API Key">密钥已配置</span>
+      </div>
+
+      <div class="inst-details">
+        <div class="detail-row">
+          <span class="detail-label">Endpoint</span>
+          <span class="mono detail-value overflow-ellipsis" :title="inst.endpoint">{{ inst.endpoint }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">价格</span>
+          <span class="mono">${{ inst.cost_per_1k_tokens }}/1k tokens</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">上下文</span>
+          <span class="mono">{{ formatContext(inst.max_context) }}</span>
+        </div>
+        <div class="detail-row" v-if="inst.tags?.length">
+          <span class="detail-label">标签</span>
+          <span class="tags">
+            <span v-for="tag in inst.tags.slice(0, 6)" :key="tag" class="tag mono">{{ tag }}</span>
+            <span v-if="inst.tags.length > 6" class="tag mono text-muted">+{{ inst.tags.length - 6 }}</span>
           </span>
         </div>
-
-        <div class="instance-details">
-          <div class="detail-row">
-            <span class="detail-label">Endpoint</span>
-            <span class="detail-value">{{ inst.endpoint }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Tokens</span>
-            <span class="detail-value">${{ inst.cost_per_1k_tokens }}/1k</span>
-          </div>
-          <div class="detail-row" v-if="inst.tags?.length">
-            <span class="detail-label">标签</span>
-            <span class="detail-tags">
-              <span v-for="tag in inst.tags" :key="tag" class="tag">{{ tag }}</span>
-            </span>
-          </div>
-        </div>
-
-        <div class="instance-actions">
-          <button class="btn btn-secondary btn-sm" @click="testInstance(inst.id)">
-            {{ testingId === inst.id ? '...' : '测试' }}
-          </button>
-          <button class="btn btn-secondary btn-sm" @click="openEdit(inst)">编辑</button>
-          <button class="btn btn-danger btn-sm" @click="deleteInstance(inst.id)">删除</button>
-        </div>
       </div>
 
-      <div v-if="!instances.length" class="empty-state" style="grid-column: 1 / -1;">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 0 1 10 10c0 2.5-1 4.8-2.6 6.5"/><path d="M12 2a10 10 0 0 0-7.4 16.5"/><circle cx="12" cy="12" r="3"/></svg>
-        </div>
-        <p>暂无 AI 实例</p>
-        <button class="btn btn-primary" @click="openCreate">添加第一个实例</button>
+      <div v-if="testResults[inst.id]" class="test-result" :class="testResults[inst.id].status === 'reachable' ? 'ok' : 'bad'">
+        <span class="test-dot"></span>
+        <span class="text-sm" v-if="testResults[inst.id].status === 'reachable'">
+          可达 (HTTP {{ testResults[inst.id].http_status }})
+        </span>
+        <span class="text-sm overflow-ellipsis" v-else :title="testResults[inst.id].error">
+          不可达: {{ testResults[inst.id].error }}
+        </span>
+        <button class="btn btn-ghost btn-icon" style="margin-left: auto;" @click="clearTest(inst.id)">×</button>
+      </div>
+
+      <div class="inst-actions">
+        <button class="btn btn-secondary btn-sm" :disabled="testingId === inst.id" @click="testInstance(inst.id)">
+          {{ testingId === inst.id ? '测试中...' : '测试' }}
+        </button>
+        <button class="btn btn-secondary btn-sm" @click="openEdit(inst)">编辑</button>
+        <button class="btn btn-danger btn-sm" @click="deleteInstance(inst.id)">删除</button>
       </div>
     </div>
 
-    <Teleport to="body">
-      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-        <div class="modal card">
-          <h2 class="modal-title">{{ editingInstance ? '编辑实例' : '添加实例' }}</h2>
-          <form @submit.prevent="saveInstance">
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label>名称</label>
-                <input v-model="form.name" class="input" required />
-              </div>
-              <div class="form-group flex-1">
-                <label>模型</label>
-                <input v-model="form.model" class="input" placeholder="gpt-4" required />
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Endpoint</label>
-              <input v-model="form.endpoint" class="input" placeholder="https://api.example.com/v1" required />
-            </div>
-            <div class="form-group">
-              <label>API Key</label>
-              <input v-model="form.api_key" class="input" type="password" placeholder="sk-..." />
-            </div>
-            <div class="form-row">
-              <div class="form-group flex-1">
-                <label>最大上下文</label>
-                <input v-model.number="form.max_context" class="input" type="number" />
-              </div>
-              <div class="form-group flex-1">
-                <label>价格 /1k tokens</label>
-                <input v-model.number="form.cost_per_1k_tokens" class="input" type="number" step="0.001" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label>标签 (逗号分隔)</label>
-              <input v-model="tagsInput" class="input" placeholder="python, coding, smart" />
-            </div>
-            <div class="form-group">
-              <label class="switch-label">
-                <input type="checkbox" v-model="form.enabled" />
-                <span class="switch-track">
-                  <span class="switch-thumb"></span>
-                </span>
-                启用
-              </label>
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn btn-secondary" @click="closeModal">取消</button>
-              <button type="submit" class="btn btn-primary">保存</button>
-            </div>
-          </form>
-        </div>
+    <div v-if="!instances.length" class="panel empty-state" style="grid-column: 1 / -1;">
+      <div class="empty-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 2.5-1 4.8-2.6 6.5"/><path d="M12 2a10 10 0 0 0-7.4 16.5"/><circle cx="12" cy="12" r="3"/></svg>
       </div>
-    </Teleport>
+      <p>暂无 AI 实例</p>
+      <button class="btn btn-primary btn-sm" @click="openCreate">添加第一个实例</button>
+    </div>
+  </div>
+
+  <Teleport to="body">
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div class="modal">
+        <h2 class="modal-title">{{ editingInstance ? '编辑实例' : '添加实例' }}</h2>
+        <p class="modal-desc">OpenAI 兼容端点可直接接入，API Key 将加密存储。</p>
+        <form @submit.prevent="saveInstance">
+          <div class="form-group">
+            <label class="form-label">名称</label>
+            <input v-model="form.name" class="input" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">模型</label>
+            <input v-model="form.model" class="input" placeholder="gpt-4 / deepseek-v4-flash" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Endpoint</label>
+            <input v-model="form.endpoint" class="input" placeholder="https://api.example.com/v1" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">API Key</label>
+            <input v-model="form.api_key" class="input" type="password" placeholder="sk-..." autocomplete="new-password" />
+            <div v-if="editingInstance?.has_key" class="text-xs text-muted" style="margin-top: 4px;">留空表示保持不变，已配置密钥</div>
+          </div>
+          <div class="flex gap-12">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">最大上下文</label>
+              <input v-model.number="form.max_context" class="input" type="number" />
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">价格 ($/1k tokens)</label>
+              <input v-model.number="form.cost_per_1k_tokens" class="input" type="number" step="0.001" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">标签 (逗号分隔)</label>
+            <input v-model="tagsInput" class="input" placeholder="python, coding, smart" />
+          </div>
+          <div class="form-group">
+            <label class="switch-label">
+              <input type="checkbox" v-model="form.enabled" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+              启用
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" @click="closeModal">取消</button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { aiInstanceAPI } from '../api/index.js'
+import { useToast } from '../composables/useToast.js'
+import PageHeader from '../components/PageHeader.vue'
 
+const toast = useToast()
 const instances = ref([])
 const showModal = ref(false)
 const editingInstance = ref(null)
 const testingId = ref(null)
 const tagsInput = ref('')
-
+const testResults = reactive({})
 const form = ref(emptyForm())
 
 function emptyForm() {
@@ -136,9 +150,10 @@ onMounted(fetchInstances)
 
 async function fetchInstances() {
   try {
-    const res = await aiInstanceAPI.list()
-    instances.value = res.data
-  } catch {}
+    instances.value = (await aiInstanceAPI.list()).data
+  } catch (e) {
+    toast.error('加载实例失败: ' + e.message)
+  }
 }
 
 function openCreate() {
@@ -150,7 +165,7 @@ function openCreate() {
 
 function openEdit(inst) {
   editingInstance.value = inst
-  form.value = { ...inst }
+  form.value = { ...inst, api_key: '' }
   tagsInput.value = inst.tags?.join(', ') || ''
   showModal.value = true
 }
@@ -161,25 +176,43 @@ function closeModal() {
 }
 
 async function saveInstance() {
-  form.value.tags = tagsInput.value.split(',').map(t => t.trim()).filter(t => t)
+  form.value.tags = tagsInput.value.split(',').map(t => t.trim()).filter(Boolean)
+  const payload = { ...form.value }
+  if (editingInstance.value && !payload.api_key.trim()) {
+    delete payload.api_key
+  }
   try {
     if (editingInstance.value) {
-      await aiInstanceAPI.update(editingInstance.value.id, form.value)
+      await aiInstanceAPI.update(editingInstance.value.id, payload)
+      toast.success('实例已更新')
     } else {
-      await aiInstanceAPI.create(form.value)
+      await aiInstanceAPI.create(payload)
+      toast.success('实例已添加')
     }
     await fetchInstances()
     closeModal()
-  } catch (e) { alert('保存失败: ' + e.message) }
+  } catch (e) {
+    toast.error('保存失败: ' + (e.response?.data?.detail || e.message))
+  }
 }
 
 async function testInstance(id) {
   testingId.value = id
   try {
     const res = await aiInstanceAPI.test(id)
-    alert(`测试结果: ${res.data.status}`)
-  } catch (e) { alert('测试失败: ' + e.message) }
-  finally { testingId.value = null }
+    testResults[id] = res.data
+    if (res.data.status === 'reachable') toast.success('端点可达')
+    else toast.warning('端点不可达')
+  } catch (e) {
+    testResults[id] = { status: 'unreachable', error: e.message }
+    toast.error('测试失败: ' + e.message)
+  } finally {
+    testingId.value = null
+  }
+}
+
+function clearTest(id) {
+  delete testResults[id]
 }
 
 async function deleteInstance(id) {
@@ -187,249 +220,188 @@ async function deleteInstance(id) {
   try {
     await aiInstanceAPI.delete(id)
     await fetchInstances()
-  } catch (e) { alert('删除失败: ' + e.message) }
+    toast.success('实例已删除')
+  } catch (e) {
+    toast.error('删除失败: ' + e.message)
+  }
+}
+
+function formatContext(n) {
+  return n >= 1024 ? `${Math.round(n / 1024)}k` : String(n)
 }
 </script>
 
 <style scoped>
-.instances-grid {
+.inst-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
-.instance-card {
+.inst-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
+  gap: 12px;
+  padding: 18px;
 }
 
-.instance-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.instance-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent-gradient);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.instance-card:hover::before {
-  opacity: 1;
-}
-
-.instance-top {
+.inst-top {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.instance-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--accent-gradient);
+.inst-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
   font-weight: 700;
-  color: white;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(60, 150, 202, 0.2);
-}
-
-.instance-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.instance-name {
   font-size: 15px;
+  flex-shrink: 0;
+}
+
+.st-key {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.inst-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.inst-name {
+  font-size: 14px;
   font-weight: 600;
 }
 
-.instance-model {
-  font-size: 12px;
+.inst-model {
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-.instance-details {
+.inst-details {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   padding: 10px 12px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border-subtle);
-  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border-radius: var(--radius);
+  font-size: 12px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  align-items: center;
+  gap: 8px;
 }
 
 .detail-label {
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .detail-value {
-  color: var(--text-primary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.detail-tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.tag {
-  padding: 2px 8px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border-radius: 8px;
-  font-size: 11px;
+  max-width: 55%;
   color: var(--text-secondary);
 }
 
-.instance-actions {
+.tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tag {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.test-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.test-result.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.test-result.bad {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.test-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.test-result.ok .test-dot { background: var(--success); }
+.test-result.bad .test-dot { background: var(--error); }
+
+.inst-actions {
   display: flex;
   gap: 8px;
 }
 
-.instance-actions .btn { flex: 1; }
-
-.btn-sm { padding: 5px 12px; font-size: 12px; }
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.modal {
-  width: 520px;
-  max-width: 92vw;
-  max-height: 88vh;
-  overflow-y: auto;
-  animation: modalIn 0.2s ease;
-}
-
-@keyframes modalIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.modal-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 20px;
-  font-family: 'Noto Serif SC', serif;
-}
-
-.form-row {
-  display: flex;
-  gap: 14px;
-}
-
-.form-group {
-  margin-bottom: 14px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  margin-bottom: 5px;
-  color: var(--text-secondary);
-}
-
-.flex-1 { flex: 1; }
-
-.form-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
+.inst-actions .btn { flex: 1; }
 
 .switch-label {
   display: flex !important;
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  font-size: 13px !important;
+  font-size: 13px;
 }
 
 .switch-label input { display: none; }
 
 .switch-track {
-  width: 36px;
-  height: 20px;
-  background: var(--bg-tertiary);
+  width: 34px;
+  height: 19px;
   border-radius: 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
   position: relative;
-  transition: background 0.2s;
-  border: 1px solid var(--border);
-}
-
-.switch-label input:checked + .switch-track {
-  background: var(--accent-gradient);
-  border-color: transparent;
+  transition: background 0.15s ease;
 }
 
 .switch-thumb {
-  width: 16px;
-  height: 16px;
-  background: white;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
+  background: #fff;
   position: absolute;
   top: 1px;
   left: 1px;
-  transition: transform 0.2s;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.switch-label input:checked + .switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .switch-label input:checked + .switch-track .switch-thumb {
-  transform: translateX(16px);
-}
-
-@media (max-width: 480px) {
-  .instances-grid { grid-template-columns: 1fr !important; }
-  .instance-card { gap: 10px; }
-  .instance-actions { flex-wrap: wrap; }
-  .instance-actions .btn { flex: 1; min-width: 60px; }
-  .modal { width: 95vw !important; }
+  transform: translateX(15px);
 }
 </style>

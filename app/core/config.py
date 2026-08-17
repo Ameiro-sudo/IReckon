@@ -1,5 +1,5 @@
 """
-配置管理模块 (๑•̀ᴗ-)✧
+配置管理模块
 负责加载、解析、热重载配置文件。
 """
 
@@ -20,6 +20,8 @@ try:
 
     WATCHDOG_AVAILABLE = True
 except ImportError:
+    FileSystemEventHandler = object  # 降级：无 watchdog 时用空基类避免导入失败
+    Observer = None
     WATCHDOG_AVAILABLE = False
     logger.warning("watchdog 未安装，配置文件热加载不可用，将使用手动重载")
 

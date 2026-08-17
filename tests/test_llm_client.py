@@ -45,8 +45,9 @@ def client():
 
 def test_ensure_model_prefix():
     c = LLMClient()
-    assert c._ensure_model_prefix("auto") == "openai/auto"
-    assert c._ensure_model_prefix("openai/auto") == "openai/auto"
+    cap = make_cap()
+    assert c._ensure_model_prefix(cap, "auto") == "openai/auto"
+    assert c._ensure_model_prefix(cap, "openai/auto") == "openai/auto"
 
 
 @pytest.mark.asyncio

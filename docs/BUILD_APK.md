@@ -72,8 +72,8 @@ briefcase build android
 
 ## 当前状态
 
-- ✅ EXE 构建完成: `dist/IReckon.exe`
-- ⚠️ APK 构建需要 Android SDK 和额外配置
+- [OK] EXE 构建完成: `dist/IReckon.exe`
+- APK 构建需要 Android SDK 和额外配置
 
 ## 环境要求
 

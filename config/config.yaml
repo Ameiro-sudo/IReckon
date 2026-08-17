@@ -22,6 +22,55 @@ ai_pool:
     - architecture
     - web
     - documentation
+  - api_key: ${DEEPSEEK_API_KEY}
+    cost_per_1k_tokens: 0.28
+    enabled: true
+    endpoint: https://api.deepseek.com
+    id: deepseek-v4-flash
+    max_context: 131072
+    model: deepseek-v4-flash
+    name: DeepSeek V4 Flash
+    parameters:
+      thinking:
+        type: enabled
+      reasoning_effort: medium
+    tags:
+    - general
+    - fast
+    - cheap
+    - code
+    - review
+    - architecture
+    - python
+  - api_key: ${DEEPSEEK_API_KEY}
+    cost_per_1k_tokens: 2.19
+    enabled: true
+    endpoint: https://api.deepseek.com
+    id: deepseek-v4-pro
+    max_context: 131072
+    model: deepseek-v4-pro
+    name: DeepSeek V4 Pro
+    parameters:
+      thinking:
+        type: enabled
+      reasoning_effort: high
+    tags:
+    - general
+    - hard
+    - code
+    - architecture
+    - review
+harness:
+  cli_command: npx @deepseek-ai/dsh
+  cordis_config: config/harness/minimal.cordis.yml
+  enabled: true
+  max_tokens: 49152
+  model: deepseek-v4-flash
+  mode: auto
+  provider: deepseek-official
+  session_root: ./data/harness/sessions
+  timeout_seconds: 600
+  workspace_root: ./data/harness/workspaces
 learning:
   idle_trigger_minutes: 30
   source_whitelist:
@@ -64,7 +113,7 @@ system:
   data_dir: ./data
   log_level: INFO
   name: IReckon
-  version: 2.1.0
+  version: 2.2.0
 task_defaults:
   loop_detection_max_rounds: 5
   loop_similarity_threshold: 0.9

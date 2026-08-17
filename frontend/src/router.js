@@ -17,6 +17,16 @@ const routes = [
     component: () => import('./views/DashboardView.vue')
   },
   {
+    path: '/logs',
+    name: 'Logs',
+    component: () => import('./views/LogsView.vue')
+  },
+  {
+    path: '/artifacts',
+    name: 'Artifacts',
+    component: () => import('./views/ArtifactsView.vue')
+  },
+  {
     path: '/ai-instances',
     name: 'AIInstances',
     component: () => import('./views/AIInstancesView.vue')
@@ -35,7 +45,10 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior() {
+    return { top: 0 }
+  }
 })
 
 export default router

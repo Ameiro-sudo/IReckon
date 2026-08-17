@@ -1,4 +1,5 @@
-import asyncio, uuid, operator, json
+import asyncio, uuid, operator, json, shutil
+from pathlib import Path
 from typing import Dict, Any, Optional, TypedDict, List, Annotated
 from enum import Enum
 from loguru import logger
@@ -58,13 +59,63 @@ class TaskManager:
         self._running: Dict[str, asyncio.Task] = {}
         self._cancel_events: Dict[str, asyncio.Event] = {}
 
-    async def create_task(self, req: str) -> str:
+    async def create_task(self, req: str, upload_id: Optional[str] = None) -> str:
         tid = f"task-{uuid.uuid4().hex[:8]}"
+        from app.utils import make_task_title
+
+        title = make_task_title(req)
+        file_refs = await self._ingest_uploads(tid, upload_id) if upload_id else []
         await db.execute(
-            "INSERT INTO tasks(task_id,user_request,status) VALUES(?,?,?)",
-            (tid, req, TaskStatus.PENDING.value),
+            "INSERT INTO tasks(task_id,user_request,title,status,file_refs) VALUES(?,?,?,?,?)",
+            (tid, req, title, TaskStatus.PENDING.value, json.dumps(file_refs, ensure_ascii=False)),
         )
         return tid
+
+    async def _ingest_uploads(self, tid: str, upload_id: str) -> List[Dict]:
+        """把上传的参考文件拷入任务 input 目录，返回引用列表。"""
+        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        src = data_dir / "uploads" / upload_id
+        if not src.is_dir():
+            logger.warning(f"上传批次不存在: {upload_id}")
+            return []
+        out = data_dir / "outputs" / tid / "input"
+        out.mkdir(parents=True, exist_ok=True)
+        refs = []
+        for p in sorted(src.iterdir()):
+            if not p.is_file():
+                continue
+            target = out / p.name
+            try:
+                shutil.copy2(p, target)
+                refs.append({
+                    "name": p.name,
+                    "size": p.stat().st_size,
+                    "path": f"outputs/{tid}/input/{p.name}",
+                })
+            except OSError as e:
+                logger.warning(f"拷贝上传文件失败 {p.name}: {e}")
+        return refs
+
+    @staticmethod
+    def _build_requirement_with_files(req: str, refs: List[Dict]) -> str:
+        """把参考文件拼进需求，供调度 AI 理解上下文。"""
+        if not refs:
+            return req
+        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        lines = [req, "", "【用户上传的参考文件】"]
+        for r in refs:
+            lines.append(f"- {r['name']} ({r['size']} bytes)")
+        for r in refs[:5]:
+            p = data_dir / r.get("path", "")
+            if not p.is_file() or p.stat().st_size > 200_000:
+                continue
+            try:
+                content = p.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            if content.strip():
+                lines.append(f"\n### 文件: {r['name']}\n```\n{content}\n```")
+        return "\n".join(lines)
 
     async def _launch(self, tid: str, ce: asyncio.Event, body):
         """统一的任务执行包装：超时/取消/异常处理 + 状态落库 + 资源清理。"""
@@ -110,11 +161,19 @@ class TaskManager:
     async def _execute_task(self, tid, scid, ce):
         idle_loop.notify_task_started()
         row = await db.fetch_one(
-            "SELECT user_request FROM tasks WHERE task_id=?", (tid,)
+            "SELECT user_request, file_refs FROM tasks WHERE task_id=?", (tid,)
         )
         if not row:
             raise ValueError(f"任务{tid}不存在")
         req = row[0]
+        file_refs = []
+        try:
+            file_refs = json.loads(row[1]) if row[1] else []
+        except (json.JSONDecodeError, TypeError):
+            file_refs = []
+        if file_refs:
+            req = self._build_requirement_with_files(req, file_refs)
+            logger.info(f"任务{tid}已附加 {len(file_refs)} 个参考文件")
         cap = (
             await capability_pool.get_by_id(scid)
             if scid
@@ -124,6 +183,13 @@ class TaskManager:
         sch.bind_context(tid, cancellation_event=ce)
         sr = await sch.execute(req, tid)
         plan, team = sr["plan"], sr["team"]
+        # 用调度器 AI 生成的 task_name 作为简短标题（AI 概述）
+        title = str(plan.get("task_name") or "").strip()
+        if title:
+            await db.execute(
+                "UPDATE tasks SET title=? WHERE task_id=?",
+                (title[:40], tid),
+            )
         phases = plan.get("phases")
         if not phases:
             raise ValueError(f"任务{tid}计划为空，无法执行")

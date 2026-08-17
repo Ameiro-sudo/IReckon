@@ -191,7 +191,7 @@ class TaskBoard:
             layer=MessageLayer.L2_MEETING,
             sender_role="scheduler",
             sender_id="task_board",
-            content=f"📋 任务状态更新\n\n{summary}",
+            content=f"[任务状态更新]\n\n{summary}",
             msg_type="task_board_update",
             metadata={"state": self.state.to_dict()},
         )

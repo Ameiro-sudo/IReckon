@@ -1,8 +1,8 @@
-import json
 from typing import Dict, Any
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
+from app.utils.json_utils import extract_json
 
 
 @register_role(
@@ -18,21 +18,35 @@ class EfficiencyReviewerAgent(BaseAgent):
     def __init__(self, capability: AICapability):
         system_prompt = """你是一位资深架构师，负责审查代码的效率和架构。
 
-审查要点：
+【审查要点】
 1. 时间复杂度与空间复杂度
 2. 重复代码、不必要的计算
 3. 模块划分与接口设计
 4. 设计模式与最佳实践
+5. 可维护性（命名、耦合度、可扩展性）
 
-判定规则（严格按任务复杂度执行）：
-- 复杂度为 simple 的任务：只要代码能正确完成任务且没有明显性能问题，即判 passed=true。
-  仅把"优化建议"放入 suggestions，不要因此判 failed。
+【判定规则（严格按任务复杂度执行）】
+- 复杂度为 simple 的任务：代码能正确完成任务且没有明显性能问题，即判 passed=true；优化意见只放入 suggestions。
 - 复杂度为 medium/complex 的任务：对架构、可维护性、可扩展性从严审查。
 - 只有在存在"实际会引发问题"的缺陷（明显低效、结构严重不合理、会导致维护灾难）时才判 failed。
 - 不允许把风格偏好、锦上添花的建议当作阻塞性问题。
 
-请始终以JSON格式输出：
-{"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
+【输出格式（必须严格遵守）】
+只输出一个 JSON 对象，禁止输出代码围栏（```）或任何解释性文字：
+{
+  "passed": true,
+  "feedback": "给执行者的一句话结论；failed 时列出必须修改的关键问题（无则空字符串）",
+  "issues": [
+    "位置（文件/函数/行）：问题描述 —— 修复建议"
+  ],
+  "suggestions": [
+    "非阻塞性改进建议，无则空数组"
+  ]
+}
+
+要求：
+- issues 中每条必须包含具体位置和可操作的修复建议，供执行者直接修改。
+- passed=true 时 issues 应为空数组。
 """
         super().__init__(
             role="reviewer_efficiency",
@@ -56,12 +70,8 @@ class EfficiencyReviewerAgent(BaseAgent):
         return result
 
     def _parse_review_response(self, response: str) -> Dict[str, Any]:
-        try:
-            cleaned = response.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.splitlines()
-                cleaned = "\n".join(lines[1:-1]) if len(lines) > 2 else lines[-1]
-            parsed = json.loads(cleaned)
+        parsed = extract_json(response)
+        if isinstance(parsed, dict):
             return {
                 "passed": bool(parsed.get("passed", False)),
                 "feedback": parsed.get("feedback", response),
@@ -69,13 +79,12 @@ class EfficiencyReviewerAgent(BaseAgent):
                 "issues": parsed.get("issues", []),
                 "suggestions": parsed.get("suggestions", []),
             }
-        except (json.JSONDecodeError, ValueError):
-            passed = "通过" in response and "需修改" not in response
-            return {
-                "passed": passed,
-                "feedback": response,
-                "reviewer_type": "efficiency",
-            }
+        passed = "通过" in response and "需修改" not in response
+        return {
+            "passed": passed,
+            "feedback": response,
+            "reviewer_type": "efficiency",
+        }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")
@@ -101,22 +110,35 @@ class CorrectnessReviewerAgent(BaseAgent):
     def __init__(self, capability: AICapability):
         system_prompt = """你是一位资深测试工程师，负责审查代码正确性。
 
-审查要点：
+【审查要点】
 1. 逻辑是否符合需求
-2. 边界条件处理
+2. 边界条件处理（空输入、极端值、None、并发等）
 3. 异常处理是否完善
-4. 潜在安全漏洞
+4. 潜在安全漏洞（注入、路径穿越、密钥泄漏等）
 5. 可能的运行时错误
 
-判定规则（严格按任务复杂度执行）：
-- 复杂度为 simple 的任务：代码满足需求、无语法/运行时错误、无安全漏洞即判 passed=true。
-  其余意见只放入 suggestions，不要因此判 failed。
+【判定规则（严格按任务复杂度执行）】
+- 复杂度为 simple 的任务：代码满足需求、无语法/运行时错误、无安全漏洞即判 passed=true；其余意见只放入 suggestions。
 - 复杂度为 medium/complex 的任务：对边界条件、异常处理、安全从严审查。
 - 只有在存在真实缺陷（功能不满足需求、会崩溃、有安全隐患）时才判 failed。
 - 不允许把"建议补充文档/测试/注释"这类改进意见当作阻塞性问题。
 
-请始终以JSON格式输出：
-{"passed": true/false, "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}
+【输出格式（必须严格遵守）】
+只输出一个 JSON 对象，禁止输出代码围栏（```）或任何解释性文字：
+{
+  "passed": true,
+  "feedback": "给执行者的一句话结论；failed 时列出必须修改的关键问题（无则空字符串）",
+  "issues": [
+    "位置（文件/函数/行）：问题描述 —— 修复建议"
+  ],
+  "suggestions": [
+    "非阻塞性改进建议，无则空数组"
+  ]
+}
+
+要求：
+- issues 中每条必须包含具体位置和可操作的修复建议，供执行者直接修改。
+- passed=true 时 issues 应为空数组。
 """
         super().__init__(
             role="reviewer_correctness",
@@ -140,12 +162,8 @@ class CorrectnessReviewerAgent(BaseAgent):
         return result
 
     def _parse_review_response(self, response: str) -> Dict[str, Any]:
-        try:
-            cleaned = response.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.splitlines()
-                cleaned = "\n".join(lines[1:-1]) if len(lines) > 2 else lines[-1]
-            parsed = json.loads(cleaned)
+        parsed = extract_json(response)
+        if isinstance(parsed, dict):
             return {
                 "passed": bool(parsed.get("passed", False)),
                 "feedback": parsed.get("feedback", response),
@@ -153,13 +171,12 @@ class CorrectnessReviewerAgent(BaseAgent):
                 "issues": parsed.get("issues", []),
                 "suggestions": parsed.get("suggestions", []),
             }
-        except (json.JSONDecodeError, ValueError):
-            passed = "通过" in response and "需修改" not in response
-            return {
-                "passed": passed,
-                "feedback": response,
-                "reviewer_type": "correctness",
-            }
+        passed = "通过" in response and "需修改" not in response
+        return {
+            "passed": passed,
+            "feedback": response,
+            "reviewer_type": "correctness",
+        }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         task_context = task_data.get("task_context", "")

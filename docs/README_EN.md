@@ -264,5 +264,5 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by the IReckon Team</sub>
+  <sub>Built by the IReckon Team</sub>
 </p>

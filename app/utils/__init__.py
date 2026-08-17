@@ -24,3 +24,20 @@ def load_template(template_name: str) -> str:
     """加载模板文件"""
     env = create_jinja_env()
     return env.get_template(template_name).render()
+
+
+def make_task_title(user_request: str, max_len: int = 40) -> str:
+    """从用户需求生成简短标题：取第一个句子/逗号前，超长截断。"""
+    if not user_request:
+        return "未命名任务"
+    text = " ".join(user_request.split())
+    for sep in ("\n", "。", "！", "？", "；", ",", "，", "。"):
+        idx = text.find(sep)
+        if idx > 0:
+            text = text[:idx]
+            break
+    text = text.strip()
+    if len(text) > max_len:
+        text = text[: max_len - 1].rstrip() + "…"
+    return text or "未命名任务"
+

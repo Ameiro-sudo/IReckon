@@ -1,9 +1,9 @@
 """
-LLM 客户端模块 (๑•̀ᴗ-)✧
-负责调用各种 LLM API，支持重试、熔断、流式输出等功能～
+LLM 客户端模块
+负责调用各种 LLM API，支持重试、熔断、流式输出等功能。
 """
 
-import asyncio, random, time
+import asyncio, random, re, time
 from typing import Dict, Any
 from enum import Enum
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ import httpx
 from loguru import logger
 from app.core.config import config_manager
 
-# 可以重试的异常类型～
+# 可以重试的异常类型
 RETRYABLE_EXCEPTIONS = (
     litellm.exceptions.APIConnectionError,
     litellm.exceptions.APIError,
@@ -28,7 +28,7 @@ RETRYABLE_EXCEPTIONS = (
 
 
 class LLMCallError(Exception):
-    """LLM 调用错误～"""
+    """LLM 调用错误"""
 
     def __init__(self, m, orig=None):
         super().__init__(m)
@@ -36,7 +36,7 @@ class LLMCallError(Exception):
 
 
 class StopReason(Enum):
-    """调用停止原因枚举～"""
+    """调用停止原因枚举"""
 
     SUCCESS = "success"  # 成功完成
     USER_CANCELLED = "user_cancelled"  # 用户取消
@@ -48,7 +48,7 @@ class StopReason(Enum):
 
 @dataclass
 class LLMResponse:
-    """LLM 响应数据类～"""
+    """LLM 响应数据类"""
 
     content: str  # 响应内容
     model: str  # 使用的模型
@@ -59,10 +59,18 @@ class LLMResponse:
     raw_response: Any = None  # 原始响应
 
 
+def _truncate(text: str, limit: int = 400) -> str:
+    """截断长文本用于日志，避免刷屏。"""
+    if text is None:
+        return ""
+    text = str(text).replace("\n", "\\n")
+    return text if len(text) <= limit else text[:limit] + f"...[+{len(text) - limit} chars]"
+
+
 class EndpointHealth:
     """
-    端点健康状态管理器～
-    记录失败次数，实施冷却机制，防止频繁调用不健康的端点！
+    端点健康状态管理器
+    记录失败次数，实施冷却机制，防止频繁调用不健康的端点。
     """
 
     def __init__(self):
@@ -72,26 +80,26 @@ class EndpointHealth:
         self._lock = asyncio.Lock()
 
     async def record_success(self, ep):
-        """记录成功，恢复健康～"""
+        """记录成功，恢复健康"""
         async with self._lock:
             self.failures[ep] = 0
             self.last_success[ep] = time.time()
             self.cooldown_until.pop(ep, None)
 
     async def record_failure(self, ep):
-        """记录失败，连续失败3次就进入冷却期～"""
+        """记录失败，连续失败3次就进入冷却期"""
         async with self._lock:
             self.failures[ep] = self.failures.get(ep, 0) + 1
             if self.failures[ep] >= 3:
-                self.cooldown_until[ep] = time.time() + 30  # 冷却30秒～
+                self.cooldown_until[ep] = time.time() + 30  # 冷却30秒
 
     async def is_available(self, ep):
-        """检查端点是否可用～"""
+        """检查端点是否可用"""
         async with self._lock:
             # 还在冷却中？
             if ep in self.cooldown_until and time.time() < self.cooldown_until[ep]:
                 return False
-            # 冷却结束，清除记录～
+            # 冷却结束，清除记录
             if ep in self.cooldown_until:
                 del self.cooldown_until[ep]
                 self.failures[ep] = 0
@@ -100,8 +108,8 @@ class EndpointHealth:
 
 class LLMClient:
     """
-    LLM 客户端核心类～
-    支持：重试、熔断、流式输出、并发控制、故障转移等功能！
+    LLM 客户端核心类
+    支持：重试、熔断、流式输出、并发控制、故障转移等功能。
     """
 
     def __init__(self):
@@ -119,7 +127,7 @@ class LLMClient:
         # 并发控制
         mc = config_manager.get("ai_pool.concurrency.max_concurrent_calls", 10)
         self._global_sem = asyncio.Semaphore(mc)  # 全局信号量
-        # 每个端点的限制～
+        # 每个端点的限制
         self._ep_sems = {
             ep: asyncio.Semaphore(lim)
             for ep, lim in config_manager.get(
@@ -142,7 +150,7 @@ class LLMClient:
             pass
 
     def set_global_cancel_event(self, ev):
-        """设置全局取消事件～"""
+        """设置全局取消事件"""
         self._global_cancel_event = ev
 
     async def call(
@@ -159,8 +167,8 @@ class LLMClient:
         **kwargs,
     ):
         """
-        统一的调用入口～
-        根据 stream 参数决定走流式还是非流式路径～
+        统一的调用入口
+        根据 stream 参数决定走流式还是非流式路径
         """
         cancel_evt = cancellation_event or self._global_cancel_event
         if stream:
@@ -188,9 +196,15 @@ class LLMClient:
                 **kwargs,
             )
 
-    def _ensure_model_prefix(self, model: str) -> str:
-        """确保模型名称有前缀（比如 openai/xxx）"""
+    def _ensure_model_prefix(self, cap, model: str) -> str:
+        """确保模型名称有前缀（比如 openai/xxx, deepseek/xxx）"""
         if "/" not in model:
+            # 自定义端点（OpenAI 兼容代理）走 openai 前缀最稳妥
+            if cap and cap.endpoint:
+                return f"openai/{model}"
+            # 官方 DeepSeek 端点识别 DeepSeek 系列模型（含 V4）
+            if re.match(r"^deepseek[-/]", model):
+                return f"deepseek/{model}"
             return f"openai/{model}"
         return model
 
@@ -206,10 +220,10 @@ class LLMClient:
         **kwargs,
     ):
         """
-        尝试调用单个端点，包含重试逻辑～
-        使用指数退避策略，不会一开始就放弃治疗！
+        尝试调用单个端点，包含重试逻辑
+        使用指数退避策略，不会一开始就放弃治疗。
         """
-        model = self._ensure_model_prefix(cap.model)
+        model = self._ensure_model_prefix(cap, cap.model)
         params = {
             "model": model,
             "messages": messages,
@@ -222,6 +236,19 @@ class LLMClient:
         if max_tok is not None:
             params["max_tokens"] = max_tok
         params.update(kwargs)
+
+        # 请求入参（DEBUG）：记录模型/端点/消息，不含 api_key
+        try:
+            logger.debug(
+                f"[LLM] -> POST {model} (endpoint={cap.endpoint or 'default'} "
+                f"temperature={temp} max_tokens={max_tok})"
+            )
+            for m in messages:
+                role = m.get("role", "?")
+                content = _truncate(m.get("content", ""), 400)
+                logger.debug(f"[LLM]   {role}: {content}")
+        except Exception:
+            pass
 
         # 重试参数
         limit = (
@@ -237,7 +264,7 @@ class LLMClient:
         )
 
         while True:
-            # 检查是否取消～
+            # 检查是否取消
             if cancel_evt and cancel_evt.is_set():
                 raise LLMCallError("用户取消")
 
@@ -250,6 +277,11 @@ class LLMClient:
                 }
                 content = resp.choices[0].message.content or ""
                 await self.health.record_success(cap.endpoint)
+                logger.debug(
+                    f"[LLM] <- {resp.model} finish={resp.choices[0].finish_reason} "
+                    f"usage={usage} retry={attempt} "
+                    f"content={_truncate(content, 400)}"
+                )
                 return LLMResponse(
                     content=content,
                     model=resp.model,
@@ -263,11 +295,11 @@ class LLMClient:
                 attempt += 1
                 await self.health.record_failure(cap.endpoint)
 
-                # 不可重试的错误直接抛出～
+                # 不可重试的错误直接抛出
                 if not isinstance(e, RETRYABLE_EXCEPTIONS):
                     raise LLMCallError(f"不可重试错误: {e}", e)
 
-                # 重试次数用完～
+                # 重试次数用完
                 if not infinite_retry and attempt > limit:
                     raise LLMCallError(f"重试{limit}次仍失败", e)
 
@@ -297,8 +329,8 @@ class LLMClient:
         **kwargs,
     ):
         """
-        非流式调用～
-        支持故障转移，如果第一个端点失败，会尝试备用的！
+        非流式调用
+        支持故障转移，如果第一个端点失败，会尝试备用的。
         """
         sem = self._ep_sems.get(cap.endpoint, self._global_sem)
         async with sem:
@@ -308,7 +340,7 @@ class LLMClient:
 
             last_exc = None
             for idx, c in enumerate(caps):
-                # 不健康的端点跳过～
+                # 不健康的端点跳过
                 if not await self.health.is_available(c.endpoint):
                     continue
                 try:
@@ -345,13 +377,13 @@ class LLMClient:
         **kwargs,
     ):
         """
-        流式调用～
-        如果流式失败，会降级到非流式！
+        流式调用
+        如果流式失败，会降级到非流式。
         """
         if infinite_retry:
             max_retries = 10
 
-        model = self._ensure_model_prefix(cap.model)
+        model = self._ensure_model_prefix(cap, cap.model)
         params = {
             "model": model,
             "messages": messages,
@@ -384,7 +416,7 @@ class LLMClient:
                 return
             except Exception as e:
                 attempt += 1
-                # 不可重试的错误 或 达到重试上限 → 降级！
+                # 不可重试的错误 或 达到重试上限 → 降级。
                 if not isinstance(e, RETRYABLE_EXCEPTIONS) or attempt > retry_limit:
                     logger.warning(f"流式失败，降级为非流式: {e}")
                     try:
@@ -417,8 +449,8 @@ class LLMClient:
 
     async def _interruptible_sleep(self, duration, cancel_event):
         """
-        可中断的睡眠～
-        如果取消事件触发，会提前结束睡眠！
+        可中断的睡眠
+        如果取消事件触发，会提前结束睡眠。
         """
         if not cancel_event:
             await asyncio.sleep(duration)
@@ -430,5 +462,5 @@ class LLMClient:
             pass
 
 
-# 全局 LLM 客户端实例～
+# 全局 LLM 客户端实例
 llm_client = LLMClient()

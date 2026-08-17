@@ -1,4 +1,3 @@
-import json
 from typing import List, Dict, Any, Set
 
 from loguru import logger
@@ -8,6 +7,7 @@ from app.llm.pool import AICapability, capability_pool
 from app.engine.room import meeting_room_manager, MessageLayer
 from app.engine.board import TaskBoard
 from app.utils import create_jinja_env
+from app.utils.json_utils import extract_json
 
 
 class SchedulerAgent(BaseAgent):
@@ -19,80 +19,79 @@ class SchedulerAgent(BaseAgent):
         )
 
     def _build_system_prompt(self) -> str:
-        return """你是一个高级任务调度员（老调），负责将用户的自然语言需求转化为可执行的软件项目计划，并组建合适的 AI 团队。
+        return """你是一个高级任务调度员，负责把用户的自然语言需求转化为可执行的软件项目计划，并组建合适的 AI 团队。
 
-你的职责：
-1. 解析用户需求，识别核心功能、技术约束、隐含要求。
-2. 将任务拆解为清晰的阶段（需求分析、设计、编码、测试、交付）。
-3. 根据任务特点，从能力池中为每个阶段招募合适的 AI 角色（执行员、评审员、创意师等）。
-4. 输出结构化的《绩效任务计划书》，包含角色分配、里程碑、预期产出。
+【职责】
+1. 解析用户需求：识别核心功能、技术约束、隐含要求；需求模糊时选择最合理的解释，并在 summary 中注明假设。
+2. 判定任务复杂度：simple / medium / complex。
+3. 拆解执行阶段（复杂度感知，禁止过度规划）。
+4. 制定招募计划：从能力池为各阶段挑选角色，给出技能标签偏好与成本策略。
+5. 输出结构化《任务计划书》（JSON）。
 
-阶段规划原则（复杂度感知）：
-- simple 任务（单文件脚本、小工具、简单页面）：只规划 1~2 个阶段。
-  典型做法："implementation"（直接产出代码）+ 可选 "delivery"。不要规划独立的"需求分析"阶段。
-- medium 任务：可包含"设计 + 实现 + 审查"。
-- complex 任务：才需要完整的多阶段流水线（需求分析、设计、实现、测试、交付）。
-- 阶段数量与需求复杂度和产出规模成正比，禁止过度规划。
+【复杂度判定标准】
+- simple：单文件脚本、小工具、单页面。只规划 1~2 个阶段（implementation + 可选 delivery），不要独立的"需求分析"阶段。
+- medium：多文件小项目、含简单交互。可包含"设计 + 实现 + 审查"。
+- complex：完整系统、多模块/多服务、需要测试与交付流水线。才使用完整多阶段（需求分析、设计、实现、测试、交付）。
+- 阶段数量与需求复杂度和产出规模成正比；宁可少拆，不可过拆。
 
-输出格式要求：使用 JSON 结构，便于程序解析。同时提供人类可读的摘要。
+【招募原则】
+- 只招募必要角色：simple 任务不要招募 creative / tool_manager。
+- required_tags 给出该阶段最关键的 1~3 个技能标签（如 python, web, architecture, cli）。
+- prefer_cheap=true 用于简单/低风险阶段；审查、架构等质量敏感阶段用 prefer_cheap=false。
+- estimated_budget_usd 与 estimated_tokens 按复杂度合理估算，禁止虚高。
 
-在招募时，你需要考虑：
-- 任务的复杂度（简单脚本 vs 完整项目）
-- 预算限制（成本优先 vs 质量优先）
-- 所需技能标签（如 python, web, architecture）
+【输出格式（必须严格遵守）】
+只输出一个 JSON 对象，禁止输出代码围栏（```）、注释或任何解释性文字。
 
-能力池信息将在每次任务启动时通过用户消息提供。
+JSON 结构示例：
+{
+  "task_name": "待办事项 CLI",
+  "summary": "命令行待办管理工具，支持增删改查与 JSON 持久化（假设：无多用户需求）",
+  "complexity": "simple",
+  "estimated_budget_usd": 0.5,
+  "phases": [
+    {
+      "phase": "implementation",
+      "description": "实现 CLI 待办工具：增删改查 + JSON 持久化",
+      "expected_artifacts": ["todo.py", "README.md"],
+      "required_roles": ["executor"],
+      "skill_tags": ["python", "cli"],
+      "estimated_tokens": 4000
+    }
+  ],
+  "recruitment_plan": {
+    "executor": {"count": 1, "required_tags": ["python"], "prefer_cheap": true},
+    "reviewer_correctness": {"count": 1, "required_tags": ["careful"], "prefer_cheap": true}
+  }
+}
+
+可选角色：executor, reviewer_efficiency, reviewer_correctness, creative, tool_manager, deliverer。
 """
 
-    async def parse_requirement(self, user_request: str) -> Dict[str, Any]:
+    async def parse_requirement(
+        self, user_request: str, capabilities: str = ""
+    ) -> Dict[str, Any]:
         prompt = f"""用户需求：
 {user_request}
 
-请分析需求并输出 JSON 格式的任务计划书。JSON 结构如下：
-{{
-    "task_name": "简短任务名",
-    "summary": "一句话概括",
-    "complexity": "simple|medium|complex",
-    "estimated_budget_usd": 0.0,
-    "phases": [
-        {{
-            "phase": "phase_name",
-            "description": "阶段目标",
-            "expected_artifacts": ["文件1", "文件2"],
-            "required_roles": ["executor", "reviewer_correctness"],
-            "skill_tags": ["python", "fastapi"],
-            "estimated_tokens": 5000
-        }}
-    ],
-    "recruitment_plan": {{
-        "executor": {{"count": 1, "required_tags": [], "prefer_cheap": false}},
-        "reviewer_efficiency": {{"count": 1, "required_tags": ["architecture"]}},
-        ...
-    }}
-}}
+{('可用 AI 能力池（招募计划中的 required_tags 应尽量从这些实例的标签中选取）：\n' + capabilities) if capabilities else ''}
 
-注意：required_roles 可选值：executor, reviewer_efficiency, reviewer_correctness, creative, tool_manager, deliverer。
+请按系统提示中的 JSON 结构输出《任务计划书》。只输出 JSON。
 """
 
         response = await self.think(prompt, temperature=0.2, infinite_retry=True)
-        try:
-            json_str = response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            plan = json.loads(json_str)
+        plan = extract_json(response)
+        if plan and isinstance(plan, dict):
             logger.info(f"任务计划解析成功: {plan.get('task_name')}")
             return plan
-        except json.JSONDecodeError as e:
-            logger.error(f"解析调度 AI 返回的 JSON 失败: {e}\n原始响应: {response}")
-            return {
-                "task_name": "未命名任务",
-                "summary": user_request[:100],
-                "complexity": "medium",
-                "phases": [{"phase": "开发", "required_roles": ["executor"]}],
-                "recruitment_plan": {"executor": {"count": 1}},
-            }
+        logger.error(f"解析调度 AI 返回的 JSON 失败:\n原始响应: {response}")
+        return {
+            "task_name": "未命名任务",
+            "summary": user_request[:100],
+            "complexity": "medium",
+            "phases": [{"phase": "开发", "required_roles": ["executor"]}],
+            "recruitment_plan": {"executor": {"count": 1}},
+        }
 
     async def recruit_team(
         self, recruitment_plan: Dict[str, Any]
@@ -130,7 +129,12 @@ class SchedulerAgent(BaseAgent):
     async def execute(self, user_request: str, task_id: str) -> Dict[str, Any]:
         self.bind_context(task_id=task_id)
 
-        plan = await self.parse_requirement(user_request)
+        caps = await capability_pool.get_all()
+        cap_desc = "\n".join(
+            f"- {c.id}: {c.name} ({c.model}) tags={c.tags} max_context={c.max_context}"
+            for c in caps
+        )
+        plan = await self.parse_requirement(user_request, cap_desc)
 
         recruitment = plan.get("recruitment_plan", {})
         if not recruitment:
@@ -167,16 +171,16 @@ class SchedulerAgent(BaseAgent):
         self, plan: Dict[str, Any], team: Dict[str, List]
     ) -> str:
         lines = [
-            f"📋 任务启动：{plan.get('task_name', '新任务')}",
-            f"📝 概述：{plan.get('summary', '')}",
-            f"🎯 复杂度：{plan.get('complexity', 'medium')}",
+            f"[任务启动] {plan.get('task_name', '新任务')}",
+            f"[概述] {plan.get('summary', '')}",
+            f"[复杂度] {plan.get('complexity', 'medium')}",
             "",
-            "👥 已招募团队：",
+            "[已招募团队]",
         ]
         for role, members in team.items():
             if members:
                 names = ", ".join([m.name for m in members])
                 lines.append(f"  - {role}: {names}")
         lines.append("")
-        lines.append("📌 开始执行第一阶段...")
+        lines.append("[开始执行第一阶段]")
         return "\n".join(lines)

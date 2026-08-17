@@ -1,63 +1,59 @@
 #!/usr/bin/env bash
-# 俺寻思 AI 工厂 启动脚本 (Termux/Ubuntu)
-set -e
+# IReckon 生产环境启动脚本
+# 用法:
+#   ./scripts/run.sh            # 生产模式：构建前端(如需) + 启动后端 (FastAPI 托管前端)
+#   ./scripts/run.sh --dev      # 开发模式：前端 dev server + 后端
+#   ./scripts/run.sh --check    # 只做依赖/构建检查
 
-echo "============================================"
-echo "  俺寻思 AI 工厂 启动中..."
-echo "============================================"
+set -euo pipefail
 
-# 自动设定项目根目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-# 1. 检查 Python 环境
-PYTHON=""
-if command -v python3 &> /dev/null; then
-    PYTHON=python3
-elif command -v python &> /dev/null; then
-    PYTHON=python
-else
-    echo "❌ Python 未安装，请先安装 Python 3.10+"
+PY="${PYTHON:-python3}"
+MODE="${1:-prod}"
+
+echo "==> IReckon launcher (mode: ${MODE})"
+
+require_python() {
+  if ! command -v "$PY" >/dev/null 2>&1; then
+    echo "[ERROR] 未找到 Python ($PY)，请先安装 Python 3.10+"
     exit 1
-fi
-
-# 2. 检查依赖（可选）
-if [ "$1" == "--check" ]; then
-    $PYTHON scripts/test_run.py
-    exit $?
-fi
-
-# 3. 激活虚拟环境（如果存在）
-if [ -f venv/bin/activate ]; then
-    source venv/bin/activate
-fi
-
-# 4. 启动后端与前端
-echo "🚀 启动后端服务 (端口 8000) ..."
-$PYTHON -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000 &
-BACKEND_PID=$!
-
-echo "🚀 启动前端界面 (端口 8501) ..."
-$PYTHON -m streamlit run ui/app.py --server.port 8501 --server.headless true &
-FRONTEND_PID=$!
-
-# 5. 捕获退出信号
-cleanup() {
-    echo ""
-    echo "🛑 正在停止服务..."
-    if kill -0 $BACKEND_PID 2>/dev/null; then
-        kill $BACKEND_PID 2>/dev/null
-    fi
-    if kill -0 $FRONTEND_PID 2>/dev/null; then
-        kill $FRONTEND_PID 2>/dev/null
-    fi
-    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null
-    echo "✅ 服务已停止"
+  fi
+  "$PY" -c "import fastapi, uvicorn" 2>/dev/null || {
+    echo "[INFO] 安装后端依赖..."
+    "$PY" -m pip install -r requirements.txt
+  }
 }
-trap cleanup SIGINT SIGTERM EXIT
 
-echo "✅ 所有服务已启动"
-echo "   后端: http://localhost:8000"
-echo "   前端: http://localhost:8501"
-echo "   按 Ctrl+C 停止所有服务"
-wait
+build_frontend() {
+  if [ -d "frontend/dist" ]; then
+    echo "[INFO] 前端构建产物已存在 (frontend/dist)"
+    return
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    echo "[WARN] 未安装 Node.js，跳过前端构建，将使用 dev server (需 npm)"
+    return
+  fi
+  echo "[INFO] 构建前端..."
+  (cd frontend && npm install --no-bin-links --no-audit --no-fund >/dev/null && npm run build)
+}
+
+case "$MODE" in
+  --check)
+    require_python
+    build_frontend
+    echo "==> 检查完成 ✓"
+    ;;
+  --dev)
+    require_python
+    echo "[INFO] 开发模式启动 (前端 :3000 / 后端 :8000)"
+    IRECKON_DEV_FRONTEND=1 "$PY" main.py
+    ;;
+  *)
+    require_python
+    build_frontend
+    echo "[INFO] 生产模式启动 (后端 :8000 托管前端)"
+    exec "$PY" main.py
+    ;;
+esac

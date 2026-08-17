@@ -82,10 +82,16 @@ async def websocket_endpoint(websocket: WebSocket, task_id: str = None):
     await manager.connect(websocket, task_id)
     try:
         while True:
-            data = await websocket.receive_text()
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+            except asyncio.TimeoutError:
+                await websocket.send_text("ping")
+                continue
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
+        manager.disconnect(websocket, task_id)
+    except Exception:
         manager.disconnect(websocket, task_id)
 
 
@@ -96,8 +102,8 @@ async def log_consumer():
             while not _log_queue.empty():
                 try:
                     raw = _log_queue.get_nowait()
-                    level, msg = raw.split("|", 1)
-                    await push_log_to_websocket(level, msg)
+                    level, _, msg = raw.partition("|")
+                    await push_log_to_websocket(level.strip(), msg.strip())
                 except Exception:
                     pass
     except asyncio.CancelledError:

@@ -26,30 +26,45 @@ class ExecutorAgent(BaseAgent):
         )
 
     def _build_system_prompt(self) -> str:
-        return """你是一位资深软件工程师，负责将需求转化为高质量代码。
+        return """你是一位资深软件工程师（AI 编程代理），负责把任务需求转化为可运行、可维护的高质量代码。
 
-工作原则（YAGNI）：
-- 只实现需求要求的内容，不要添加需求未要求的额外文件、功能或工程化设施。
-- simple 任务：直接产出可运行的代码，不写需求文档、不生成 Dockerfile/CI/测试脚手架。
-- 代码规模与任务复杂度匹配：hello world 就是 hello world，不要把它做成生产级项目。
-- 如果需求含糊，按最直接的合理解释实现。
+【语言规则】
+- 注释与标识符使用与需求一致的语言（中文需求用中文注释）；代码本身遵循其语言惯例。
+- 与团队沟通一律使用需求语言。
 
-工作流程：
-1. 对于复杂任务，首先进行思维链外化（问题重述、方案发散、抉择、执行步骤）。
-2. 编写代码时遵循以下要求：
-   - 清晰、模块化、有注释
-   - 包含错误处理和输入验证
-   - 必要时生成多个文件，格式：//// filename: 文件名
-3. 当需要修改现有代码时：
-   - 优先尝试生成统一 diff 补丁（unified diff），仅修改受影响的代码段，避免重写整个文件。
-   - 如果改动过大或补丁不适用，则可以输出完整新文件内容（使用 //// filename: 格式）。
-   - 补丁格式如下：
-   PATCH: <文件名>
-   @@ -起始行,行数 +起始行,行数 @@
-   上下文行
-   -删除的行
-   +添加的行
-   上下文行- 可以包含多个文件的补丁，每个文件以 `PATCH:` 行开头。
+【工作原则】
+1. YAGNI：只实现需求要求的内容，不要添加额外文件、功能或工程化设施。
+2. 复杂度匹配：simple 任务直接产出可运行代码，不写需求文档、不生成 Dockerfile/CI/测试脚手架；hello world 就是 hello world。
+3. 需求含糊时按最直接的合理解释实现，并在回复末尾用一行注明你的假设。
+4. 完整交付（绝不占位）：代码必须完整可运行——禁止 TODO、pass 空壳、"..." 省略、未实现的函数签名。
+5. 引用外部模块前先确认其存在，并给出安装命令（如 pip install ... / npm install ...）；不引用不存在的 API。
+6. 多文件项目：公共逻辑放独立模块，避免循环导入；文件名与职责匹配，避免无关紧要的 main.py。
+7. 不擅自引入与需求无关的第三方依赖。
+
+【工作流程】
+1. 复杂任务先思维链外化：问题重述 → 方案对比 → 选型理由 → 实施步骤。
+2. 编写代码。
+3. 交付前自检（Definition of Done）：
+   - Python 代码必须能通过语法检查（无 SyntaxError）；
+   - 边界条件：空输入、极端值、None、超大数据量；
+   - 错误处理：给出可读的错误信息，而非裸异常；
+   - 清理：无未使用变量、死代码、魔法数字、调试残留输出；
+   - 多文件时逐一核对所有文件均已产出、相互引用一致。
+
+【代码修改】
+- 小改动：优先输出 unified diff 补丁，仅修改受影响代码段。格式：
+  PATCH: <文件名>
+  @@ -起始行,行数 +起始行,行数 @@
+  上下文行
+  -删除行
+  +新增行
+  可包含多个文件的补丁，每个文件以 `PATCH:` 开头。
+- 大改动或补丁不适用：输出完整新文件（`//// filename:` 格式）。
+
+【输出格式】
+- 多文件：每个文件以 `//// filename: 相对路径` 开头，文件之间用空行分隔。
+- 单文件：直接输出代码，不要用 markdown 代码围栏包裹。
+- 代码与说明分离：不要在代码中间插入解释性文字；必要说明放在代码之前或之后。
 """
 
     async def think_before_code(self, task_description: str, constraints: list) -> str:
@@ -76,7 +91,11 @@ class ExecutorAgent(BaseAgent):
 上下文：
 {context}
 
-输出要求：如果生成多个文件，请使用 `//// filename: 文件名` 分隔每个文件的内容。否则直接输出代码。
+输出要求：
+- 多文件：每个文件以 `//// filename: 相对路径` 开头（示例：`//// filename: todo.py`），文件之间用空行分隔。
+- 单文件：直接输出代码，不要用 markdown 代码围栏包裹。
+- 代码必须完整可运行：禁止 TODO、占位符或省略号。
+- 引用第三方库时在代码末尾列出安装命令。
 """
         response = await self.think(prompt, temperature=0.2)
         return self._parse_artifacts(response)
@@ -264,6 +283,49 @@ class ExecutorAgent(BaseAgent):
         description = task_data.get("description", "")
         context = task_data.get("context", "")
         language = task_data.get("language", "python")
+
+        # dsh Harness 执行路径：任务显式要求且 harness 可用时启用～
+        if task_data.get("use_harness"):
+            from app.harness import dsh_client
+            from app.core.config import config_manager
+
+            if not config_manager.get("harness.enabled", False):
+                return {
+                    "artifacts": {},
+                    "syntax_errors": [],
+                    "harness_error": "harness.enabled = false，跳过 dsh 执行路径",
+                }
+            if not dsh_client.available_mode():
+                return {
+                    "artifacts": {},
+                    "syntax_errors": [],
+                    "harness_error": "dsh 运行时不可用（需要 deepseek-harness-sdk 或 Node.js）",
+                }
+
+            workspace = task_data.get("workspace") or None
+            result = await dsh_client.run(
+                task=description,
+                workspace=workspace,
+                session_id=task_data.get("session_id"),
+            )
+            if not result.ok:
+                return {
+                    "artifacts": {},
+                    "syntax_errors": [],
+                    "harness_error": result.error,
+                }
+            artifacts = (
+                self._parse_artifacts(result.final_response)
+                if "//// filename:" in result.final_response
+                else {}
+            )
+            return {
+                "artifacts": artifacts or {"harness_response.md": result.final_response},
+                "syntax_errors": self._syntax_errors(artifacts),
+                "harness_mode": result.mode,
+                "harness_session": result.session_id,
+                "harness_workspace": result.workspace,
+            }
 
         if task_context:
             context = f"{task_context}\n\n{context}" if context else task_context

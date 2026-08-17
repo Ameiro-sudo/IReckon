@@ -16,5 +16,16 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['vue', 'vue-router', 'pinia', 'axios', '@vueuse/core'],
+          markdown: ['marked', 'dompurify', 'highlight.js']
+        }
+      }
+    }
   }
 })

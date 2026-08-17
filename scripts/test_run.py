@@ -35,13 +35,13 @@ async def run_test():
         row = await db.fetch_one("SELECT status FROM tasks WHERE task_id = ?", (task_id,))
         status = row[0] if row else "未知"
         if status == 'completed':
-            logger.info("✓ 测试通过：任务成功完成")
+            logger.info("[OK] 测试通过：任务成功完成")
             return True
         else:
-            logger.error(f"✗ 测试失败：任务状态为 {status}")
+            logger.error(f"[FAIL] 测试失败：任务状态为 {status}")
             return False
     else:
-        logger.error("✗ 测试超时")
+        logger.error("[FAIL] 测试超时")
         return False
 
 

@@ -1,0 +1,25 @@
+{
+  "name": "DeepSeek Harness 任务委托",
+  "description": "将软件开发任务委托给 DeepSeek Harness (dsh) 在独立工作区执行，支持持久 Bash 会话与代码编辑。适合复杂重构、调试、端到端交付类任务。",
+  "language": "python",
+  "tags": [
+    "dsh",
+    "deepseek",
+    "harness",
+    "agent",
+    "coding",
+    "builtin"
+  ],
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "task": "string",
+      "workspace": "string",
+      "session_id": "string"
+    }
+  },
+  "output_schema": {
+    "type": "any"
+  },
+  "created_by": "system"
+}

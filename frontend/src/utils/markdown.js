@@ -1,0 +1,94 @@
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
+
+marked.setOptions({
+  gfm: true,
+  breaks: true
+})
+
+export function renderMarkdown(text) {
+  if (!text) return ''
+  const raw = marked.parse(String(text))
+  return DOMPurify.sanitize(raw, {
+    ADD_ATTR: ['target'],
+    ADD_TAGS: ['br']
+  })
+}
+
+export function highlightDom(root) {
+  if (!root) return
+  root.querySelectorAll('pre code').forEach((el) => {
+    if (el.dataset.highlighted) return
+    try {
+      hljs.highlightElement(el)
+    } catch {
+      /* 忽略无法高亮的代码块 */
+    }
+    el.dataset.highlighted = '1'
+  })
+}
+
+const EXT_LANG = {
+  py: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+  ts: 'typescript', jsx: 'jsx', tsx: 'tsx', vue: 'xml',
+  json: 'json', jsonc: 'json', yaml: 'yaml', yml: 'yaml', toml: 'ini',
+  md: 'markdown', markdown: 'markdown', txt: 'plaintext',
+  sh: 'bash', bash: 'bash', bat: 'batchfile', cmd: 'batchfile',
+  sql: 'sql', html: 'xml', htm: 'xml', css: 'css', scss: 'scss',
+  xml: 'xml', java: 'java', kt: 'kotlin', c: 'c', h: 'c',
+  cpp: 'cpp', hpp: 'cpp', go: 'go', rs: 'rust', rb: 'ruby',
+  php: 'php', swift: 'swift', lua: 'lua', ini: 'ini', conf: 'ini',
+  cfg: 'ini', env: 'ini', properties: 'ini',
+  dockerfile: 'dockerfile', makefile: 'makefile',
+  gitignore: 'plaintext', dockerignore: 'plaintext'
+}
+
+export function highlightCode(code, filename = '') {
+  if (!code) return ''
+  let lang = ''
+  const base = (filename || '').split('/').pop() || ''
+  const ext = base.split('.').pop()?.toLowerCase()
+  if (base.toLowerCase() === 'dockerfile') lang = 'dockerfile'
+  if (base.toLowerCase() === 'makefile') lang = 'makefile'
+  lang = lang || EXT_LANG[ext] || ''
+  let html
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      html = hljs.highlight(code, { language: lang }).value
+    } catch {
+      html = hljs.highlightAuto(code).value
+    }
+  } else {
+    try {
+      html = hljs.highlightAuto(code).value
+    } catch {
+      html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    }
+  }
+  return DOMPurify.sanitize(html)
+}
+
+export const roleMeta = {
+  user: { label: '用户', color: '#3b82f6' },
+  scheduler: { label: '调度器', color: '#a855f7' },
+  executor: { label: '执行者', color: '#f59e0b' },
+  reviewer: { label: '审查者', color: '#10b981' },
+  reviewer_correctness: { label: '正确性审查', color: '#10b981' },
+  reviewer_efficiency: { label: '架构审查', color: '#0ea5e9' },
+  deliverer: { label: '交付者', color: '#ec4899' },
+  creative: { label: '创意官', color: '#8b5cf6' },
+  learner: { label: '学习者', color: '#64748b' },
+  tool_manager: { label: '工具管理', color: '#14b8a6' },
+  security_scanner: { label: '安全扫描', color: '#ef4444' },
+  system: { label: '系统', color: '#94a3b8' }
+}
+
+export function roleLabel(role) {
+  return roleMeta[role]?.label || role
+}
+
+export function roleColor(role) {
+  return roleMeta[role]?.color || '#94a3b8'
+}

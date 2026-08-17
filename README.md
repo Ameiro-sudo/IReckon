@@ -128,6 +128,13 @@ planning ──▶ execute ──▶ review ──┐
 - **自适应模型升级** — 修订失败自动提升 LLM 等级
 - **任务快照与恢复** — 完整状态持久化，支持暂停/恢复/崩溃恢复
 
+### DeepSeek dsh 集成
+- **DeepSeek V4 原生支持** — 内置 `deepseek-v4-flash` / `deepseek-v4-pro` 实例，自动启用 thinking mode 与 reasoning_effort
+- **DeepSeek Harness (dsh) 执行引擎** — 双通道：Python SDK（`deepseek-harness-sdk`）+ headless CLI（`npx @deepseek-ai/dsh`）自动降级
+- **独立工作区隔离** — 每个任务在 `data/harness/workspaces/<session_id>` 独立沙箱运行，复用 session_id 可延续持久 Bash 会话
+- **dsh_task 内置工具** — 任一智能体可委托复杂重构/调试任务给 DeepSeek Harness
+- **Executor 可选路径** — 任务带 `use_harness: true` 时走 dsh 执行，产物自动汇回流水线
+
 ### LLM 与 AI 基础设施
 - **模型无关** — 通过 litellm 支持 100+ 模型（OpenAI, Anthropic, Google, Azure, Ollama, vLLM 等）
 - **智能能力池** — 多端点管理、健康检查、熔断器、冷却机制、自动故障转移
@@ -142,10 +149,12 @@ planning ──▶ execute ──▶ review ──┐
 - **挖矿检测** — 进程命令行模式匹配，运行时异常检测
 
 ### 前端
-- **毛玻璃设计系统** — `backdrop-filter: blur(12px) saturate(180%)`，动态渐变背景
-- **实时 WebSocket 流** — 任务进度、日志和消息实时推送
-- **多视觉主题** — catgirl / programmer 主题，可自定义配色
-- **响应式仪表盘** — 系统指标、任务看板、资源监控
+- **极简 SaaS 设计系统** — 克制的边框/阴影、Indigo 强调色、深浅双主题，Linear/Notion 质感
+- **实时 WebSocket 流** — 任务进度、日志和消息实时推送（心跳保活 + 自动重连）
+- **Markdown 消息渲染** — marked + DOMPurify（XSS 过滤）+ highlight.js 代码高亮
+- **8 个页面** — 聊天（含任务看板面板）/ 任务表格（筛选/进度/删除）/ 仪表盘（KPI + 分布图 + 用量）/ 系统日志（全页实时流）/ 交付产物（文件浏览 + 内容预览 + ZIP 下载）/ AI 实例 / 自我进化 / 设置
+- **多视觉主题** — catgirl / programmer 主题，深浅色模式
+- **响应式布局** — 桌面/平板/移动端自适应
 
 ### DevOps
 - **配置热重载** — YAML 修改通过 watchdog 实时生效
@@ -170,18 +179,36 @@ cd IReckon
 pip install -r requirements.txt
 ```
 
+### 配置 DeepSeek（可选）
+
+```bash
+# DeepSeek V4 官方 API（ai_pool 内置 deepseek-v4-flash / deepseek-v4-pro 实例）
+export DEEPSEEK_API_KEY=sk-xxx
+
+# dsh (DeepSeek Harness) 执行引擎：SDK 通道
+pip install deepseek-harness-sdk
+
+# 或 CLI 通道（需 Node.js 18+）
+npx @deepseek-ai/dsh --help
+```
+
+dsh 相关配置见 `config/config.yaml` 的 `harness` 段（mode: auto 优先 SDK、缺失时降级 CLI）。
+
 ### 启动
 
 ```bash
-# 一键启动
-python main.py
+# 一键启动（生产模式：FastAPI 托管构建后的前端，端口 8000）
+./scripts/run.sh
 
-# 分别启动
+# 开发模式（前端 Vite dev server :3000 + 后端 :8000）
+./scripts/run.sh --dev
+
+# 手动启动
 python -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000
 cd frontend && npm run dev
 
-# Docker 部署
-docker-compose up -d
+# Docker 部署（多阶段构建：Node 构建前端 + Python 后端）
+cd deploy && docker compose up -d --build
 ```
 
 ### 访问地址
@@ -200,10 +227,15 @@ docker-compose up -d
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/tasks` | 创建新任务 |
-| GET | `/api/tasks` | 获取任务列表 |
-| GET | `/api/tasks/{id}` | 获取任务详情 |
+| GET | `/api/tasks` | 获取任务列表（支持 `?limit&offset&status` 分页筛选） |
+| GET | `/api/tasks/{id}` | 获取任务详情（含计划、看板、Token 用量） |
+| GET | `/api/tasks/{id}/board` | 获取任务看板状态 |
+| GET | `/api/tasks/{id}/artifacts` | 列出交付产物 |
+| GET | `/api/tasks/{id}/artifact?path=` | 读取单个产物文件内容（路径穿越防护） |
+| GET | `/api/tasks/{id}/download` | 下载交付产物 (zip) |
 | POST | `/api/tasks/{id}/cancel` | 取消运行中的任务 |
 | POST | `/api/tasks/{id}/resume` | 恢复暂停/失败的任务 |
+| DELETE | `/api/tasks/{id}` | 删除任务（级联清理消息/看板/快照） |
 | GET | `/api/tasks/{id}/messages` | 获取任务消息 |
 | POST | `/api/tasks/{id}/messages` | 发送消息到任务 |
 | GET | `/api/ai-instances` | 列出 AI 端点 |
@@ -211,12 +243,20 @@ docker-compose up -d
 | PUT | `/api/ai-instances/{id}` | 更新 AI 端点 |
 | DELETE | `/api/ai-instances/{id}` | 删除 AI 端点 |
 | POST | `/api/ai-instances/{id}/test` | 测试端点连通性 |
+| GET | `/api/capabilities` | 能力池状态 |
 | GET | `/api/config` | 获取当前配置 |
-| POST | `/api/config/update` | 运行时更新配置 |
+| POST | `/api/config/update` | 运行时更新配置（原子写入） |
 | GET | `/api/themes` | 获取 UI 主题列表 |
-| GET | `/api/health` | 健康检查接口 |
+| GET | `/api/health` | 健康检查（含版本/更新/连接数/运行时长） |
+| GET | `/api/stats` | 仪表盘统计（任务状态分布/AI 实例/用量） |
+| GET | `/api/usage` | Token/成本用量汇总 |
+| GET | `/api/logs` | 最近系统日志 |
+| POST | `/api/self-improve` | 触发自我进化分析 |
+| POST | `/api/self-improve/push` | 推送自我进化分支 |
+| GET | `/api/update/check` | 检查新版本 |
+| POST | `/api/update/apply` | 应用更新 |
 | WS | `/ws/{task_id}` | 按任务的实时事件流 |
-| WS | `/ws` | 全局事件流 |
+| WS | `/ws` | 全局事件流（日志/消息） |
 
 ---
 
@@ -225,7 +265,8 @@ docker-compose up -d
 | 层 | 技术 |
 |----|------|
 | 语言 | Python 3.10+ (asyncio) |
-| LLM 接口 | litellm（100+ 模型） |
+| LLM 接口 | litellm（100+ 模型）· DeepSeek V4 原生 |
+| 执行引擎 | DeepSeek Harness (dsh) — SDK / headless CLI |
 | 工作流引擎 | LangGraph |
 | 向量数据库 | ChromaDB |
 | 关系数据库 | SQLite (aiosqlite) |
@@ -246,25 +287,38 @@ docker-compose up -d
 
 ```
 IReckon/
-├── main.py                       # 应用入口
-├── pyproject.toml                # 项目元数据
+├── main.py                       # 应用入口（生产模式直接托管前端 dist）
 ├── requirements.txt              # Python 依赖
+├── .env.example                  # 环境变量示例（API Keys）
+├── .dockerignore
 │
 ├── app/                          # 后端包
 │   ├── agents/                   # AI 智能体实现
-│   ├── core/                     # 基础设施
-│   ├── engine/                   # 工作流引擎
-│   ├── llm/                      # LLM 基础设施
+│   ├── core/                     # 基础设施（配置/数据库/日志/更新）
+│   ├── engine/                   # 工作流引擎（LangGraph 状态机/看板/会议室）
+│   ├── harness/                  # DeepSeek Harness (dsh) 集成
+│   ├── llm/                      # LLM 基础设施（能力池/客户端）
 │   ├── knowledge/                # 知识管理
 │   ├── security/                 # 安全子系统
 │   ├── tools/                    # 工具系统
 │   └── web/                      # Web 层
+│       ├── api.py                # FastAPI 应用工厂（路由挂载 + SPA 托管）
+│       ├── push.py               # WebSocket 推送（心跳保活）
+│       └── routers/              # 按领域拆分的路由（tasks/instances/config/system）
 │
-├── frontend/                     # Vue 3 前端
+├── frontend/                     # Vue 3 前端（Vite + Pinia + marked/highlight.js）
+│   ├── src/
+│   │   ├── views/                # 页面（聊天/任务/仪表盘/日志/产物/AI实例/自我进化/设置）
+│   │   ├── components/           # 组件（NewTaskModal/ArtifactBrowser/LogViewer/TaskBoardPanel/StatusPill/PageHeader/Toast）
+│   │   ├── stores/               # Pinia 状态（任务/看板/实时消息/轮询）
+│   │   ├── composables/          # useToast
+│   │   └── utils/markdown.js     # Markdown 渲染 + XSS 过滤 + 代码高亮
+│   └── dist/                     # 构建产物（FastAPI 托管）
+│
 ├── config/                       # 配置
-├── scripts/                      # 工具脚本
+├── scripts/                      # 工具脚本（run.sh 启动器）
 ├── docs/                         # 文档
-└── data/                         # 运行时数据
+└── data/                         # 运行时数据（db/logs/states/output）
 ```
 
 ---
@@ -300,7 +354,7 @@ python scripts/test_run.py
 ---
 
 <p align="center">
-  <sub>IReckon Team 用心打造 ❤️</sub>
+  <sub>IReckon Team 用心打造</sub>
 </p> It orchestrates a team of specialized AI agents through a formalized software development lifecycle — planning, coding, reviewing, revising, and delivery — with zero human intervention during execution.
 
 Built on a **LangGraph-driven state machine** with conditional routing, loop detection, and automatic model escalation, IReckon handles the full software development pipeline within a secure, sandboxed environment.
@@ -547,5 +601,5 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 ---
 
 <p align="center">
-  <sub>IReckon Team 用心打造 ❤️</sub>
+  <sub>IReckon Team 用心打造</sub>
 </p>

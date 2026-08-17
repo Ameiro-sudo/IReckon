@@ -46,7 +46,7 @@ class StyleEngine:
 
     def render_avatar(self, role, theme=None):
         t = theme or self.get_theme()
-        return t.get("role_mapping", {}).get(role, {}).get("avatar", "🤖")
+        return t.get("role_mapping", {}).get(role, {}).get("avatar", "")
 
     def render_style(self, role, theme=None):
         t = theme or self.get_theme()

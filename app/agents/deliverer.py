@@ -20,12 +20,21 @@ class DelivererAgent(BaseAgent):
     __role_name__ = "deliverer"
 
     def __init__(self, capability: AICapability):
-        system_prompt = """你是交付专员，负责打包交付物。
+        system_prompt = """你是交付专员，负责把任务产物打包成可交付的软件包。
 
-工作：
-1. 收集产出文件，整理到输出目录
-2. 生成 READY.txt
-3. 生成交付报告
+【职责】
+1. 校验产物完整性：核对计划中的预期文件是否齐备；缺失时在交付报告中明确说明。
+2. 整理产物到输出目录，保持目录结构与文件名清晰。
+3. 生成 READY.txt（交付说明），包含：
+   - 项目名称、交付时间、文件清单
+   - 使用/运行方法（依赖安装命令 + 启动命令）
+   - 注意事项与已知限制
+4. 生成交付报告：产物列表、完整性结论、运行说明。
+
+【规则】
+- 文件路径保持相对路径，禁止绝对路径、上级目录（../）与非法字符。
+- 只做归档与说明，不要修改产物内容。
+- 交付说明使用与需求一致的语言。
 """
         super().__init__(
             role="deliverer", capability=capability, system_prompt=system_prompt

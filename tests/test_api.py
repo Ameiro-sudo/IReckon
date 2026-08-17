@@ -113,3 +113,46 @@ async def test_capabilities_endpoint(client):
     r = await client.get("/api/capabilities")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+async def test_artifact_endpoints(client, tmp_path, monkeypatch):
+    """产物列表/内容/下载端点 + 路径穿越防护。"""
+    from app.core.config import config_manager
+
+    tid = "task-art-test"
+    out = tmp_path / "outputs" / tid
+    out.mkdir(parents=True)
+    (out / "main.py").write_text("print('hello')\n", encoding="utf-8")
+    (out / "sub").mkdir()
+    (out / "sub" / "x.txt").write_text("nested", encoding="utf-8")
+    (out / "secret.txt").write_text("secret", encoding="utf-8")
+
+    monkeypatch.setattr(config_manager, "get", lambda k, d=None: {
+        "system.data_dir": str(tmp_path),
+        "server.frontend_dev_url": "http://localhost:3000",
+        "server.port": 8000,
+    }.get(k, d))
+
+    r = await client.get(f"/api/tasks/{tid}/artifacts")
+    assert r.status_code == 200
+    files = r.json()["files"]
+    assert {f["path"] for f in files} == {"main.py", "sub/x.txt", "secret.txt"}
+
+    r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "main.py"})
+    assert r.status_code == 200
+    assert r.json()["content"] == "print('hello')\n"
+
+    r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "sub/x.txt"})
+    assert r.status_code == 200
+    assert r.json()["content"] == "nested"
+
+    # 路径穿越
+    r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "../secret.txt"})
+    assert r.status_code == 404
+
+    r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "nope.py"})
+    assert r.status_code == 404
+
+    r = await client.get(f"/api/tasks/{tid}/download")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"

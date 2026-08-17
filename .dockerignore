@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.coverage
+coverage_html/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Runtime data & secrets
+data/
+*.db
+*.key
+.env
+.env.*
+
+# Git / IDE
+.git/
+.gitignore
+.github/
+.idea/
+.jbeval/
+
+# Docs & packaging artifacts
+docs/
+*.spec
+*.zip
+*.log

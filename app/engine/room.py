@@ -76,7 +76,31 @@ class MeetingRoom:
         )
         for q in self._broadcast_queues.get(layer, []):
             await q.put(msg)
+        await self._push_websocket(msg)
         return msg
+
+    async def _push_websocket(self, msg: Message) -> None:
+        """将消息实时推送到前端 WebSocket（任务频道 + 全局频道）。"""
+        if msg.layer == MessageLayer.L3_PRIVATE:
+            return
+        try:
+            from app.web.push import push_message_to_websocket
+
+            await push_message_to_websocket(
+                self.task_id,
+                {
+                    "msg_id": msg.msg_id,
+                    "layer": msg.layer.value,
+                    "sender_role": msg.sender_role,
+                    "sender_id": msg.sender_id,
+                    "content": msg.content,
+                    "msg_type": msg.msg_type,
+                    "metadata": msg.metadata,
+                    "timestamp": msg.timestamp.isoformat(),
+                },
+            )
+        except Exception as e:
+            logger.warning(f"WebSocket 消息推送失败: {e}")
 
     async def send_private(
         self,

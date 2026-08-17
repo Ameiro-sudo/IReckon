@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IReckon 主入口文件 (๑•̀ᴗ-)✧
+IReckon 主入口文件 
 项目的启动点，整合所有模块让系统跑起来～
 """
 
@@ -79,9 +79,16 @@ class IReckonApp:
         self._tasks.append(asyncio.create_task(idle_loop.run()))    # 空闲学习loop
         self._tasks.append(asyncio.create_task(log_consumer()))     # 日志消费者
         
-        # 非打包模式（源码运行）时启动独立前端进程
-        if not getattr(sys, 'frozen', False):
+        # 非打包模式（源码运行）时启动独立前端进程。
+        # 生产环境（存在构建产物 frontend/dist 且未设置 IRECKON_DEV_FRONTEND=1）
+        # 由 FastAPI 直接托管静态前端，无需独立 dev server。
+        root = os.path.dirname(os.path.abspath(__file__))
+        dist_dir = os.path.join(root, "frontend", "dist")
+        dev_mode = os.environ.get("IRECKON_DEV_FRONTEND", "") == "1"
+        if not getattr(sys, 'frozen', False) and (dev_mode or not os.path.isdir(dist_dir)):
             self._start_frontend()
+        elif not os.path.isdir(dist_dir):
+            logger.warning("frontend/dist 不存在，请先执行 cd frontend && npm run build")
         logger.info("系统初始化完成")
 
     def _start_frontend(self):

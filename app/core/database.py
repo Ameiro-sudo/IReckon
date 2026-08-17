@@ -1,7 +1,7 @@
 """
-数据库模块 (๑•̀ᴗ-)✧
-负责 SQLite 数据库的连接、加密和 CRUD 操作～
-数据安全很重要，所以加了 Fernet 加密哦！
+数据库模块
+负责 SQLite 数据库的连接、加密和 CRUD 操作。
+数据安全很重要，所以加了 Fernet 加密。
 """
 
 import asyncio
@@ -78,7 +78,7 @@ class Database:
                 return
 
             # 配置数据库参数～
-            journal = config_manager.get("database.journal_mode", "delete")
+            journal = config_manager.get("database.journal_mode", "wal")
             timeout = config_manager.get("database.timeout", 5.0)
 
             self._conn = await aiosqlite.connect(
@@ -100,7 +100,24 @@ class Database:
             CREATE TABLE IF NOT EXISTS knowledge_entries (entry_id TEXT PRIMARY KEY, type TEXT, title TEXT, content TEXT, source TEXT, vector_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS conversation_messages (msg_id TEXT PRIMARY KEY, task_id TEXT, layer TEXT, sender_role TEXT, sender_id TEXT, content TEXT, metadata TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (task_id) REFERENCES tasks(task_id));
             CREATE TABLE IF NOT EXISTS task_board_states (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, state_json TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS usage_log (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT, tokens INTEGER, cost REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_messages_task_layer ON conversation_messages(task_id, layer, timestamp);
+            CREATE INDEX IF NOT EXISTS idx_board_task ON task_board_states(task_id, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_usage_task ON usage_log(task_id, created_at);
         """)
+        # 兼容旧库：tasks 表新增 title 列（AI 生成/截断的简短标题）
+        try:
+            await self._conn.execute("ALTER TABLE tasks ADD COLUMN title TEXT")
+            logger.info("tasks 表已新增 title 列")
+        except Exception:
+            pass
+        # 兼容旧库：tasks 表新增 file_refs 列（上传的参考文件）
+        try:
+            await self._conn.execute("ALTER TABLE tasks ADD COLUMN file_refs TEXT")
+            logger.info("tasks 表已新增 file_refs 列")
+        except Exception:
+            pass
         await self._conn.commit()
 
     async def close(self):
@@ -198,6 +215,44 @@ class Database:
             if inst:
                 instances.append(inst)
         return instances
+
+    async def delete_task(self, task_id: str) -> None:
+        """删除任务及其关联数据（消息、看板、用量记录）。"""
+        for sql in (
+            "DELETE FROM conversation_messages WHERE task_id=?",
+            "DELETE FROM task_board_states WHERE task_id=?",
+            "DELETE FROM usage_log WHERE task_id=?",
+            "DELETE FROM tasks WHERE task_id=?",
+        ):
+            await self.execute(sql, (task_id,))
+
+    async def add_usage(self, task_id: str, tokens: int, cost: float) -> None:
+        await self.execute(
+            "INSERT INTO usage_log(task_id,tokens,cost) VALUES(?,?,?)",
+            (task_id, tokens, cost),
+        )
+
+    async def get_usage_summary(self) -> Dict:
+        row = await self.fetch_one(
+            "SELECT COALESCE(SUM(tokens),0), COALESCE(SUM(cost),0) FROM usage_log"
+        )
+        month = await self.fetch_one(
+            "SELECT COALESCE(SUM(tokens),0), COALESCE(SUM(cost),0) FROM usage_log "
+            "WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now')"
+        )
+        by_task = await self.fetch_all(
+            "SELECT task_id, SUM(tokens), SUM(cost) FROM usage_log GROUP BY task_id ORDER BY SUM(tokens) DESC LIMIT 20"
+        )
+        return {
+            "total_tokens": row[0] if row else 0,
+            "total_cost": round(row[1] if row else 0, 4),
+            "month_tokens": month[0] if month else 0,
+            "month_cost": round(month[1] if month else 0, 4),
+            "by_task": [
+                {"task_id": t, "tokens": tok, "cost": round(c, 4)}
+                for t, tok, c in by_task
+            ],
+        }
 
 
 # 全局数据库实例～

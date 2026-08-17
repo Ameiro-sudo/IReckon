@@ -1,26 +1,28 @@
-version: "3.9"
-
 services:
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: ireckon:latest
+    container_name: ireckon
     ports:
       - "8000:8000"
     volumes:
-      - ./config:/app/config
-      - ./data:/app/data
+      - ./../config:/app/config
+      - ireckon-data:/app/data
     environment:
       - IRECKON_HOME=/app
       - IRECKON_API_HOST=0.0.0.0
       - IRECKON_API_PORT=8000
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - FREELMAPI_KEY=${FREELMAPI_KEY:-}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
 
-  watchtower:
-    image: containrrr/watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 3600 --cleanup
-    restart: unless-stopped
-    profiles:
-      - auto-update
+volumes:
+  ireckon-data:
