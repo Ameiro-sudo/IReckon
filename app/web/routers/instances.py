@@ -55,15 +55,17 @@ async def create_ai_instance(inst: AIInstanceRequest):
 
 @router.put("/ai-instances/{instance_id}")
 async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
-    data = inst.model_dump(exclude_unset=True)
-    data["id"] = instance_id
+    existing = await capability_pool.get_by_id(instance_id)
+    if not existing:
+        raise HTTPException(404, "Instance not found")
+    # 以现有实例为基础做部分更新（exclude_unset 只覆盖传入字段）
+    data = existing.to_dict()
+    patch = inst.model_dump(exclude_unset=True)
+    patch.pop("id", None)
     # api_key 为空串时保留已有密钥（前端编辑不填视为不变更）
-    if not data.get("api_key"):
-        existing = await capability_pool.get_by_id(instance_id)
-        if existing:
-            data["api_key"] = existing.api_key
-        else:
-            data["api_key"] = ""
+    if not patch.get("api_key"):
+        patch.pop("api_key", None)
+    data.update(patch)
     cap = AICapability(**data)
     await capability_pool.update_instance(cap)
     return {"status": "ok"}

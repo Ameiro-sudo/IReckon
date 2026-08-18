@@ -115,6 +115,147 @@ async def test_ai_instance_missing_model_field(client):
     assert r.status_code in (200, 422)
 
 
+async def test_ai_instance_auto_generated_id(client):
+    """不传 id 时自动生成 ai- 前缀 ID。"""
+    r = await client.post(
+        "/api/ai-instances",
+        json={
+            "name": "Auto",
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "tags": ["general"],
+        },
+    )
+    assert r.status_code == 200
+    iid = r.json()["id"]
+    assert iid.startswith("ai-")
+    await client.delete(f"/api/ai-instances/{iid}")
+
+
+async def test_ai_instance_api_key_masked_and_roundtrip(client):
+    """列表接口不泄露明文密钥；空 key 更新保留原密钥，新 key 更新替换。"""
+    from app.llm.pool import capability_pool
+
+    iid = "test-inst-key"
+    r = await client.post(
+        "/api/ai-instances",
+        json={
+            "id": iid,
+            "name": "Keyed",
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "api_key": "sk-super-secret",
+            "tags": ["general"],
+        },
+    )
+    assert r.status_code == 200
+
+    insts = (await client.get("/api/ai-instances")).json()
+    item = next(i for i in insts if i["id"] == iid)
+    assert "api_key" not in item
+    assert item["has_key"] is True
+
+    cap = await capability_pool.get_by_id(iid)
+    assert cap.api_key == "sk-super-secret"
+
+    r = await client.put(
+        f"/api/ai-instances/{iid}",
+        json={"endpoint": "http://localhost:9999/v1", "model": "auto"},
+    )
+    assert r.status_code == 200
+    cap = await capability_pool.get_by_id(iid)
+    assert cap.api_key == "sk-super-secret"
+
+    await client.put(
+        f"/api/ai-instances/{iid}",
+        json={
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "api_key": "sk-new-key",
+        },
+    )
+    cap = await capability_pool.get_by_id(iid)
+    assert cap.api_key == "sk-new-key"
+
+    await client.delete(f"/api/ai-instances/{iid}")
+
+
+async def test_ai_instance_test_reachable(client, monkeypatch):
+    from app.web.routers import instances as instances_router
+
+    iid = "test-inst-reach"
+
+    class FakeResponse:
+        status_code = 200
+        text = '{"data":[{"id":"auto"}]}'
+
+    class FakeClient:
+        async def get(self, url, headers=None):
+            assert url.endswith("/models")
+            return FakeResponse()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    monkeypatch.setattr(instances_router.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+    await client.post(
+        "/api/ai-instances",
+        json={
+            "id": iid,
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+        },
+    )
+    r = await client.post(f"/api/ai-instances/{iid}/test")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "reachable"
+    assert body["http_status"] == 200
+    await client.delete(f"/api/ai-instances/{iid}")
+
+
+async def test_ai_instance_test_unreachable(client, monkeypatch):
+    from app.web.routers import instances as instances_router
+
+    iid = "test-inst-dead"
+
+    class FakeClient:
+        async def get(self, url, headers=None):
+            raise httpx.ConnectError("connection refused")
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    monkeypatch.setattr(instances_router.httpx, "AsyncClient", lambda **kw: FakeClient())
+
+    await client.post(
+        "/api/ai-instances",
+        json={
+            "id": iid,
+            "endpoint": "http://localhost:1/v1",
+            "model": "auto",
+        },
+    )
+    r = await client.post(f"/api/ai-instances/{iid}/test")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "unreachable"
+    assert "error" in body
+    await client.delete(f"/api/ai-instances/{iid}")
+
+
+async def test_ai_instance_test_not_found(client):
+    r = await client.post("/api/ai-instances/ai-no-such-id/test")
+    assert r.status_code == 404
+
+
 async def test_capabilities_endpoint(client):
     r = await client.get("/api/capabilities")
     assert r.status_code == 200
