@@ -65,6 +65,7 @@ async def run_smoke_tests() -> int:
     if len(caps) == 0:
         print("  SKIP: no AI instances configured; endpoint reachability is not tested")
 
+    await db.close()
     print("Smoke test complete.")
     return 0
 
