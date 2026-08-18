@@ -78,7 +78,7 @@ async def push_log_to_websocket(level: str, message: str, task_id: Optional[str]
     await manager.broadcast_global(log_msg)
 
 
-async def websocket_endpoint(websocket: WebSocket, task_id: str = None):
+async def websocket_endpoint(websocket: WebSocket, task_id: Optional[str] = None):
     await manager.connect(websocket, task_id)
     try:
         while True:

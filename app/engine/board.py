@@ -95,7 +95,7 @@ class TaskBoard:
             total_stages=total_stages,
             stage_name=first_phase.get("phase", "未知阶段"),
             stage_goal=first_phase.get("description", ""),
-            expected_artifacts=first_phase.get("expected_artifacts", []),
+            expected_artifacts=list(first_phase.get("expected_artifacts") or []),
             completed_work=[],
             pending_actions=[f"执行阶段 {first_phase.get('phase')}"],
             active_roles=active_roles,

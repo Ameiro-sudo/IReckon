@@ -10,7 +10,7 @@ from loguru import logger
 _setup_lock = threading.Lock()
 _setup_done = False
 # 日志队列，供 WebSocket 推送 / logs API 消费，防止阻塞
-_log_queue = queue.Queue(maxsize=5000)
+_log_queue: "queue.Queue[str]" = queue.Queue(maxsize=5000)
 
 # 控制台输出：时间(绿) | 等级(按等级着色, 8列对齐) | 位置(青) - 消息(按等级着色)
 _LOG_FORMAT = (

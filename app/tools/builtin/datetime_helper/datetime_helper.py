@@ -5,10 +5,11 @@ from datetime import datetime, timezone, timedelta
 from dateutil import parser, relativedelta
 import time
 from zoneinfo import ZoneInfo
+from typing import Any, Callable, Dict
 
 
 def datetime_helper(operation: str, *args, **kwargs):
-    ops = {
+    ops: Dict[str, Callable[..., Any]] = {
         # 褰撳墠鏃堕棿
         "now": lambda tz=None: datetime.now(tz).isoformat(),
         "timestamp": lambda: int(time.time()),

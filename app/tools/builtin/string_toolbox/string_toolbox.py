@@ -5,8 +5,9 @@ Provides common string transformation and inspection operations.
 
 import re
 import textwrap
+from typing import Any, Callable, Dict
 
-OPERATIONS = {
+OPERATIONS: Dict[str, Callable[..., Any]] = {
     "upper": lambda s: s.upper(),
     "lower": lambda s: s.lower(),
     "capitalize": lambda s: s.capitalize(),

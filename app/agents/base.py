@@ -126,7 +126,7 @@ class BaseAgent(ABC):
 
         full_response = ""
         try:
-            async for chunk in self.llm.call(
+            stream = await self.llm.call(
                 self.capability,
                 self.messages,
                 temperature=temperature,
@@ -135,7 +135,8 @@ class BaseAgent(ABC):
                 if self.context
                 else None,
                 stream=True,
-            ):
+            )
+            async for chunk in stream:
                 full_response += chunk
                 yield chunk
 

@@ -20,8 +20,8 @@ try:
 
     WATCHDOG_AVAILABLE = True
 except ImportError:
-    FileSystemEventHandler = object  # 降级：无 watchdog 时用空基类避免导入失败
-    Observer = None
+    FileSystemEventHandler = object  # type: ignore[misc,assignment]  # 降级：无 watchdog 时用空基类避免导入失败
+    Observer = None  # type: ignore[assignment]
     WATCHDOG_AVAILABLE = False
     logger.warning("watchdog 未安装，配置文件热加载不可用，将使用手动重载")
 
@@ -43,7 +43,7 @@ class ConfigManager:
             return
         self._initialized = True
         self._config_lock = threading.RLock()
-        self._observer: Optional[Observer] = None
+        self._observer: Optional[Any] = None
 
         self.base_dir = Path(os.environ.get("IRECKON_HOME", ".")).resolve()
         self.config_path = (self.base_dir / "config" / "config.yaml").resolve()

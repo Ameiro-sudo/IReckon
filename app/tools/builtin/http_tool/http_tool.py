@@ -26,7 +26,7 @@ def http_request(
     method = method.upper()
     try:
         with _make_client(timeout) as client:
-            request_kwargs = {"headers": headers or {}}
+            request_kwargs: Dict[str, Any] = {"headers": headers or {}}
             if json_data is not None:
                 request_kwargs["json"] = json_data
             if data is not None:

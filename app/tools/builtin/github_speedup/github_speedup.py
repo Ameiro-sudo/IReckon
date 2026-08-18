@@ -82,7 +82,7 @@ def _proxy_url(mirror: str, original_url: str) -> str:
     return mirror.rstrip("/") + "/" + original_url
 
 
-def _run_command(cmd: list, cwd: str = None, timeout: int = 60) -> Tuple[int, str, str]:
+def _run_command(cmd: list, cwd: Optional[str] = None, timeout: int = 60) -> Tuple[int, str, str]:
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
         return proc.returncode, proc.stdout, proc.stderr

@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from loguru import logger
 from jinja2 import Environment, FileSystemLoader
 
@@ -188,8 +188,8 @@ FILE: 相对路径
         self, response: str, source_files: Dict[str, str]
     ) -> Dict[str, str]:
         result = {}
-        current_file = None
-        current_content = []
+        current_file: Optional[str] = None
+        current_content: List[str] = []
         in_code = False
 
         for line in response.splitlines():

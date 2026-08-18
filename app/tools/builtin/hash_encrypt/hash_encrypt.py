@@ -7,10 +7,11 @@ import base64
 import hmac
 import binascii
 import os
+from typing import Any, Callable, Dict
 
 
 def hash_encrypt(operation: str, *args, **kwargs):
-    ops = {
+    ops: Dict[str, Callable[..., Any]] = {
         "md5": lambda s: hashlib.md5(s.encode(), usedforsecurity=False).hexdigest(),
         "sha1": lambda s: hashlib.sha1(s.encode(), usedforsecurity=False).hexdigest(),
         "sha256": lambda s: hashlib.sha256(s.encode()).hexdigest(),

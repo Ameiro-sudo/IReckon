@@ -3,6 +3,7 @@
 
 import json
 from collections.abc import MutableMapping
+from typing import Any, Callable, Dict
 
 
 def flatten(d, parent_key="", sep="_"):
@@ -30,7 +31,7 @@ def unflatten(d, sep="_"):
 
 
 def json_transformer(operation: str, *args, **kwargs):
-    ops = {
+    ops: Dict[str, Callable[..., Any]] = {
         "dumps": lambda obj: json.dumps(obj, ensure_ascii=False),
         "loads": lambda s: json.loads(s),
         "pretty": lambda obj: json.dumps(obj, indent=2, ensure_ascii=False),

@@ -62,11 +62,11 @@ URL: {url}
         }
 
     def _extract_tool_suggestions(self, response: str) -> List[Dict[str, str]]:
-        suggestions = []
+        suggestions: List[Dict[str, str]] = []
         lines = response.split("\n")
-        current = {}
+        current: Dict[str, str] = {}
         in_code = False
-        code_lines = []
+        code_lines: List[str] = []
         for line in lines:
             if line.startswith("工具名称：") or line.startswith("名称："):
                 if current:

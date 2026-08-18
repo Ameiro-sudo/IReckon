@@ -101,5 +101,5 @@ if _frontend_available:
 else:
 
     @app.get("/{path:path}", include_in_schema=False)
-    async def redirect_to_frontend(path: str):
+    async def redirect_to_dev(path: str):
         return RedirectResponse(_dev_url())

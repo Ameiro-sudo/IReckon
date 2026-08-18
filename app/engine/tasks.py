@@ -254,7 +254,7 @@ class TaskManager:
         task_board = await TaskBoard.from_state_dict(
             tid, snap.get("task_board_state", {})
         )
-        team = {}
+        team: Dict[str, List[Any]] = {}
         for role, caps_data in snap.get("team", {}).items():
             team[role] = []
             for cd in caps_data:

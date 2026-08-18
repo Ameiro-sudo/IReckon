@@ -155,9 +155,10 @@ JSON 结构示例：
 
         announcement = self._generate_announcement(plan, team)
         self.add_message("assistant", announcement)
-        await room.broadcast(
-            MessageLayer.L1_PUBLIC, "scheduler", self.context.agent_id, announcement
-        )
+        if self.context:
+            await room.broadcast(
+                MessageLayer.L1_PUBLIC, "scheduler", self.context.agent_id, announcement
+            )
 
         return {
             "plan": plan,

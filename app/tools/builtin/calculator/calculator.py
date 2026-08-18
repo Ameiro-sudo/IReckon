@@ -5,10 +5,10 @@ import math
 import statistics
 import cmath
 import random
-from typing import Any
+from typing import Any, Callable, Dict
 
 # 浣跨敤 lambda 鏋勫缓鎿嶄綔鏄犲皠锛屾兜鐩栧箍娉涚殑璁＄畻鍔熻兘
-OPERATIONS = {
+OPERATIONS: Dict[str, Callable[..., Any]] = {
     # 鈹€鈹€ 鍩烘湰绠楁湳 鈹€鈹€
     "add": lambda *args: sum(args),
     "sub": lambda *args: args[0] - sum(args[1:]) if len(args) >= 2 else args[0],
