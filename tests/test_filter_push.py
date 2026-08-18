@@ -7,12 +7,9 @@ ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
 import pytest
-import pytest_asyncio
 
 from app.security.filter import CommandFilter, CommandLevel
 from app.web.push import ConnectionManager, push_message_to_websocket
-
-pytestmark = pytest.mark.asyncio
 
 
 def test_classify_levels():
@@ -63,6 +60,7 @@ class FakeWS:
         self.sent.append(msg)
 
 
+@pytest.mark.asyncio
 async def test_connection_manager_task_broadcast():
     m = ConnectionManager()
     ws1, ws2 = FakeWS(), FakeWS()
@@ -77,6 +75,7 @@ async def test_connection_manager_task_broadcast():
     assert len(ws2.sent) == 2
 
 
+@pytest.mark.asyncio
 async def test_connection_manager_global_and_dead_ws():
     m = ConnectionManager()
     good, bad = FakeWS(), FakeWS()
@@ -93,6 +92,7 @@ async def test_connection_manager_global_and_dead_ws():
     assert bad not in m.global_connections
 
 
+@pytest.mark.asyncio
 async def test_push_message_helper():
     from app.web.push import manager
 

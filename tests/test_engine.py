@@ -1,6 +1,5 @@
 """审查员响应解析与工作流引擎图结构测试。"""
 
-import asyncio
 import json
 import sys
 from pathlib import Path
@@ -8,7 +7,6 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
-import pytest
 
 from app.agents.reviewer import CorrectnessReviewerAgent
 from app.llm.pool import AICapability

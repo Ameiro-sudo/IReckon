@@ -7,10 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
-import pytest
 
 from app.agents.executor import ExecutorAgent
-from app.harness.dsh_client import DSHClient, DSHResult
+from app.harness.dsh_client import DSHClient
 from app.llm.pool import AICapability
 
 

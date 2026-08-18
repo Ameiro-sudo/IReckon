@@ -11,7 +11,6 @@ import pytest_asyncio
 import httpx
 
 from app.web.api import app
-from app.core.database import db
 
 pytestmark = pytest.mark.asyncio
 

@@ -14,14 +14,13 @@ from app.tools.registry import register_builtin_tools
 from app.engine.machine import WorkflowEngine
 from app.engine.tasks import TaskStatus
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest_asyncio.fixture(scope="module")
 async def seeded_db(session_db):
     yield session_db
 
 
+@pytest.mark.asyncio
 async def test_register_builtin_tools(seeded_db):
     count_before = await db.fetch_one("SELECT COUNT(*) FROM tool_parts")
     await register_builtin_tools(str(ROOT / "app" / "tools" / "builtin"))
@@ -30,6 +29,7 @@ async def test_register_builtin_tools(seeded_db):
     assert count_after[0] >= 8
 
 
+@pytest.mark.asyncio
 async def test_register_builtin_tools_idempotent(seeded_db):
     await register_builtin_tools(str(ROOT / "app" / "tools" / "builtin"))
     count1 = (await db.fetch_one("SELECT COUNT(*) FROM tool_parts"))[0]
@@ -38,6 +38,7 @@ async def test_register_builtin_tools_idempotent(seeded_db):
     assert count1 == count2
 
 
+@pytest.mark.asyncio
 async def test_register_missing_dir(seeded_db):
     await register_builtin_tools("/nonexistent/dir")
     assert True

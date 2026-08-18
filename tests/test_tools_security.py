@@ -1,6 +1,5 @@
 """工具组装器与安全扫描器测试。"""
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -22,7 +21,6 @@ def test_safe_filename_preserves_structure():
     assert DelivererAgent._safe_filename("../evil/x.py") == "evil/x.py"
     assert DelivererAgent._safe_filename("a:b.py") == "a_b.py"
     assert DelivererAgent._safe_filename("") == "unnamed.txt"
-from app.security.filter import command_filter
 
 
 def test_assemble_sequence_has_calls():

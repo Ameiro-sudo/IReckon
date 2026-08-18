@@ -231,7 +231,7 @@ async def list_artifacts(task_id: str):
         if p.is_file():
             files.append(
                 {
-                    "path": str(p.relative_to(out)),
+                    "path": p.relative_to(out).as_posix(),
                     "size": p.stat().st_size,
                     "mtime": p.stat().st_mtime,
                 }
