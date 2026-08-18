@@ -1,7 +1,14 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/common'
 import 'highlight.js/styles/github-dark.css'
+import dockerfile from 'highlight.js/lib/languages/dockerfile'
+import dos from 'highlight.js/lib/languages/dos'
+import pythonRepl from 'highlight.js/lib/languages/python-repl'
+
+hljs.registerLanguage('dockerfile', dockerfile)
+hljs.registerLanguage('batchfile', dos)
+hljs.registerLanguage('python-repl', pythonRepl)
 
 marked.setOptions({
   gfm: true,
@@ -32,7 +39,7 @@ export function highlightDom(root) {
 
 const EXT_LANG = {
   py: 'python', js: 'javascript', mjs: 'javascript', cjs: 'javascript',
-  ts: 'typescript', jsx: 'jsx', tsx: 'tsx', vue: 'xml',
+  ts: 'typescript', jsx: 'javascript', tsx: 'typescript', vue: 'xml',
   json: 'json', jsonc: 'json', yaml: 'yaml', yml: 'yaml', toml: 'ini',
   md: 'markdown', markdown: 'markdown', txt: 'plaintext',
   sh: 'bash', bash: 'bash', bat: 'batchfile', cmd: 'batchfile',
