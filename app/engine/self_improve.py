@@ -18,7 +18,9 @@ class SelfImprover:
         )
         template_dir = Path(__file__).parent.parent.parent / "config" / "prompts"
         if template_dir.exists():
-            self._jinja_env = Environment(loader=FileSystemLoader(str(template_dir)))
+            self._jinja_env = Environment(
+                loader=FileSystemLoader(str(template_dir)), autoescape=True
+            )
         else:
             self._jinja_env = None
         self._blacklist = set(

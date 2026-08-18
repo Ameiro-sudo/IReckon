@@ -11,8 +11,8 @@ import os
 
 def hash_encrypt(operation: str, *args, **kwargs):
     ops = {
-        "md5": lambda s: hashlib.md5(s.encode()).hexdigest(),
-        "sha1": lambda s: hashlib.sha1(s.encode()).hexdigest(),
+        "md5": lambda s: hashlib.md5(s.encode(), usedforsecurity=False).hexdigest(),
+        "sha1": lambda s: hashlib.sha1(s.encode(), usedforsecurity=False).hexdigest(),
         "sha256": lambda s: hashlib.sha256(s.encode()).hexdigest(),
         "sha512": lambda s: hashlib.sha512(s.encode()).hexdigest(),
         "base64_encode": lambda s: base64.b64encode(s.encode()).decode(),

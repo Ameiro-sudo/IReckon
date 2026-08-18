@@ -72,14 +72,14 @@ async def list_tasks(
     status: Optional[str] = None,
 ):
     params: List[Any] = []
-    where = ""
+    where = ""  # nosec B608: where 只能是空串或常量 WHERE status = ?
     if status:
         where = " WHERE status = ?"
         params.append(status)
     rows = await db.fetch_all(
         "SELECT t.task_id, t.user_request, t.title, t.status, t.created_at, t.updated_at, "
         "COALESCE((SELECT SUM(u.tokens) FROM usage_log u WHERE u.task_id = t.task_id), 0) AS tokens "
-        f"FROM tasks t{where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?",
+        f"FROM tasks t{where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?",  # nosec B608: where 仅可来自常量
         (*params, limit, offset),
     )
     return [

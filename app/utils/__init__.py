@@ -17,7 +17,9 @@ def get_prompt_template_dir() -> Path:
 
 def create_jinja_env() -> Environment:
     """创建Jinja2环境"""
-    return Environment(loader=FileSystemLoader(str(get_prompt_template_dir())))
+    return Environment(
+        loader=FileSystemLoader(str(get_prompt_template_dir())), autoescape=True
+    )
 
 
 def load_template(template_name: str) -> str:

@@ -7,6 +7,7 @@ import subprocess
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 import json
 import os
 import concurrent.futures
@@ -30,15 +31,23 @@ _cache_timestamp: float = 0.0
 _CACHE_TTL = 60
 
 
+def _require_http_url(url: str) -> str:
+    """仅允许 http/https 协议，防止 file:// 等非预期 scheme。"""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"仅支持 http/https URL: {url}")
+    return url
+
+
 def _test_one_mirror(mirror: str) -> Tuple[str, float]:
     """Test a single mirror and return (mirror, elapsed)."""
     test_raw = "https://raw.githubusercontent.com/octocat/Hello-World/master/README"
-    url = mirror.rstrip("/") + "/" + test_raw
+    url = _require_http_url(mirror.rstrip("/") + "/" + test_raw)
     start = time.time()
     try:
         req = urllib.request.Request(url, method="GET")
         req.add_header("Range", "bytes=0-0")
-        resp = urllib.request.urlopen(req, timeout=SPEED_TEST_TIMEOUT)
+        resp = urllib.request.urlopen(req, timeout=SPEED_TEST_TIMEOUT)  # nosec B310: url 已通过 _require_http_url 校验
         resp.read(1)
         elapsed = time.time() - start
         return mirror, elapsed
@@ -84,7 +93,7 @@ def _run_command(cmd: list, cwd: str = None, timeout: int = 60) -> Tuple[int, st
 
 
 def _build_api_request(url: str):
-    req = urllib.request.Request(url)
+    req = urllib.request.Request(_require_http_url(url))
     req.add_header("User-Agent", "IReckon-AI-Factory/2.0")
     req.add_header("Accept", "application/vnd.github.v3+json")
     return req
@@ -132,7 +141,7 @@ def github_access_helper(operation: str, *args, **kwargs):
         for url in urls_to_try:
             try:
                 req = _build_api_request(url)
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: url 已通过 _require_http_url 校验
                     return resp.read().decode("utf-8", errors="replace")
             except Exception:
                 continue
@@ -150,7 +159,7 @@ def github_access_helper(operation: str, *args, **kwargs):
         for url in urls:
             try:
                 req = _build_api_request(url)
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: url 已通过 _require_http_url 校验
                     data = json.loads(resp.read().decode("utf-8", errors="replace"))
                     return {
                         "tag_name": data.get("tag_name"),
@@ -185,7 +194,7 @@ def github_access_helper(operation: str, *args, **kwargs):
         for url in urls:
             try:
                 req = _build_api_request(url)
-                with urllib.request.urlopen(req, timeout=30) as resp:
+                with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310: url 已通过 _require_http_url 校验
                     content = resp.read()
                     save_path = os.path.join(save_dir, file_name)
                     with open(save_path, "wb") as f:

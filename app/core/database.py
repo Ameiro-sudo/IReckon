@@ -205,7 +205,7 @@ class Database:
 
     async def get_all_ai_instances(self, enabled_only=True):
         """获取所有 AI 实例～"""
-        sql = "SELECT instance_id FROM ai_instances" + (
+        sql = "SELECT instance_id FROM ai_instances" + (  # nosec B608: 仅拼接常量字符串
             " WHERE enabled=1" if enabled_only else ""
         )
         rows = await self.fetch_all(sql)
