@@ -12,8 +12,12 @@ from loguru import logger
 
 from .push import websocket_endpoint
 from .routers import tasks, instances, config as config_router, system, uploads
+from app.core.config import config_manager
 
-app = FastAPI(title="IReckon AI Factory", version="2.2.0")
+app = FastAPI(
+    title="IReckon AI Factory",
+    version=config_manager.get("system.version", "2.2.0"),
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

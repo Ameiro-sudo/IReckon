@@ -30,10 +30,10 @@ classifiers = [
 include = ["app*"]
 
 [project.urls]
-Homepage = "https://github.com/ninasukiwww-png/IReckon"
-Repository = "https://github.com/ninasukiwww-png/IReckon.git"
-Documentation = "https://github.com/ninasukiwww-png/IReckon#readme"
-IssueTracker = "https://github.com/ninasukiwww-png/IReckon/issues"
+Homepage = "https://github.com/Ameiro-sudo/IReckon"
+Repository = "https://github.com/Ameiro-sudo/IReckon.git"
+Documentation = "https://github.com/Ameiro-sudo/IReckon#readme"
+IssueTracker = "https://github.com/Ameiro-sudo/IReckon/issues"
 
 [project.scripts]
 ireckon = "main:main"

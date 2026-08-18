@@ -5,9 +5,9 @@
   <img src="https://img.shields.io/badge/LangGraph-%E2%9C%94-6C5CE7?style=for-the-badge" alt="LangGraph">
   <img src="https://img.shields.io/badge/ChromaDB-%E2%9C%94-FF6B6B?style=for-the-badge" alt="ChromaDB">
   <br>
-  <img src="https://img.shields.io/github/license/ninasukiwww-png/IReckon?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/github/last-commit/ninasukiwww-png/IReckon?style=for-the-badge" alt="Last Commit">
-  <img src="https://img.shields.io/github/repo-size/ninasukiwww-png/IReckon?style=for-the-badge" alt="Repo Size">
+  <img src="https://img.shields.io/github/license/Ameiro-sudo/IReckon?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/github/last-commit/Ameiro-sudo/IReckon?style=for-the-badge" alt="Last Commit">
+  <img src="https://img.shields.io/github/repo-size/Ameiro-sudo/IReckon?style=for-the-badge" alt="Repo Size">
   <img src="https://img.shields.io/badge/status-Beta-yellow?style=for-the-badge" alt="Status">
 </p>
 
@@ -161,7 +161,7 @@ planning ──▶ execute ──▶ review ──┐
 ### Installation
 
 ```bash
-git clone https://github.com/ninasukiwww-png/IReckon.git
+git clone https://github.com/Ameiro-sudo/IReckon.git
 cd IReckon
 pip install -r requirements.txt
 ```
