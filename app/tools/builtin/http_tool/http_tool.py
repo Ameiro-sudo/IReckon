@@ -30,7 +30,9 @@ def http_request(
             if json_data is not None:
                 request_kwargs["json"] = json_data
             if data is not None:
-                request_kwargs["content"] = data if isinstance(data, bytes) else data.encode()
+                request_kwargs["content"] = (
+                    data if isinstance(data, bytes) else data.encode()
+                )
 
             response = client.request(method, url, **request_kwargs)
             result = {

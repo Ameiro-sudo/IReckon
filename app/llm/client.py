@@ -64,7 +64,11 @@ def _truncate(text: str, limit: int = 400) -> str:
     if text is None:
         return ""
     text = str(text).replace("\n", "\\n")
-    return text if len(text) <= limit else text[:limit] + f"...[+{len(text) - limit} chars]"
+    return (
+        text
+        if len(text) <= limit
+        else text[:limit] + f"...[+{len(text) - limit} chars]"
+    )
 
 
 class EndpointHealth:

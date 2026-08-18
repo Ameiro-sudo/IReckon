@@ -59,7 +59,10 @@ class WorkflowEngine:
             try:
                 await db.execute(
                     "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
-                    (status.value if isinstance(status, TaskStatus) else str(status), tid),
+                    (
+                        status.value if isinstance(status, TaskStatus) else str(status),
+                        tid,
+                    ),
                 )
             except Exception as e:
                 logger.warning(f"任务{tid}状态更新失败: {e}")
@@ -187,7 +190,9 @@ class WorkflowEngine:
             msg_type="code",
         )
 
-    async def _broadcast_security_violation(self, tid: str, room, violations: List[str]):
+    async def _broadcast_security_violation(
+        self, tid: str, room, violations: List[str]
+    ):
         if not room:
             return
         await room.broadcast(
@@ -389,7 +394,9 @@ class WorkflowEngine:
             if Path(k).name not in new_basenames
         }
         if len(stale) != len(s.get("artifacts", {})):
-            logger.info(f"修订后清理 {len(s.get('artifacts', {})) - len(stale)} 个过期文件")
+            logger.info(
+                f"修订后清理 {len(s.get('artifacts', {})) - len(stale)} 个过期文件"
+            )
             s["artifacts"] = stale
 
         violations = await self._security_violations(rc)

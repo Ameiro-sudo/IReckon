@@ -64,7 +64,13 @@ async def test_parse_requirement_with_json_fence(monkeypatch):
 @pytest.mark.asyncio
 async def test_parse_requirement_bare_json(monkeypatch):
     agent = make_agent()
-    plan = {"task_name": "T2", "summary": "S", "complexity": "simple", "phases": [], "recruitment_plan": {}}
+    plan = {
+        "task_name": "T2",
+        "summary": "S",
+        "complexity": "simple",
+        "phases": [],
+        "recruitment_plan": {},
+    }
 
     async def fake_think(prompt, **kw):
         return json.dumps(plan)

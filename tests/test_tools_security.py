@@ -17,7 +17,9 @@ from app.agents.deliverer import DelivererAgent
 
 def test_safe_filename_preserves_structure():
     assert DelivererAgent._safe_filename("src/models/todo.py") == "src/models/todo.py"
-    assert DelivererAgent._safe_filename("tests/unit/test_a.py") == "tests/unit/test_a.py"
+    assert (
+        DelivererAgent._safe_filename("tests/unit/test_a.py") == "tests/unit/test_a.py"
+    )
     assert DelivererAgent._safe_filename("../evil/x.py") == "evil/x.py"
     assert DelivererAgent._safe_filename("a:b.py") == "a_b.py"
     assert DelivererAgent._safe_filename("") == "unnamed.txt"
@@ -58,7 +60,9 @@ def test_supply_firewall_blocklist():
 
 def test_mining_detector_patterns():
     md = MiningDetector()
-    assert md.scan_command_line("./xmrig -o stratum+tcp://pool.minexmr.com:4444") is True
+    assert (
+        md.scan_command_line("./xmrig -o stratum+tcp://pool.minexmr.com:4444") is True
+    )
     assert md.scan_command_line("python3 -u miner.py") is True
     assert md.scan_command_line("python3 print('hello')") is False
 

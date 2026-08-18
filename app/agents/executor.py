@@ -320,7 +320,8 @@ class ExecutorAgent(BaseAgent):
                 else {}
             )
             return {
-                "artifacts": artifacts or {"harness_response.md": result.final_response},
+                "artifacts": artifacts
+                or {"harness_response.md": result.final_response},
                 "syntax_errors": self._syntax_errors(artifacts),
                 "harness_mode": result.mode,
                 "harness_session": result.session_id,
@@ -341,7 +342,9 @@ class ExecutorAgent(BaseAgent):
             if not errs:
                 break
             logger.warning(f"语法检查失败(第{attempt + 1}次): {errs}")
-            code_dict = await self.debug_code(code_dict, "请修复以下 Python 语法错误:\n" + "\n".join(errs))
+            code_dict = await self.debug_code(
+                code_dict, "请修复以下 Python 语法错误:\n" + "\n".join(errs)
+            )
 
         errs = self._syntax_errors(code_dict)
         if errs:

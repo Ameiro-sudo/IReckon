@@ -82,10 +82,7 @@ async def list_tasks(
         f"FROM tasks t{where} ORDER BY t.created_at DESC LIMIT ? OFFSET ?",  # nosec B608: where 仅可来自常量
         (*params, limit, offset),
     )
-    return [
-        {**_row_to_task(r), "tokens": r[6] or 0}
-        for r in rows
-    ]
+    return [{**_row_to_task(r), "tokens": r[6] or 0} for r in rows]
 
 
 @router.get("/{task_id}")
@@ -253,7 +250,12 @@ async def get_artifact(task_id: str, path: str = Query(..., max_length=500)):
     if not str(fp).startswith(str(root)) or not fp.is_file():
         raise HTTPException(404, "文件不存在")
     if fp.stat().st_size > 1024 * 1024:
-        return {"path": path, "size": fp.stat().st_size, "truncated": True, "content": ""}
+        return {
+            "path": path,
+            "size": fp.stat().st_size,
+            "truncated": True,
+            "content": "",
+        }
     content = fp.read_text(encoding="utf-8", errors="replace")
     return {
         "path": path,

@@ -75,10 +75,8 @@ def test_available_mode_prefers_sdk():
 
 def test_cordis_config_generated(monkeypatch, tmp_path):
     cfg = FakeConfig()
-    cfg.get = (
-        lambda k, d=None: str(tmp_path / "minimal.cordis.yml")
-        if k == "harness.cordis_config"
-        else d
+    cfg.get = lambda k, d=None: (
+        str(tmp_path / "minimal.cordis.yml") if k == "harness.cordis_config" else d
     )
     client = DSHClient(cfg=cfg)
     p = client._cordis_config()
@@ -108,9 +106,9 @@ def test_sdk_channel_success(monkeypatch):
             calls["run"] = (task, session_id)
             return type("R", (), {"final_response": "完成！"})
 
-    monkeypatch.setitem(sys.modules, "deepseek_harness", type(
-        "m", (), {"DeepSeekHarness": FakeHarness}
-    ))
+    monkeypatch.setitem(
+        sys.modules, "deepseek_harness", type("m", (), {"DeepSeekHarness": FakeHarness})
+    )
     result = asyncio.run(client.run("修复测试", session_id="sid-1"))
     assert result.ok is True
     assert result.mode == "sdk"
@@ -125,7 +123,9 @@ def test_cli_channel_success(monkeypatch):
     client = make_client()
     monkeypatch.setattr(client, "sdk_available", lambda: False)
     monkeypatch.setattr(client, "cli_available", lambda: True)
-    client._get = lambda k, d=None: "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
+    client._get = lambda k, d=None: (
+        "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
+    )
 
     class FakeProc:
         returncode = 0
@@ -149,7 +149,9 @@ def test_cli_channel_failure(monkeypatch):
     client = make_client()
     monkeypatch.setattr(client, "sdk_available", lambda: False)
     monkeypatch.setattr(client, "cli_available", lambda: True)
-    client._get = lambda k, d=None: "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
+    client._get = lambda k, d=None: (
+        "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
+    )
 
     class FakeProc:
         returncode = 1
@@ -170,8 +172,13 @@ def test_cli_channel_failure(monkeypatch):
 
 def test_harness_disabled_executor_skips(monkeypatch):
     cap = AICapability(
-        id="t1", name="Test", endpoint="http://localhost:1/v1",
-        model="auto", api_key="", tags=["python"], max_context=4096,
+        id="t1",
+        name="Test",
+        endpoint="http://localhost:1/v1",
+        model="auto",
+        api_key="",
+        tags=["python"],
+        max_context=4096,
     )
     from app.harness import dsh_client as harness_module
     from app.harness.dsh_client import DSHResult as RealDSHResult
@@ -179,16 +186,23 @@ def test_harness_disabled_executor_skips(monkeypatch):
     class FakeDSH:
         def available_mode(self):
             return ""
+
         async def run(self, *a, **kw):
             return RealDSHResult(ok=False, error="unused")
 
     monkeypatch.setattr(harness_module, "available_mode", lambda: "")
-    monkeypatch.setattr(harness_module, "run", lambda *a, **kw: RealDSHResult(ok=False, error="unused"))
+    monkeypatch.setattr(
+        harness_module, "run", lambda *a, **kw: RealDSHResult(ok=False, error="unused")
+    )
     ex = ExecutorAgent(cap)
-    result = asyncio.run(ex.execute({
-        "description": "任务",
-        "use_harness": True,
-    }))
+    result = asyncio.run(
+        ex.execute(
+            {
+                "description": "任务",
+                "use_harness": True,
+            }
+        )
+    )
     assert "harness_error" in result
     assert "dsh 运行时不可用" in result["harness_error"]
 

@@ -70,9 +70,7 @@ async def health():
 
 @router.get("/stats")
 async def stats():
-    rows = await db.fetch_all(
-        "SELECT status, COUNT(*) FROM tasks GROUP BY status"
-    )
+    rows = await db.fetch_all("SELECT status, COUNT(*) FROM tasks GROUP BY status")
     by_status = {r[0]: r[1] for r in rows}
     total = sum(by_status.values())
     caps = await capability_pool.get_all(refresh=False)

@@ -50,7 +50,9 @@ class CommandFilter:
                 return CommandLevel.L2
         return CommandLevel.L1
 
-    def filter(self, command: str, votes: Optional[List[bool]] = None) -> Dict[str, Any]:
+    def filter(
+        self, command: str, votes: Optional[List[bool]] = None
+    ) -> Dict[str, Any]:
         level = self.classify(command)
         if level == CommandLevel.L1 and self.l1_auto:
             return {"executable": True, "level": "L1"}

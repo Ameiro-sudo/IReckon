@@ -34,7 +34,11 @@ PLAN = {
     ],
     "recruitment_plan": {
         "executor": {"count": 1, "required_tags": ["python"], "prefer_cheap": True},
-        "reviewer_correctness": {"count": 1, "required_tags": ["python"], "prefer_cheap": True},
+        "reviewer_correctness": {
+            "count": 1,
+            "required_tags": ["python"],
+            "prefer_cheap": True,
+        },
     },
 }
 

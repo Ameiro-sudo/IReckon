@@ -67,7 +67,13 @@ class TaskManager:
         file_refs = await self._ingest_uploads(tid, upload_id) if upload_id else []
         await db.execute(
             "INSERT INTO tasks(task_id,user_request,title,status,file_refs) VALUES(?,?,?,?,?)",
-            (tid, req, title, TaskStatus.PENDING.value, json.dumps(file_refs, ensure_ascii=False)),
+            (
+                tid,
+                req,
+                title,
+                TaskStatus.PENDING.value,
+                json.dumps(file_refs, ensure_ascii=False),
+            ),
         )
         return tid
 
@@ -87,11 +93,13 @@ class TaskManager:
             target = out / p.name
             try:
                 shutil.copy2(p, target)
-                refs.append({
-                    "name": p.name,
-                    "size": p.stat().st_size,
-                    "path": f"outputs/{tid}/input/{p.name}",
-                })
+                refs.append(
+                    {
+                        "name": p.name,
+                        "size": p.stat().st_size,
+                        "path": f"outputs/{tid}/input/{p.name}",
+                    }
+                )
             except OSError as e:
                 logger.warning(f"拷贝上传文件失败 {p.name}: {e}")
         return refs

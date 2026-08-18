@@ -51,7 +51,9 @@ async def run_smoke_tests() -> int:
 
     print("- Connecting to database...")
     await db.connect()
-    row = await db.fetch_one("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
+    row = await db.fetch_one(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'"
+    )
     if not row:
         print("FAIL: expected database table 'tasks' is missing")
         return 1

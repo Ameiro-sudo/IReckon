@@ -26,7 +26,7 @@ MIRROR_POOL = [
 
 SPEED_TEST_TIMEOUT = 5
 _cached_best_mirror: Optional[str] = None
-_cached_best_time: float = float('inf')
+_cached_best_time: float = float("inf")
 _cache_timestamp: float = 0.0
 _CACHE_TTL = 60
 
@@ -59,13 +59,19 @@ def _select_fastest_mirror(force: bool = False) -> Optional[str]:
     """Choose the fastest mirror, using cached results."""
     global _cached_best_mirror, _cached_best_time, _cache_timestamp
     now = time.time()
-    if not force and (_cached_best_mirror is not None) and (now - _cache_timestamp < _CACHE_TTL):
+    if (
+        not force
+        and (_cached_best_mirror is not None)
+        and (now - _cache_timestamp < _CACHE_TTL)
+    ):
         return _cached_best_mirror if _cached_best_time != float("inf") else None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(MIRROR_POOL)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=len(MIRROR_POOL)
+    ) as executor:
         futures = {executor.submit(_test_one_mirror, m): m for m in MIRROR_POOL}
         best_mirror = None
-        best_time = float('inf')
+        best_time = float("inf")
         for future in concurrent.futures.as_completed(futures):
             mirror, elapsed = future.result()
             if elapsed < best_time:
@@ -82,9 +88,13 @@ def _proxy_url(mirror: str, original_url: str) -> str:
     return mirror.rstrip("/") + "/" + original_url
 
 
-def _run_command(cmd: list, cwd: Optional[str] = None, timeout: int = 60) -> Tuple[int, str, str]:
+def _run_command(
+    cmd: list, cwd: Optional[str] = None, timeout: int = 60
+) -> Tuple[int, str, str]:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd
+        )
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
         return -1, "", "timeout"
@@ -106,7 +116,7 @@ def github_access_helper(operation: str, *args, **kwargs):
         _select_fastest_mirror(force=True)
         for m in MIRROR_POOL:
             _, t = _test_one_mirror(m)
-            results[m] = f"{t:.3f}s" if t != float('inf') else "timeout"
+            results[m] = f"{t:.3f}s" if t != float("inf") else "timeout"
         return results
 
     if operation in ("clone", "raw_download", "release_info", "release_download"):
@@ -118,9 +128,15 @@ def github_access_helper(operation: str, *args, **kwargs):
         repo_url = args[0] if args else None
         if not repo_url:
             return "Repository URL is required"
-        target = args[1] if len(args) > 1 else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        target = (
+            args[1]
+            if len(args) > 1
+            else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        )
         if not best_mirror:
-            returncode, stdout, stderr = _run_command(["git", "clone", repo_url, target])
+            returncode, stdout, stderr = _run_command(
+                ["git", "clone", repo_url, target]
+            )
             if returncode == 0:
                 return f"Clone succeeded -> {target}"
             return f"Clone failed: {stderr}"
@@ -165,7 +181,10 @@ def github_access_helper(operation: str, *args, **kwargs):
                         "tag_name": data.get("tag_name"),
                         "name": data.get("name"),
                         "assets": [
-                            {"name": a["name"], "browser_download_url": a["browser_download_url"]}
+                            {
+                                "name": a["name"],
+                                "browser_download_url": a["browser_download_url"],
+                            }
                             for a in data.get("assets", [])
                         ],
                     }
@@ -208,7 +227,11 @@ def github_access_helper(operation: str, *args, **kwargs):
         repo_url = args[0] if args else None
         if not repo_url:
             return "Repository URL is required"
-        target = args[1] if len(args) > 1 else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        target = (
+            args[1]
+            if len(args) > 1
+            else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        )
         returncode, stdout, stderr = _run_command(["git", "clone", repo_url, target])
         if returncode == 0:
             return f"Clone succeeded -> {target}"

@@ -63,7 +63,9 @@ async def push_progress(task_id: str, progress: float, status: str):
     )
 
 
-async def push_log_to_websocket(level: str, message: str, task_id: Optional[str] = None):
+async def push_log_to_websocket(
+    level: str, message: str, task_id: Optional[str] = None
+):
     from datetime import datetime, timezone
 
     log_msg = {

@@ -92,7 +92,12 @@ async def test_ai_instance_crud(client, seed_instance):
 
     r = await client.put(
         f"/api/ai-instances/{iid}",
-        json={"name": "Renamed", "endpoint": "http://localhost:9999/v1", "model": "auto", "tags": ["general"]},
+        json={
+            "name": "Renamed",
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "tags": ["general"],
+        },
     )
     assert r.status_code == 200
 
@@ -104,7 +109,9 @@ async def test_ai_instance_crud(client, seed_instance):
 
 
 async def test_ai_instance_missing_model_field(client):
-    r = await client.post("/api/ai-instances", json={"id": "bad", "endpoint": "http://x"})
+    r = await client.post(
+        "/api/ai-instances", json={"id": "bad", "endpoint": "http://x"}
+    )
     assert r.status_code in (200, 422)
 
 
@@ -126,11 +133,15 @@ async def test_artifact_endpoints(client, tmp_path, monkeypatch):
     (out / "sub" / "x.txt").write_text("nested", encoding="utf-8")
     (out / "secret.txt").write_text("secret", encoding="utf-8")
 
-    monkeypatch.setattr(config_manager, "get", lambda k, d=None: {
-        "system.data_dir": str(tmp_path),
-        "server.frontend_dev_url": "http://localhost:3000",
-        "server.port": 8000,
-    }.get(k, d))
+    monkeypatch.setattr(
+        config_manager,
+        "get",
+        lambda k, d=None: {
+            "system.data_dir": str(tmp_path),
+            "server.frontend_dev_url": "http://localhost:3000",
+            "server.port": 8000,
+        }.get(k, d),
+    )
 
     r = await client.get(f"/api/tasks/{tid}/artifacts")
     assert r.status_code == 200

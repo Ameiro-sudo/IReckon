@@ -37,7 +37,9 @@ async def upload_files(files: List[UploadFile] = File(...)):
             logger.warning(f"文件 {name} 超过大小限制，跳过")
             continue
         (dest / name).write_bytes(content)
-        saved.append({"name": name, "size": len(content), "path": f"uploads/{upload_id}/{name}"})
+        saved.append(
+            {"name": name, "size": len(content), "path": f"uploads/{upload_id}/{name}"}
+        )
 
     if not saved:
         return {"status": "error", "error": "没有有效文件"}

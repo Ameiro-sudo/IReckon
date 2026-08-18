@@ -136,7 +136,9 @@ class DSHClient:
     def cli_available(self) -> bool:
         """headless CLI (npx @deepseek-ai/dsh) 是否可用～"""
         if self._cli_checked is None:
-            self._cli_checked = shutil.which("npx") is not None or shutil.which("node") is not None
+            self._cli_checked = (
+                shutil.which("npx") is not None or shutil.which("node") is not None
+            )
         return self._cli_checked
 
     def available_mode(self) -> str:
@@ -214,7 +216,9 @@ class DSHClient:
         - session_id: 会话 ID，复用同一 ID 可延续对话与持久 Bash 状态
         """
         if not self._enabled():
-            return DSHResult(ok=False, error="harness 未启用 (config harness.enabled = false)")
+            return DSHResult(
+                ok=False, error="harness 未启用 (config harness.enabled = false)"
+            )
         if not task.strip():
             return DSHResult(ok=False, error="任务描述为空")
 

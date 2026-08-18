@@ -42,4 +42,3 @@ def make_task_title(user_request: str, max_len: int = 40) -> str:
     if len(text) > max_len:
         text = text[: max_len - 1].rstrip() + "…"
     return text or "未命名任务"
-

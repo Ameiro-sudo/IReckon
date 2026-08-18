@@ -40,7 +40,9 @@ def test_parse_multi_file():
 
 def test_parse_artifacts_strips_markdown_fences():
     ex = make_executor()
-    text = '//// filename: a.py\n```python\nprint(1)\n```\n//// filename: b.py\nplain text'
+    text = (
+        "//// filename: a.py\n```python\nprint(1)\n```\n//// filename: b.py\nplain text"
+    )
     out = ex._parse_artifacts(text)
     assert out["a.py"] == "print(1)"
     assert out["b.py"] == "plain text"
@@ -48,7 +50,7 @@ def test_parse_artifacts_strips_markdown_fences():
 
 def test_parse_artifacts_cleans_filename_backticks():
     ex = make_executor()
-    text = '//// filename: src/main.py```\n```python\nprint(1)\n```'
+    text = "//// filename: src/main.py```\n```python\nprint(1)\n```"
     out = ex._parse_artifacts(text)
     assert "src/main.py" in out
     assert out["src/main.py"] == "print(1)"

@@ -71,10 +71,16 @@ JSON 结构示例：
     async def parse_requirement(
         self, user_request: str, capabilities: str = ""
     ) -> Dict[str, Any]:
+        cap_note = (
+            "可用 AI 能力池（招募计划中的 required_tags 应尽量从这些实例的标签中选取）：\n"
+            + capabilities
+            if capabilities
+            else ""
+        )
         prompt = f"""用户需求：
 {user_request}
 
-{('可用 AI 能力池（招募计划中的 required_tags 应尽量从这些实例的标签中选取）：\n' + capabilities) if capabilities else ''}
+{cap_note}
 
 请按系统提示中的 JSON 结构输出《任务计划书》。只输出 JSON。
 """
@@ -119,7 +125,9 @@ JSON 结构示例：
                         prefer_cheapest=prefer_cheap,
                     )
                     if cap:
-                        logger.warning(f"角色 {role} 标签不匹配({required_tags})，复用能力实例 {cap.id}")
+                        logger.warning(
+                            f"角色 {role} 标签不匹配({required_tags})，复用能力实例 {cap.id}"
+                        )
                         candidates.append(cap)
                     else:
                         logger.error(f"无法为角色 {role} 找到合适的能力实例")

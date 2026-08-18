@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """快速功能测试：创建并运行一个简单任务"""
+
 import sys, asyncio
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.logger import setup_logging, logger
@@ -20,7 +22,9 @@ async def run_test():
         return False
 
     logger.info("创建测试任务...")
-    task_id = await task_manager.create_task("用 Python 写一个 hello world 函数并返回字符串")
+    task_id = await task_manager.create_task(
+        "用 Python 写一个 hello world 函数并返回字符串"
+    )
     logger.info(f"启动任务 {task_id} ...")
     await task_manager.start_task(task_id)
 
@@ -32,9 +36,11 @@ async def run_test():
         logger.info(f"等待任务完成... ({elapsed}s)")
 
     if task_id not in task_manager._running:
-        row = await db.fetch_one("SELECT status FROM tasks WHERE task_id = ?", (task_id,))
+        row = await db.fetch_one(
+            "SELECT status FROM tasks WHERE task_id = ?", (task_id,)
+        )
         status = row[0] if row else "未知"
-        if status == 'completed':
+        if status == "completed":
             logger.info("[OK] 测试通过：任务成功完成")
             return True
         else:

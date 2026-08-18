@@ -41,7 +41,9 @@ class LearnerAgent(BaseAgent):
 - 只沉淀通用、可复用、有明确输入输出的代码；项目特定逻辑不沉淀。
 - 代码必须完整可运行（禁止 TODO/占位符），依赖库必须说明。
 """
-        super().__init__(role="learner", capability=capability, system_prompt=system_prompt)
+        super().__init__(
+            role="learner", capability=capability, system_prompt=system_prompt
+        )
         self.kb = FileKnowledgeBase()
 
     async def learn_from_source(self, url: str, content: str) -> Dict[str, Any]:
@@ -103,7 +105,9 @@ URL: {url}
             entry_type="patterns", title=title, content=content, source=source
         )
 
-    async def extract_tool(self, name: str, description: str, language: str, code: str, tags: List[str]) -> str:
+    async def extract_tool(
+        self, name: str, description: str, language: str, code: str, tags: List[str]
+    ) -> str:
         return await parts_library.add_part(
             name=name,
             description=description,

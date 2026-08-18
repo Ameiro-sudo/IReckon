@@ -2,6 +2,8 @@ from typing import Dict
 from datetime import datetime, timezone
 from loguru import logger
 from app.core.config import config_manager
+
+
 class CostTracker:
     def __init__(self):
         self.budget_limit = config_manager.get("task_defaults.budget_limit_usd", 1.0)
