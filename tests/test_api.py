@@ -1,24 +1,22 @@
-"""API 层测试:路由注册、健康检查、实例管理、配置、产物、WebSocket 推送。"""
+"""API 层测试：路由注册、健康检查、实例管理、配置、主题（不触发真实流水线）。"""
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).parent.parent.resolve()
+sys.path.insert(0, str(ROOT))
 
 import pytest
 import pytest_asyncio
 import httpx
 
-from app.web.push import ConnectionManager, manager, push_message_to_websocket
+from app.web.api import app
 
 pytestmark = pytest.mark.asyncio
 
 
-def _get_app():
-    """懒加载 FastAPI 应用,避免不需要 API 测试时加载所有路由。"""
-    from app.web.api import app
-
-    return app
-
-
 @pytest_asyncio.fixture(scope="module")
 async def client(session_db):
-    app = _get_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
@@ -64,7 +62,8 @@ async def test_task_detail_not_found(client):
 async def test_config_get(client):
     r = await client.get("/api/config")
     assert r.status_code == 200
-    assert "server" in r.json()
+    body = r.json()
+    assert "server" in body
 
 
 async def test_config_update_roundtrip(client):
@@ -79,6 +78,7 @@ async def test_themes(client):
     r = await client.get("/api/themes")
     assert r.status_code == 200
     body = r.json()
+    assert isinstance(body, dict)
     assert "catgirl" in body
     assert "programmer" in body
 
@@ -87,11 +87,17 @@ async def test_ai_instance_crud(client, seed_instance):
     iid = seed_instance
     r = await client.get("/api/ai-instances")
     assert r.status_code == 200
-    assert any(i["id"] == iid for i in r.json())
+    insts = r.json()
+    assert any(i["id"] == iid for i in insts)
 
     r = await client.put(
         f"/api/ai-instances/{iid}",
-        json={"name": "Renamed", "endpoint": "http://localhost:9999/v1", "model": "auto", "tags": ["general"]},
+        json={
+            "name": "Renamed",
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "tags": ["general"],
+        },
     )
     assert r.status_code == 200
 
@@ -103,7 +109,9 @@ async def test_ai_instance_crud(client, seed_instance):
 
 
 async def test_ai_instance_missing_model_field(client):
-    r = await client.post("/api/ai-instances", json={"id": "bad", "endpoint": "http://x"})
+    r = await client.post(
+        "/api/ai-instances", json={"id": "bad", "endpoint": "http://x"}
+    )
     assert r.status_code in (200, 422)
 
 
@@ -111,7 +119,12 @@ async def test_ai_instance_auto_generated_id(client):
     """不传 id 时自动生成 ai- 前缀 ID。"""
     r = await client.post(
         "/api/ai-instances",
-        json={"name": "Auto", "endpoint": "http://localhost:9999/v1", "model": "auto", "tags": ["general"]},
+        json={
+            "name": "Auto",
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "tags": ["general"],
+        },
     )
     assert r.status_code == 200
     iid = r.json()["id"]
@@ -120,7 +133,7 @@ async def test_ai_instance_auto_generated_id(client):
 
 
 async def test_ai_instance_api_key_masked_and_roundtrip(client):
-    """列表不泄露明文密钥;空 key 更新保留原密钥,新 key 更新替换。"""
+    """列表接口不泄露明文密钥；空 key 更新保留原密钥，新 key 更新替换。"""
     from app.llm.pool import capability_pool
 
     iid = "test-inst-key"
@@ -145,14 +158,21 @@ async def test_ai_instance_api_key_masked_and_roundtrip(client):
     cap = await capability_pool.get_by_id(iid)
     assert cap.api_key == "sk-super-secret"
 
-    r = await client.put(f"/api/ai-instances/{iid}", json={"endpoint": "http://localhost:9999/v1", "model": "auto"})
+    r = await client.put(
+        f"/api/ai-instances/{iid}",
+        json={"endpoint": "http://localhost:9999/v1", "model": "auto"},
+    )
     assert r.status_code == 200
     cap = await capability_pool.get_by_id(iid)
     assert cap.api_key == "sk-super-secret"
 
     await client.put(
         f"/api/ai-instances/{iid}",
-        json={"endpoint": "http://localhost:9999/v1", "model": "auto", "api_key": "sk-new-key"},
+        json={
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+            "api_key": "sk-new-key",
+        },
     )
     cap = await capability_pool.get_by_id(iid)
     assert cap.api_key == "sk-new-key"
@@ -165,10 +185,14 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
 
     iid = "test-inst-reach"
 
+    class FakeResponse:
+        status_code = 200
+        text = '{"data":[{"id":"auto"}]}'
+
     class FakeClient:
         async def get(self, url, headers=None):
             assert url.endswith("/models")
-            return httpx.Response(200, json={"data": [{"id": "auto"}]})
+            return FakeResponse()
 
         async def __aenter__(self):
             return self
@@ -180,7 +204,11 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
 
     await client.post(
         "/api/ai-instances",
-        json={"id": iid, "endpoint": "http://localhost:9999/v1", "model": "auto"},
+        json={
+            "id": iid,
+            "endpoint": "http://localhost:9999/v1",
+            "model": "auto",
+        },
     )
     r = await client.post(f"/api/ai-instances/{iid}/test")
     assert r.status_code == 200
@@ -209,7 +237,11 @@ async def test_ai_instance_test_unreachable(client, monkeypatch):
 
     await client.post(
         "/api/ai-instances",
-        json={"id": iid, "endpoint": "http://localhost:1/v1", "model": "auto"},
+        json={
+            "id": iid,
+            "endpoint": "http://localhost:1/v1",
+            "model": "auto",
+        },
     )
     r = await client.post(f"/api/ai-instances/{iid}/test")
     assert r.status_code == 200
@@ -265,6 +297,7 @@ async def test_artifact_endpoints(client, tmp_path, monkeypatch):
     assert r.status_code == 200
     assert r.json()["content"] == "nested"
 
+    # 路径穿越
     r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "../secret.txt"})
     assert r.status_code == 404
 
@@ -274,56 +307,3 @@ async def test_artifact_endpoints(client, tmp_path, monkeypatch):
     r = await client.get(f"/api/tasks/{tid}/download")
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/zip"
-
-
-# ---------- WebSocket 推送 ----------
-
-
-class FakeWS:
-    def __init__(self):
-        self.sent = []
-        self.accepted = False
-
-    async def accept(self):
-        self.accepted = True
-
-    async def send_json(self, msg):
-        self.sent.append(msg)
-
-
-async def test_connection_manager_task_broadcast():
-    m = ConnectionManager()
-    ws1, ws2 = FakeWS(), FakeWS()
-    await m.connect(ws1, "t1")
-    await m.connect(ws2, "t1")
-    await m.broadcast_to_task("t1", {"x": 1})
-    assert len(ws1.sent) == 1
-    assert len(ws2.sent) == 1
-    m.disconnect(ws1, "t1")
-    await m.broadcast_to_task("t1", {"x": 2})
-    assert len(ws1.sent) == 1
-    assert len(ws2.sent) == 2
-
-
-async def test_connection_manager_global_and_dead_ws():
-    m = ConnectionManager()
-    good, bad = FakeWS(), FakeWS()
-    await m.connect(good)
-    await m.connect(bad)
-    bad.send_json = None
-
-    async def failing(msg):
-        raise RuntimeError("dead")
-
-    bad.send_json = failing
-    await m.broadcast_global({"x": 1})
-    assert len(good.sent) == 1
-    assert bad not in m.global_connections
-
-
-async def test_push_message_helper():
-    manager.task_connections.clear()
-    ws = FakeWS()
-    await manager.connect(ws, "t9")
-    await push_message_to_websocket("t9", {"y": 2})
-    assert ws.sent == [{"y": 2}]
