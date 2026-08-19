@@ -189,23 +189,15 @@ class DSHClient:
     def sdk_available(self) -> bool:
         """Python SDK (deepseek-harness-sdk) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
         ttl = float(self._get("availability_ttl_seconds", 300))
-        if (
-            self._sdk_checked is None
-            or time.monotonic() - self._sdk_checked_at > ttl
-        ):
-            self._sdk_checked = (
-                importlib.util.find_spec("deepseek_harness") is not None
-            )
+        if self._sdk_checked is None or time.monotonic() - self._sdk_checked_at > ttl:
+            self._sdk_checked = importlib.util.find_spec("deepseek_harness") is not None
             self._sdk_checked_at = time.monotonic()
         return self._sdk_checked
 
     def cli_available(self) -> bool:
         """headless CLI (npx @deepseek-ai/dsh) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
         ttl = float(self._get("availability_ttl_seconds", 300))
-        if (
-            self._cli_checked is None
-            or time.monotonic() - self._cli_checked_at > ttl
-        ):
+        if self._cli_checked is None or time.monotonic() - self._cli_checked_at > ttl:
             self._cli_checked = (
                 shutil.which("npx") is not None or shutil.which("node") is not None
             )
@@ -400,9 +392,7 @@ class DSHClient:
                         asyncio.shield(sdk_task), timeout=timeout
                     )
                 except asyncio.TimeoutError:
-                    logger.warning(
-                        f"dsh SDK 超过 {timeout}s 未完成，等待线程收尾..."
-                    )
+                    logger.warning(f"dsh SDK 超过 {timeout}s 未完成，等待线程收尾...")
                     try:
                         # 等 SDK 线程结束并取其结果（线程不可取消，必须等待）
                         result = await asyncio.wait_for(

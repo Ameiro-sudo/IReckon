@@ -163,9 +163,7 @@ JSON 结构示例：
 
         caps = await capability_pool.get_all()
         if not caps:
-            raise RuntimeError(
-                "能力池为空或无匹配实例，请先在设置页添加 AI 实例"
-            )
+            raise RuntimeError("能力池为空或无匹配实例，请先在设置页添加 AI 实例")
         cap_desc = "\n".join(
             f"- {c.id}: {c.name} ({c.model}) tags={c.tags} max_context={c.max_context}"
             for c in caps
@@ -224,7 +222,9 @@ JSON 结构示例：
             if members:
                 names = ", ".join([m.name for m in members])
                 desc = role_desc.get(role, "")
-                lines.append(f"  - {role}{('（' + desc + '）') if desc else ''}: {names}")
+                lines.append(
+                    f"  - {role}{('（' + desc + '）') if desc else ''}: {names}"
+                )
         lines.append("")
         lines.append("[开始执行第一阶段]")
         return "\n".join(lines)

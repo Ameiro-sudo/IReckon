@@ -78,7 +78,9 @@ class CodeScanner:
                 try:
                     return json.loads(stdout.decode()).get("results", [])
                 except Exception as e:
-                    logger.warning(f"semgrep 输出解析失败 (exit={proc.returncode}): {e}")
+                    logger.warning(
+                        f"semgrep 输出解析失败 (exit={proc.returncode}): {e}"
+                    )
                     return []
             else:
                 logger.warning(f"未知扫描工具: {self.tool}")

@@ -9,9 +9,7 @@ get = config_manager.get
 class LoopDetector:
     def __init__(self):
         self.max_rounds = get("task_defaults.loop_detection_max_rounds", 8)
-        self.similarity_threshold = get(
-            "task_defaults.loop_similarity_threshold", 0.95
-        )
+        self.similarity_threshold = get("task_defaults.loop_similarity_threshold", 0.95)
         # 大文本性能保护：每轮输出只比较前 N 个字符
         self.max_compare_chars = 20000
 

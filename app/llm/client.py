@@ -106,7 +106,7 @@ class LLMResponse:
     raw_response: Any = None  # 原始响应
 
 
-def _truncate(text: str, limit: int = None) -> str:
+def _truncate(text: str, limit: int = 400) -> str:
     """截断长文本用于日志，避免刷屏（上限默认 400，可配置）。"""
     if limit is None:
         limit = get("ai_pool.log_truncate_chars", 400)
@@ -130,9 +130,9 @@ class EndpointHealth:
     def __init__(self, max_failures: int = 3, cooldown_seconds: int = 30):
         self.max_failures = max_failures  # 连续失败多少次进入冷却
         self.cooldown_seconds = cooldown_seconds  # 冷却时长(秒)
-        self.failures = {}  # 失败次数
-        self.last_success = {}  # 上次成功时间
-        self.cooldown_until = {}  # 冷却截止时间
+        self.failures: Dict[str, int] = {}  # 失败次数
+        self.last_success: Dict[str, float] = {}  # 上次成功时间
+        self.cooldown_until: Dict[str, float] = {}  # 冷却截止时间
         self._lock = asyncio.Lock()
 
     async def record_success(self, ep):
@@ -207,9 +207,7 @@ class LLMClient:
         # 每个端点的限制
         self._ep_sems = {
             ep: asyncio.Semaphore(lim)
-            for ep, lim in get(
-                "ai_pool.concurrency.per_endpoint_limit", {}
-            ).items()
+            for ep, lim in get("ai_pool.concurrency.per_endpoint_limit", {}).items()
         }
         self._unlimited_sem = asyncio.Semaphore(10**6)  # 未配置端点限流时用无上限信号量
 
@@ -226,7 +224,9 @@ class LLMClient:
         self._http_configured = False
         self._client_lock = asyncio.Lock()
         self._global_cancel_event = None  # 全局取消事件
-        self._pending_stream_usage = None  # 最近一次流式调用的 token 用量（异常/取消清空）
+        self._pending_stream_usage = (
+            None  # 最近一次流式调用的 token 用量（异常/取消清空）
+        )
 
     async def _ensure_http_client(self):
         """首次真实调用时再配置 litellm 的 httpx 客户端（避免导入期加载 litellm）。"""
@@ -635,9 +635,7 @@ class LLMClient:
                     self._record_stream_usage(chunk)
                     if not chunk.choices:
                         continue
-                    piece = (
-                        getattr(chunk.choices[0].delta, "content", None) or ""
-                    )
+                    piece = getattr(chunk.choices[0].delta, "content", None) or ""
                     if piece:
                         yielded = True
                         yield piece

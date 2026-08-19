@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
+
 # 导入 logger 模块以尽早统一日志格式（logger 内部对 config 是惰性导入，无循环依赖）
 from app.core.logger import logger
 
@@ -65,8 +66,10 @@ class ConfigManager:
                 self.config = {}
             return
 
-        # 计算配置文件哈希
-        current_hash = hashlib.md5(self.config_path.read_bytes()).hexdigest()
+        # 计算配置文件哈希（仅用于变更检测，非安全用途）
+        current_hash = hashlib.md5(  # nosec B324: 非安全用途，仅变更检测
+            self.config_path.read_bytes(), usedforsecurity=False
+        ).hexdigest()
         # force=True（手动 reload）时跳过哈希短路，确保环境变量变更后重新展开
         if not force and current_hash == self._config_hash:
             return  # 配置未变化，跳过加载
@@ -175,5 +178,23 @@ class ConfigChangeHandler(FileSystemEventHandler):
         self.config_manager._load_config()
 
 
-# 全局配置管理器实例～
-config_manager = ConfigManager()
+# 全局配置管理器实例（延迟初始化，避免模块导入时触发 YAML 加载和 watchdog 启动）
+_config_manager: Optional[ConfigManager] = None
+
+
+def _get_config_manager() -> ConfigManager:
+    global _config_manager
+    if _config_manager is None:
+        _config_manager = ConfigManager()
+    return _config_manager
+
+
+# 兼容性属性：直接访问 config_manager 等同于调用 _get_config_manager()
+class _ConfigManagerProxy:
+    """延迟初始化代理：首次访问属性时才创建 ConfigManager 实例。"""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_get_config_manager(), name)
+
+
+config_manager = _ConfigManagerProxy()

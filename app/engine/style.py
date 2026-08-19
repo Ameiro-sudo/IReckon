@@ -17,8 +17,7 @@ class StyleEngine:
         if hasattr(self, "_init") and self._init:
             return
         self._init = True
-        self._themes: Dict[str, Dict] = {}
-        self._load_themes()
+        self._themes: Optional[Dict[str, Dict]] = None  # 延迟加载
 
     def _load_themes(self):
         theme_dir = Path(__file__).parent.parent.parent / "config" / "themes"
@@ -36,7 +35,14 @@ class StyleEngine:
         else:
             logger.warning(f"主题目录不存在: {theme_dir}")
 
+    def _ensure_themes(self) -> None:
+        """首次访问时才加载主题文件。"""
+        if self._themes is None:
+            self._themes = {}
+            self._load_themes()
+
     def get_theme(self, name=None):
+        self._ensure_themes()
         name = name or config_manager.get("ui.theme", "catgirl")
         return self._themes.get(name, self._themes.get("catgirl", {}))
 

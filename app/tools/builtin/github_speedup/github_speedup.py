@@ -131,9 +131,12 @@ def _build_api_request(url: str):
 def _stream_download(req: urllib.request.Request, save_path: Path) -> bool:
     """流式下载并限流：累计超过 MAX_DOWNLOAD_BYTES 即中止。"""
     total = 0
-    with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp, open(  # nosec B310: url 已通过 _require_http_url 校验
-        save_path, "wb"
-    ) as f:
+    with (
+        urllib.request.urlopen(  # nosec B310: url 已通过 _require_http_url 白名单校验
+            req, timeout=DOWNLOAD_TIMEOUT
+        ) as resp,
+        open(save_path, "wb") as f,
+    ):
         while True:
             chunk = resp.read(64 * 1024)
             if not chunk:
@@ -168,14 +171,10 @@ def github_access_helper(operation: str, *args, **kwargs):
             return "Repository URL is required"
         try:
             repo_url = _require_http_url(repo_url)
-            target_dir = _safe_target_dir(
-                args[1] if len(args) > 1 else "."
-            )
+            target_dir = _safe_target_dir(args[1] if len(args) > 1 else ".")
         except ValueError as e:
             return str(e)
-        target = target_dir / (
-            repo_url.rstrip("/").split("/")[-1].replace(".git", "")
-        )
+        target = target_dir / (repo_url.rstrip("/").split("/")[-1].replace(".git", ""))
         if not best_mirror:
             returncode, stdout, stderr = _run_command(
                 ["git", "clone", repo_url, str(target)]
@@ -184,7 +183,9 @@ def github_access_helper(operation: str, *args, **kwargs):
                 return f"Clone succeeded -> {target}"
             return f"Clone failed: {stderr}"
         proxy_url = _proxy_url(best_mirror, repo_url)
-        returncode, stdout, stderr = _run_command(["git", "clone", proxy_url, str(target)])
+        returncode, stdout, stderr = _run_command(
+            ["git", "clone", proxy_url, str(target)]
+        )
         if returncode == 0:
             return f"Clone succeeded via {best_mirror} -> {target}"
         return f"Clone failed: {stderr}"
@@ -291,15 +292,13 @@ def github_access_helper(operation: str, *args, **kwargs):
             return "Repository URL is required"
         try:
             repo_url = _require_http_url(repo_url)
-            target_dir = _safe_target_dir(
-                args[1] if len(args) > 1 else "."
-            )
+            target_dir = _safe_target_dir(args[1] if len(args) > 1 else ".")
         except ValueError as e:
             return str(e)
-        target = target_dir / (
-            repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        target = target_dir / (repo_url.rstrip("/").split("/")[-1].replace(".git", ""))
+        returncode, stdout, stderr = _run_command(
+            ["git", "clone", repo_url, str(target)]
         )
-        returncode, stdout, stderr = _run_command(["git", "clone", repo_url, str(target)])
         if returncode == 0:
             return f"Clone succeeded -> {target}"
         return f"Clone failed: {stderr}"

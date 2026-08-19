@@ -26,7 +26,11 @@ def _is_safe_url(url: str) -> str:
     if not host:
         raise ValueError(f"URL 缺少主机名: {url}")
     try:
-        infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
+        infos = socket.getaddrinfo(
+            host,
+            parts.port or (443 if parts.scheme == "https" else 80),
+            proto=socket.IPPROTO_TCP,
+        )
     except socket.gaierror:
         raise ValueError(f"无法解析主机: {host}")
     for info in infos:
@@ -72,7 +76,7 @@ def http_request(
             response = client.request(method, url, **request_kwargs)
             text = response.text
             if len(response.content) > MAX_RESPONSE_BYTES:
-                text = text[: MAX_RESPONSE_BYTES] + "\n...[响应超限截断]"
+                text = text[:MAX_RESPONSE_BYTES] + "\n...[响应超限截断]"
             result = {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),

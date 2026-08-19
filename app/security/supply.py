@@ -93,18 +93,26 @@ class SupplyChainFirewall:
                 try:
                     p = Path(req_file)
                     if p.exists():
-                        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+                        for line in p.read_text(
+                            encoding="utf-8", errors="replace"
+                        ).splitlines():
                             line = line.strip()
                             if not line or line.startswith(("#", "-", "git+")):
-                                if line.startswith("git+") and not self._check_packages([line], self._pip_blacklist, "pip"):
+                                if line.startswith("git+") and not self._check_packages(
+                                    [line], self._pip_blacklist, "pip"
+                                ):
                                     return False
                                 continue
                             if self._extract_package_name(line) in self._pip_blacklist:
-                                logger.warning(f"供应链防火墙拦截 requirements 中的 pip 包: {line}")
+                                logger.warning(
+                                    f"供应链防火墙拦截 requirements 中的 pip 包: {line}"
+                                )
                                 return False
                     else:
                         # 文件不存在按保守处理：拒绝该 -r 引用
-                        logger.warning(f"供应链防火墙：无法读取依赖清单 {req_file}，拒绝执行")
+                        logger.warning(
+                            f"供应链防火墙：无法读取依赖清单 {req_file}，拒绝执行"
+                        )
                         return False
                 except Exception as e:
                     logger.warning(f"供应链防火墙：读取依赖清单失败 {req_file}: {e}")

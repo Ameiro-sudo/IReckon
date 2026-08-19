@@ -33,20 +33,36 @@ def pytest_configure(config):
     清理时只删除过期残留（>1h）与 staging 目录，避免误删并行进程。
     """
     RUN_DIR.mkdir(parents=True, exist_ok=True)
-    now = time.time()
-    for old in RUN_DIR.glob("run-*"):
-        if old.name == TMP_HOME.name:
-            continue
-        try:
-            is_stale_stage = old.suffix == ".stage"
-            if is_stale_stage or now - old.stat().st_mtime > 3600:
-                shutil.rmtree(old, ignore_errors=True)
-        except OSError:
-            pass
-    if TMP_HOME.exists():
-        shutil.rmtree(TMP_HOME, ignore_errors=True)
-    TMP_HOME.mkdir(parents=True)
-    shutil.copytree(ROOT / "config", TMP_HOME / "config")
+
+    # 优化：仅在当前 run 目录不存在时才清理旧目录，避免每次测试都遍历
+    if not TMP_HOME.exists():
+        now = time.time()
+        for old in RUN_DIR.glob("run-*"):
+            if old.name == TMP_HOME.name:
+                continue
+            try:
+                is_stale_stage = old.suffix == ".stage"
+                if is_stale_stage or now - old.stat().st_mtime > 3600:
+                    shutil.rmtree(old, ignore_errors=True)
+            except OSError:
+                pass
+
+    TMP_HOME.mkdir(parents=True, exist_ok=True)
+
+    # 优化：仅在 config 目录不存在或已变化时才复制
+    dst_config = TMP_HOME / "config"
+    src_config = ROOT / "config"
+    if not dst_config.exists():
+        shutil.copytree(src_config, dst_config)
+    else:
+        # 增量更新：仅复制变化的文件
+        for src_file in src_config.rglob("*"):
+            if src_file.is_file():
+                dst_file = dst_config / src_file.relative_to(src_config)
+                if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
+                    dst_file.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src_file, dst_file)
+
     os.environ["IRECKON_HOME"] = str(TMP_HOME)
     os.chdir(TMP_HOME)
     sys.path.insert(0, str(ROOT))

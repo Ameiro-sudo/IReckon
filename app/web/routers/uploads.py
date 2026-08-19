@@ -15,9 +15,26 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES = 20
 # 上传文件扩展名白名单
 _ALLOWED_EXTENSIONS = {
-    ".py", ".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts",
-    ".jsx", ".tsx", ".html", ".css", ".sh", ".toml", ".ini", ".cfg",
-    ".sql", ".csv", ".log", ".ipynb",
+    ".py",
+    ".txt",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".html",
+    ".css",
+    ".sh",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".sql",
+    ".csv",
+    ".log",
+    ".ipynb",
 }
 
 

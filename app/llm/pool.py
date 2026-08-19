@@ -76,7 +76,9 @@ class CapabilityPool:
                 parameters=inst.get("parameters", {}),
                 tags=inst.get("tags", []),
                 cost_per_1k_tokens=inst.get("cost_per_1k_tokens", 0.0),
-                max_context=inst.get("max_context", get("task_defaults.max_context", 4096)),
+                max_context=inst.get(
+                    "max_context", get("task_defaults.max_context", 4096)
+                ),
                 enabled=inst.get("enabled", True),
             )
             await db.save_ai_instance(cap.to_dict())
@@ -107,10 +109,10 @@ class CapabilityPool:
             cached_time = self._cache_timestamps.get(iid, 0)
             if now - cached_time < self._cache_ttl:
                 return self._memory_cache[iid]
-        
+
         if not self.capabilities:
             await self.refresh()
-        
+
         result = self.capabilities.get(iid)
         if result:
             self._memory_cache[iid] = result

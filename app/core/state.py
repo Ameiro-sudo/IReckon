@@ -16,15 +16,11 @@ get = config_manager.get
 class StateManager:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        data_dir = Path( get("system.data_dir", "./data"))
+        data_dir = Path(get("system.data_dir", "./data"))
         self.states_dir = data_dir / "states" / task_id
         self.states_dir.mkdir(parents=True, exist_ok=True)
-        self.snapshot_interval = get(
-            "persistence.snapshot_interval_seconds", 60
-        )
-        self.max_snapshots = get(
-            "persistence.max_snapshots_per_task", 20
-        )
+        self.snapshot_interval = get("persistence.snapshot_interval_seconds", 60)
+        self.max_snapshots = get("persistence.max_snapshots_per_task", 20)
 
     def _default_serializer(self, obj: Any, depth: int = 0) -> Any:
         if depth > 5:

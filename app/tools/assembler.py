@@ -84,7 +84,9 @@ class ToolAssembler:
         code_lines.append("    data = input_data")
         code_lines.append("    for _ in range(max_iter):")
         code_lines.append(f"        data = {body_fn}(data)")
-        code_lines.append("        if data is None or (isinstance(data, dict) and data.get('stop')):")
+        code_lines.append(
+            "        if data is None or (isinstance(data, dict) and data.get('stop')):"
+        )
         code_lines.append("            break")
         code_lines.append("    return data")
         return "\n".join(code_lines)

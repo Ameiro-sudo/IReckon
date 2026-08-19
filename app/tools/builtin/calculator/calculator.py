@@ -62,6 +62,7 @@ def _safe_comb(n: Any, k: Any) -> Any:
     except Exception:
         return None
 
+
 # 浣跨敤 lambda 鏋勫缓鎿嶄綔鏄犲皠锛屾兜鐩栧箍娉涚殑璁＄畻鍔熻兘
 OPERATIONS: Dict[str, Callable[..., Any]] = {
     # 鈹€鈹€ 鍩烘湰绠楁湳 鈹€鈹€
@@ -110,7 +111,9 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "log1p": lambda x: math.log1p(x),
     # 鈹€鈹€ 缁勫悎鏁板 鈹€鈹€
     "comb": _safe_comb,
-    "perm": lambda n, k: math.perm(n, k) if int(n) <= _MAX_ITERABLE_LEN else "排列数参数超过 10000 上限",
+    "perm": lambda n, k: (
+        math.perm(n, k) if int(n) <= _MAX_ITERABLE_LEN else "排列数参数超过 10000 上限"
+    ),
     "gcd": lambda a, b: math.gcd(a, b),
     "lcm": lambda a, b: math.lcm(a, b),
     "gcd_list": _safe_gcd,

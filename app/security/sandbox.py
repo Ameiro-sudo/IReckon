@@ -47,7 +47,9 @@ class Sandbox:
                 timeout=300,
             )
             if pull.returncode != 0:
-                logger.warning(f"拉取沙箱镜像失败: {pull.stderr.decode(errors='replace')[:300]}")
+                logger.warning(
+                    f"拉取沙箱镜像失败: {pull.stderr.decode(errors='replace')[:300]}"
+                )
                 return False
             return True
         except subprocess.TimeoutExpired:
@@ -64,7 +66,11 @@ class Sandbox:
         if not self._image_ready:
             self._image_ready = self._ensure_image()
             if not self._image_ready:
-                return {"stdout": "", "stderr": "sandbox image unavailable", "returncode": -1}
+                return {
+                    "stdout": "",
+                    "stderr": "sandbox image unavailable",
+                    "returncode": -1,
+                }
 
         cmd = [
             "udocker",

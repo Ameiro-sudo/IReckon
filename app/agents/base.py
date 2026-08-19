@@ -7,7 +7,13 @@ import asyncio
 from loguru import logger
 
 from app.llm.pool import AICapability
-from app.llm.client import LLMClient, LLMResponse, llm_client, LLMCallError
+from app.llm.client import (
+    LLMClient,
+    LLMResponse,
+    StopReason,
+    llm_client,
+    LLMCallError,
+)
 from app.core.logger import log_conversation
 from app.engine.style import style_engine
 
@@ -100,8 +106,10 @@ class BaseAgent(ABC):
             logger.warning(f"预算检查失败，按未超限处理: {e}")
             return
         if over:
-            msg = over if isinstance(over, str) else (
-                f"任务 {self.context.task_id} 超出 Token 预算，执行已中止"
+            msg = (
+                over
+                if isinstance(over, str)
+                else (f"任务 {self.context.task_id} 超出 Token 预算，执行已中止")
             )
             raise LLMCallError(msg)
 
@@ -205,13 +213,16 @@ class BaseAgent(ABC):
                     usage = last_usage()
                     if asyncio.iscoroutine(usage):
                         usage = await usage
-                    if isinstance(usage, dict) and int(usage.get("total_tokens") or 0) > 0:
+                    if (
+                        isinstance(usage, dict)
+                        and int(usage.get("total_tokens") or 0) > 0
+                    ):
                         resp = LLMResponse(
                             content=full_response,
                             model="",
                             usage=usage,
                             finish_reason="stream",
-                            stop_reason=None,
+                            stop_reason=StopReason.STREAM_FALLBACK,
                         )
                         await self._record_usage(resp)
                 except Exception as e:

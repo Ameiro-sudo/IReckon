@@ -102,8 +102,12 @@ def _console_sink(message):
 
 
 # 模块导入即启用统一控制台格式：任何模块（含导入期日志）都不再走 loguru 默认格式
-logger.remove()
-logger.add(_console_sink, level="DEBUG")
+# 优化：仅在非测试环境立即配置 sink，测试环境由 conftest 统一管理
+import os as _os
+
+if not _os.environ.get("PYTEST_CURRENT_TEST"):
+    logger.remove()
+    logger.add(_console_sink, level="DEBUG")
 
 
 class _InterceptHandler(logging.Handler):

@@ -21,9 +21,7 @@ class CostTracker:
         self.monthly_warning_threshold = get(
             "task_defaults.monthly_token_warning_threshold", 50000
         )
-        self.max_task_tokens = get(
-            "task_defaults.max_task_tokens_per_task", 1000000
-        )
+        self.max_task_tokens = get("task_defaults.max_task_tokens_per_task", 1000000)
         self.monthly_budget_usd = get("cost.monthly_budget_usd", 50.0)
         self._monthly_usage: Dict[str, int] = {}
         self._monthly_cost: Dict[str, float] = {}

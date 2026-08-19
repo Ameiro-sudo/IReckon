@@ -45,7 +45,7 @@ class Updater:
         """校验 URL 必须指向 https://api.github.com/repos/ 且 repo 匹配白名单格式。"""
         if not url.startswith(_GITHUB_API_PREFIX):
             return False
-        rest = url[len(_GITHUB_API_PREFIX):]
+        rest = url[len(_GITHUB_API_PREFIX) :]
         repo_part = "/".join(rest.split("/", 2)[:2])
         return bool(_REPO_RE.match(repo_part))
 
@@ -92,7 +92,10 @@ class Updater:
 
                 zip_url = assets[0].get("browser_download_url", "")
                 # 下载 zip 前校验：仅允许 https 且 URL 必须属于固定仓库
-                if not zip_url.startswith("https://") or f"/{self._repo}/" not in zip_url:
+                if (
+                    not zip_url.startswith("https://")
+                    or f"/{self._repo}/" not in zip_url
+                ):
                     logger.error(f"更新包 URL 非法: {zip_url}")
                     return False
                 logger.info(f"下载更新包: {zip_url}")

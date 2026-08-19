@@ -32,9 +32,7 @@ _NON_REPO_PREFIXES = (
 
 class IdleLearningLoop:
     def __init__(self):
-        self.idle_trigger_minutes = get(
-            "learning.idle_trigger_minutes", 30
-        )
+        self.idle_trigger_minutes = get("learning.idle_trigger_minutes", 30)
         self._last_task_time = time.time()
         self._learning = False
         self._learn_count = 0

@@ -175,7 +175,9 @@ class CommandFilter:
             # 禁止 rm/mv 等带 -rf / 的破坏性组合（-rf 拆成 -r -f 也拦）
             if base == "rm" or base.startswith("rm"):
                 rest = [t for t in tokens if t != tok]
-                flags = "".join(t.lower().lstrip("-") for t in rest if t.startswith("-"))
+                flags = "".join(
+                    t.lower().lstrip("-") for t in rest if t.startswith("-")
+                )
                 if "r" in flags and ("f" in flags or "i" in flags):
                     return CommandLevel.L3, "递归强制删除被拦截"
 
@@ -199,7 +201,9 @@ class CommandFilter:
                 return CommandLevel.L2, f"资源密集型命令: {tok}"
 
         # 6) shutdown/reboot 等系统操作按 token 精确匹配（不在上面集合时补兜底）
-        if any(t.lower().lstrip("-") in ("shutdown", "reboot", "poweroff") for t in tokens):
+        if any(
+            t.lower().lstrip("-") in ("shutdown", "reboot", "poweroff") for t in tokens
+        ):
             return CommandLevel.L3, "系统电源操作被拦截"
 
         return CommandLevel.L1, "常规命令"

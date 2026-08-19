@@ -99,9 +99,7 @@ async def usage():
 
 
 @router.get("/logs")
-async def logs(
-    limit: int = Query(200, ge=1, le=2000), level: Optional[str] = None
-):
+async def logs(limit: int = Query(200, ge=1, le=2000), level: Optional[str] = None):
     _drain_log_queue()
     # 优先从当日日志文件读取（与 WebSocket 消费者无竞争）
     from datetime import datetime

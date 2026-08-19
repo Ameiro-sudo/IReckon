@@ -91,7 +91,9 @@ class ConnectionManager:
             for ws in targets:
                 try:
                     # 单条连接整批发送限时 5s，超时视为死连接
-                    await asyncio.wait_for(_send_batch(ws, messages), timeout=_SEND_TIMEOUT)
+                    await asyncio.wait_for(
+                        _send_batch(ws, messages), timeout=_SEND_TIMEOUT
+                    )
                 except Exception:
                     dead.append(ws)
             for ws in dead:

@@ -20,11 +20,17 @@ from app.web.push import push_progress
 
 get = config_manager.get
 
+# 缓存编译后的图，避免每次实例化都重新编译（编译耗时约 100-200ms）
+_compiled_graph_cache = None
+
 
 class WorkflowEngine:
     def __init__(self):
+        global _compiled_graph_cache
         self.checkpointer = MemorySaver()
-        self.graph = self._build_graph()
+        if _compiled_graph_cache is None:
+            _compiled_graph_cache = self._build_graph()
+        self.graph = _compiled_graph_cache
         # 死循环检测历史：tid -> {阶段索引: [每轮输出]}
         self.output_history: Dict[str, Dict[int, List[str]]] = {}
         self._supply_firewall = SupplyChainFirewall()
@@ -137,8 +143,7 @@ class WorkflowEngine:
 
         ex = self._create_executor(s)
         await asyncio.gather(
-            tb.update(phase=TaskPhase.EXECUTING),
-            tb.broadcast_to_room(room)
+            tb.update(phase=TaskPhase.EXECUTING), tb.broadcast_to_room(room)
         )
 
         ctx = tb.state.generate_context_prompt("executor")
@@ -283,7 +288,9 @@ class WorkflowEngine:
         bp = pi / len(phases) if phases else 0
 
         # 并行执行独立操作
-        push_task = push_progress(tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}")
+        push_task = push_progress(
+            tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}"
+        )
         checkpoint_task = self._checkpoint(s)
         tb_task = TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         room_task = meeting_room_manager.get_room(s["task_id"])
@@ -300,7 +307,7 @@ class WorkflowEngine:
 
         await asyncio.gather(
             tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"]),
-            tb.broadcast_to_room(room)
+            tb.broadcast_to_room(room),
         )
 
         ctx = tb.state.generate_context_prompt("reviewer")
@@ -341,11 +348,7 @@ class WorkflowEngine:
         max_rounds = s.get(
             "max_review_rounds", get("task_defaults.max_review_rounds", 5)
         )
-        if (
-            s.get("status") != TaskStatus.FAILED
-            and not passed
-            and nr >= max_rounds
-        ):
+        if s.get("status") != TaskStatus.FAILED and not passed and nr >= max_rounds:
             logger.warning(
                 f"任务{tid}审查 {nr} 轮仍未通过，按尽力交付处理（反馈保留在消息中）"
             )
@@ -404,9 +407,7 @@ class WorkflowEngine:
         return (
             "fail"
             if s.get("review_rounds", 0)
-            >= s.get(
-                "max_review_rounds", get("task_defaults.max_review_rounds", 5)
-            )
+            >= s.get("max_review_rounds", get("task_defaults.max_review_rounds", 5))
             else "revise"
         )
 

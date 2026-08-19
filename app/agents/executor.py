@@ -301,7 +301,9 @@ class ExecutorAgent(BaseAgent):
             )
         return "".join(result)
 
-    def _parse_artifacts(self, response: str, language: str = "python") -> Dict[str, str]:
+    def _parse_artifacts(
+        self, response: str, language: str = "python"
+    ) -> Dict[str, str]:
         artifacts = {}
 
         def clean(content: str) -> str:

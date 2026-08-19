@@ -17,9 +17,7 @@ class SelfImprover:
     def __init__(self):
         self._enabled = get("self_update.enabled", True)
         self._max_files = get("self_update.max_files_per_round", 5)
-        self._branch_prefix = get(
-            "self_update.branch_prefix", "self-improve"
-        )
+        self._branch_prefix = get("self_update.branch_prefix", "self-improve")
         template_dir = Path(__file__).parent.parent.parent / "config" / "prompts"
         if template_dir.exists():
             self._jinja_env = Environment(
@@ -117,7 +115,11 @@ class SelfImprover:
 
     def _parse_analysis(self, analysis: str) -> Dict:
         m = re.search(r"(\d+)\s*个文件", analysis)
-        count = int(m.group(1)) if m else (analysis.count("文件") if "文件" in analysis else 0)
+        count = (
+            int(m.group(1))
+            if m
+            else (analysis.count("文件") if "文件" in analysis else 0)
+        )
         return {
             "success": True,
             "analysis": analysis,
