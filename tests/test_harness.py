@@ -4,37 +4,35 @@ import asyncio
 import sys
 from pathlib import Path
 
-from conftest import make_cap
 from app.agents.executor import ExecutorAgent
-from app.harness.dsh_client import DSHClient
+from app.harness.dsh_client import DSHClient, DSHResult
+from conftest import make_cap
 
 ROOT = Path(__file__).parent.parent.resolve()
+
+CFG = {
+    "harness.enabled": True,
+    "harness.mode": "sdk",
+    "harness.model": "deepseek-v4-flash",
+    "harness.max_tokens": 4096,
+    "harness.timeout_seconds": 30,
+    "harness.provider": "deepseek-official",
+    "harness.cordis_config": "config/harness/minimal.cordis.yml",
+    "harness.session_root": "/tmp/ireckon-test/sessions",
+    "harness.workspace_root": "/tmp/ireckon-test/workspaces",
+    "harness.cli_command": "npx @deepseek-ai/dsh",
+}
 
 
 class FakeConfig:
     base_dir = Path(ROOT)
 
     def get(self, key, default=None):
-        cfg = {
-            "harness.enabled": True,
-            "harness.mode": "sdk",
-            "harness.model": "deepseek-v4-flash",
-            "harness.max_tokens": 4096,
-            "harness.timeout_seconds": 30,
-            "harness.provider": "deepseek-official",
-            "harness.cordis_config": "config/harness/minimal.cordis.yml",
-            "harness.session_root": "/tmp/ireckon-test/sessions",
-            "harness.workspace_root": "/tmp/ireckon-test/workspaces",
-            "harness.cli_command": "npx @deepseek-ai/dsh",
-        }
-        return cfg.get(key, default)
+        return CFG.get(key, default)
 
 
 def make_client():
-    c = DSHClient(cfg=FakeConfig())
-    c._sdk_checked = False
-    c._cli_checked = False
-    return c
+    return DSHClient(cfg=FakeConfig())
 
 
 def test_disabled_harness_returns_error():
@@ -67,6 +65,16 @@ def test_available_mode_prefers_sdk():
     assert client.sdk_available() is True
     assert client.cli_available() is False
     assert client.available_mode() == "sdk"
+
+
+def test_workspace_escape_rejected():
+    """workspace 逃逸 workspace_root 必须被拒绝。"""
+    client = make_client()
+    result = asyncio.run(
+        client.run("任务", workspace="/etc")  # 绝对路径且不在 workspace_root 之下
+    )
+    assert result.ok is False
+    assert "workspace_root" in result.error
 
 
 def test_cordis_config_generated(monkeypatch, tmp_path):
@@ -115,24 +123,42 @@ def test_sdk_channel_success(monkeypatch):
     assert "sid-1" in calls["kwargs"]["cwd"]
 
 
+def make_fake_proc(rc, out=b"", err=b""):
+    class FakeProc:
+        def __init__(self):
+            self.returncode = rc
+            self.stdout = asyncio.StreamReader()
+            self.stdout.feed_data(out)
+            self.stdout.feed_eof()
+            self.stderr = asyncio.StreamReader()
+            self.stderr.feed_data(err)
+            self.stderr.feed_eof()
+            self.killed = False
+
+        def kill(self):
+            self.killed = True
+            self.returncode = -9
+
+        async def wait(self):
+            return self.returncode
+
+    return FakeProc()
+
+
+def _patch_cli_mode(client):
+    client._get = lambda k, d=None: (
+        "auto" if k == "mode" else CFG.get(f"harness.{k}", d)
+    )
+
+
 def test_cli_channel_success(monkeypatch):
     client = make_client()
     monkeypatch.setattr(client, "sdk_available", lambda: False)
     monkeypatch.setattr(client, "cli_available", lambda: True)
-    client._get = lambda k, d=None: (
-        "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
-    )
+    _patch_cli_mode(client)
 
-    class FakeProc:
-        returncode = 0
-        stdout = b"final answer here"
-        stderr = b""
-
-        async def communicate(self):
-            return self.stdout, self.stderr
-
-    async def fake_exec(*cmd, **kw):
-        return FakeProc()
+    async def fake_exec(*args, **kwargs):
+        return make_fake_proc(0, out=b"final answer here\n")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     result = asyncio.run(client.run("跑个任务", session_id="cli-1"))
@@ -145,20 +171,10 @@ def test_cli_channel_failure(monkeypatch):
     client = make_client()
     monkeypatch.setattr(client, "sdk_available", lambda: False)
     monkeypatch.setattr(client, "cli_available", lambda: True)
-    client._get = lambda k, d=None: (
-        "auto" if k == "mode" else FakeConfig().get(f"harness.{k}", d)
-    )
+    _patch_cli_mode(client)
 
-    class FakeProc:
-        returncode = 1
-        stdout = b""
-        stderr = b"boom"
-
-        async def communicate(self):
-            return self.stdout, self.stderr
-
-    async def fake_exec(*cmd, **kw):
-        return FakeProc()
+    async def fake_exec(*args, **kwargs):
+        return make_fake_proc(1, err=b"boom\n")
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     result = asyncio.run(client.run("跑个任务"))
@@ -167,12 +183,13 @@ def test_cli_channel_failure(monkeypatch):
 
 
 def test_harness_disabled_executor_skips(monkeypatch):
-    from app.harness import dsh_client as harness_module
-    from app.harness.dsh_client import DSHResult as RealDSHResult
+    from app.harness import dsh_client
 
-    monkeypatch.setattr(harness_module, "available_mode", lambda: "")
+    monkeypatch.setattr(dsh_client, "available_mode", lambda: "")
     monkeypatch.setattr(
-        harness_module, "run", lambda *a, **kw: RealDSHResult(ok=False, error="unused")
+        dsh_client,
+        "run",
+        lambda *a, **kw: DSHResult(ok=False, error="unused"),
     )
     ex = ExecutorAgent(make_cap())
     result = asyncio.run(ex.execute({"description": "任务", "use_harness": True}))

@@ -55,3 +55,6 @@ htmlcov/
 
 # dsh 运行时生成配置
 config/harness/
+.env
+
+tests/.tmp/

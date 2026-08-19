@@ -15,6 +15,9 @@ from cryptography.fernet import Fernet  # 数据加密小能手～
 from loguru import logger
 from .config import config_manager
 
+# 配置读取别名（配合全库 get(...) 重构；config_manager.get 的模块级快捷方式）
+get = config_manager.get
+
 
 class Database:
     """
@@ -141,38 +144,31 @@ class Database:
                 return cur.lastrowid or 0
 
     async def fetch_one(self, sql, params=()):
-        """查询单条记录～"""
+        """查询单条记录（缓存命中时返回元组快照，避免可变对象被外部污染）"""
         if self._conn is None:
             await self.connect()
-        
+
         cache_key = f"{sql}:{params}"
         if cache_key in self._query_cache:
             cached_time, result = self._query_cache[cache_key]
             if time.time() - cached_time < self._cache_ttl:
                 return result
-        
+
         async with self._conn.cursor() as cur:
             await cur.execute(sql, params)
-            result = await cur.fetchone()
+            row = await cur.fetchone()
+            result = tuple(row) if row is not None else None
             self._query_cache[cache_key] = (time.time(), result)
             return result
 
     async def fetch_all(self, sql, params=()):
-        """查询多条记录～"""
+        """查询多条记录（不做缓存，避免 30s 一致性窗口内的脏读）"""
         if self._conn is None:
             await self.connect()
-        
-        cache_key = f"{sql}:{params}"
-        if cache_key in self._query_cache:
-            cached_time, result = self._query_cache[cache_key]
-            if time.time() - cached_time < self._cache_ttl:
-                return result
-        
+
         async with self._conn.cursor() as cur:
             await cur.execute(sql, params)
-            result = await cur.fetchall()
-            self._query_cache[cache_key] = (time.time(), result)
-            return result
+            return await cur.fetchall()
 
     def _invalidate_cache(self):
         """清空查询缓存"""
@@ -243,14 +239,28 @@ class Database:
         return instances
 
     async def delete_task(self, task_id: str) -> None:
-        """删除任务及其关联数据（消息、看板、用量记录）。"""
-        for sql in (
-            "DELETE FROM conversation_messages WHERE task_id=?",
-            "DELETE FROM task_board_states WHERE task_id=?",
-            "DELETE FROM usage_log WHERE task_id=?",
-            "DELETE FROM tasks WHERE task_id=?",
-        ):
-            await self.execute(sql, (task_id,))
+        """删除任务及其关联数据（消息、看板、用量记录），单事务保证原子性。"""
+        if self._conn is None:
+            await self.connect()
+        async with self._write_lock:
+            try:
+                await self._conn.execute("BEGIN")
+                for sql in (
+                    "DELETE FROM conversation_messages WHERE task_id=?",
+                    "DELETE FROM task_board_states WHERE task_id=?",
+                    "DELETE FROM usage_log WHERE task_id=?",
+                    "DELETE FROM tasks WHERE task_id=?",
+                ):
+                    await self._conn.execute(sql, (task_id,))
+                await self._conn.execute("COMMIT")
+            except Exception:
+                try:
+                    await self._conn.execute("ROLLBACK")
+                except Exception:
+                    pass
+                raise
+            finally:
+                self._invalidate_cache()
 
     async def add_usage(self, task_id: str, tokens: int, cost: float) -> None:
         await self.execute(

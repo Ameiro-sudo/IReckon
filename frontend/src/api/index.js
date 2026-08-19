@@ -5,6 +5,15 @@ const api = axios.create({
   timeout: 60000
 })
 
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('ireckon_api_token')
+    if (token) config.headers['X-API-Token'] = token
+    return config
+  },
+  error => Promise.reject(error)
+)
+
 api.interceptors.response.use(
   response => response,
   error => {
@@ -98,7 +107,9 @@ export const updateAPI = {
 export function createWebSocket(taskId = null) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const path = taskId ? `/ws/${taskId}` : '/ws'
-  return new WebSocket(`${protocol}//${location.host}${path}`)
+  const token = localStorage.getItem('ireckon_api_token')
+  const query = token ? `?token=${encodeURIComponent(token)}` : ''
+  return new WebSocket(`${protocol}//${location.host}${path}${query}`)
 }
 
 export default api

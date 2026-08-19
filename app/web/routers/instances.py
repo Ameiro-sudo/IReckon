@@ -1,7 +1,12 @@
 """AI 实例管理 API：端点注册、更新、删除、连通性测试、能力池查询。"""
 
+import asyncio
+import ipaddress
+import socket
+import time
 import uuid
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -77,25 +82,46 @@ async def delete_ai_instance(instance_id: str):
     return {"status": "ok"}
 
 
+async def _reject_ssrf_target(url: str) -> None:
+    """SSRF 防护：仅允许 http/https，且解析出的所有 IP 都不得是私网/环回/链路本地/保留地址。"""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(400, "仅支持 http/https 端点")
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        infos = await asyncio.to_thread(
+            socket.getaddrinfo, parsed.hostname, port, proto=socket.IPPROTO_TCP
+        )
+    except Exception:
+        raise HTTPException(400, "无法解析端点主机名")
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise HTTPException(400, "禁止访问内网/环回/保留地址")
+
+
 @router.post("/ai-instances/{instance_id}/test")
 async def test_ai_instance(instance_id: str):
     inst = await capability_pool.get_by_id(instance_id)
     if not inst:
         raise HTTPException(404, "Instance not found")
+    base = inst.endpoint.rstrip("/")
+    url = base if base.endswith("/health") else f"{base}/models"
+    await _reject_ssrf_target(url)
     try:
         headers = {"Authorization": f"Bearer {inst.api_key}"} if inst.api_key else {}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            base = inst.endpoint.rstrip("/")
-            url = base if base.endswith("/health") else f"{base}/models"
-            resp = await client.get(url, headers=headers)
-            return {
-                "status": "reachable",
-                "http_status": resp.status_code,
-                "endpoint": inst.endpoint,
-                "detail": resp.text[:200],
-            }
+        # 禁止重定向（防止跟随跳转到内网地址），超时 5s
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
+            start = time.monotonic()
+            await client.get(url, headers=headers)
+            latency_ms = int((time.monotonic() - start) * 1000)
+            # 不回显远端响应内容，避免信息泄露
+            return {"status": "ok", "latency_ms": latency_ms}
     except Exception as e:
-        return {"status": "unreachable", "error": str(e), "endpoint": inst.endpoint}
+        return {"status": "unreachable", "error": str(e)}
 
 
 @router.get("/capabilities")

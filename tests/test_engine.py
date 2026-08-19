@@ -5,17 +5,12 @@ import json
 import sqlite3
 from pathlib import Path
 
-import pytest
-import pytest_asyncio
-
 from app.agents import base as base_agents
 from app.core.database import db
 from app.engine.cost import CostTracker
 from app.engine.detector import LoopDetector
 from app.engine.machine import WorkflowEngine
 from app.engine.tasks import TaskStatus, task_manager
-
-pytestmark = pytest.mark.asyncio
 
 
 def make_engine():
@@ -95,48 +90,48 @@ def test_revise_router():
 # ---------- 成本追踪 ----------
 
 
-def test_cost_tracker_budget_exceeded():
+async def test_cost_tracker_budget_exceeded():
     ct = CostTracker()
     ct.max_task_tokens = 100
-    assert not (asyncio.run(ct.add_usage("t1", 60, 0.0)))
-    assert asyncio.run(ct.add_usage("t1", 60, 0.0)) is True
+    assert not (await ct.add_usage("t1", 60, 0.0))
+    assert await ct.add_usage("t1", 60, 0.0) is True
     assert ct.get_task_usage("t1") == 120
 
 
-def test_cost_tracker_monthly_warning():
+async def test_cost_tracker_monthly_warning():
     ct = CostTracker()
     ct.monthly_warning_threshold = 50
-    asyncio.run(ct.add_usage("t2", 100, 0.0))
+    await ct.add_usage("t2", 100, 0.0)
     assert ct._monthly_usage[ct._current_month()] >= 100
 
 
-def test_cost_tracker_is_over_budget():
+async def test_cost_tracker_is_over_budget():
     ct = CostTracker()
     ct.max_task_tokens = 100
     ct._task_usage["t3"] = 150
-    assert asyncio.run(ct.is_over_budget("t3")) is True
-    assert asyncio.run(ct.is_over_budget("t-other")) is False
+    assert await ct.is_over_budget("t3") is True
+    assert await ct.is_over_budget("t-other") is False
 
 
 # ---------- 死循环检测 ----------
 
 
-def test_loop_detector_short_history():
-    assert asyncio.run(LoopDetector().check_loop("t", ["a", "b"])) is False
+async def test_loop_detector_short_history():
+    assert await LoopDetector().check_loop("t", ["a", "b"]) is False
 
 
-def test_loop_detector_identical_outputs():
+async def test_loop_detector_identical_outputs():
     ld = LoopDetector()
     ld.max_rounds = 3
     ld.similarity_threshold = 0.9
-    assert asyncio.run(ld.check_loop("t", ["same output"] * 5)) is True
+    assert await ld.check_loop("t", ["same output"] * 5) is True
 
 
-def test_loop_detector_distinct_outputs():
+async def test_loop_detector_distinct_outputs():
     ld = LoopDetector()
     ld.max_rounds = 3
     outputs = ["alpha", "beta", "gamma", "delta"]
-    assert asyncio.run(ld.check_loop("t", outputs)) is False
+    assert await ld.check_loop("t", outputs) is False
 
 
 # ---------- mock LLM 全流程 ----------
@@ -165,7 +160,7 @@ PLAN = {
 EXECUTOR_OUTPUT = '//// filename: hello.py\n```python\nprint("hello world")\n```'
 
 
-def _fake_think(self, prompt, **kwargs):
+async def _fake_think(self, prompt, **kwargs):
     role = getattr(self, "role", "?")
     if role == "scheduler":
         return json.dumps(PLAN, ensure_ascii=False)
@@ -176,12 +171,7 @@ def _fake_think(self, prompt, **kwargs):
     return "ok"
 
 
-@pytest_asyncio.fixture(scope="module")
-async def flow_db(session_db):
-    yield session_db
-
-
-async def test_full_pipeline_with_mocked_llm(flow_db, monkeypatch):
+async def test_full_pipeline_with_mocked_llm(session_db, monkeypatch):
     monkeypatch.setattr(base_agents.BaseAgent, "think", _fake_think)
 
     tid = await task_manager.create_task("写一个 hello.py 打印 hello world")
@@ -205,7 +195,7 @@ async def test_full_pipeline_with_mocked_llm(flow_db, monkeypatch):
     assert (output_dir / "READY.txt").exists()
 
 
-async def test_full_pipeline_review_fail_then_pass(flow_db, monkeypatch):
+async def test_full_pipeline_review_fail_then_pass(session_db, monkeypatch):
     calls = {"review": 0}
 
     async def fake_think_retry(self, prompt, **kwargs):

@@ -245,9 +245,11 @@ async def get_artifact(task_id: str, path: str = Query(..., max_length=500)):
     try:
         fp = (out / path).resolve()
         root = out.resolve()
+        # 路径穿越防护：解析后的路径必须仍在产物根目录内
+        fp.relative_to(root)
     except (OSError, ValueError):
-        raise HTTPException(400, "非法路径")
-    if not str(fp).startswith(str(root)) or not fp.is_file():
+        raise HTTPException(403, "非法路径")
+    if not fp.is_file():
         raise HTTPException(404, "文件不存在")
     if fp.stat().st_size > 1024 * 1024:
         return {

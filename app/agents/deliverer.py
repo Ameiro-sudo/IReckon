@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Dict, Any, List
 from datetime import datetime
+import asyncio
 
 from .base import BaseAgent
 from app.llm.pool import AICapability
@@ -58,19 +59,18 @@ class DelivererAgent(BaseAgent):
     ) -> str:
         output_dir = Path(config_manager.get("system.output_dir", "./data/outputs"))
         task_output_dir = output_dir / task_id
-        task_output_dir.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(task_output_dir.mkdir, parents=True, exist_ok=True)
 
         for filename, content in artifacts.items():
             safe_name = self._safe_filename(filename)
             file_path = task_output_dir / safe_name
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+            # 文件写入放到线程池，避免阻塞事件循环
+            await asyncio.to_thread(file_path.parent.mkdir, parents=True, exist_ok=True)
+            await asyncio.to_thread(file_path.write_text, content, encoding="utf-8")
 
         ready_content = self._generate_ready_txt(project_info, list(artifacts.keys()))
         ready_path = task_output_dir / "READY.txt"
-        with open(ready_path, "w", encoding="utf-8") as f:
-            f.write(ready_content)
+        await asyncio.to_thread(ready_path.write_text, ready_content, encoding="utf-8")
 
         logger.info(f"交付物已打包到: {task_output_dir}")
         return str(task_output_dir)

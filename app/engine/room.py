@@ -80,25 +80,33 @@ class MeetingRoom:
         return msg
 
     async def _push_websocket(self, msg: Message) -> None:
-        """将消息实时推送到前端 WebSocket（任务频道 + 全局频道）。"""
+        """将消息实时推送到前端 WebSocket（任务频道 + 全局频道）。
+
+        对推送加 5 秒超时，慢客户端/失败连接直接跳过，不阻塞会议主流程。
+        """
         if msg.layer == MessageLayer.L3_PRIVATE:
             return
         try:
             from app.web.push import push_message_to_websocket
 
-            await push_message_to_websocket(
-                self.task_id,
-                {
-                    "msg_id": msg.msg_id,
-                    "layer": msg.layer.value,
-                    "sender_role": msg.sender_role,
-                    "sender_id": msg.sender_id,
-                    "content": msg.content,
-                    "msg_type": msg.msg_type,
-                    "metadata": msg.metadata,
-                    "timestamp": msg.timestamp.isoformat(),
-                },
+            await asyncio.wait_for(
+                push_message_to_websocket(
+                    self.task_id,
+                    {
+                        "msg_id": msg.msg_id,
+                        "layer": msg.layer.value,
+                        "sender_role": msg.sender_role,
+                        "sender_id": msg.sender_id,
+                        "content": msg.content,
+                        "msg_type": msg.msg_type,
+                        "metadata": msg.metadata,
+                        "timestamp": msg.timestamp.isoformat(),
+                    },
+                ),
+                timeout=5,
             )
+        except asyncio.TimeoutError:
+            logger.warning(f"WebSocket 推送超时，跳过该次推送: {self.task_id}")
         except Exception as e:
             logger.warning(f"WebSocket 消息推送失败: {e}")
 
@@ -137,23 +145,28 @@ class MeetingRoom:
         try:
             from app.web.push import push_message_to_websocket
 
-            await push_message_to_websocket(
-                self.task_id,
-                {
-                    "msg_id": msg.msg_id,
-                    "layer": msg.layer.value,
-                    "sender_role": msg.sender_role,
-                    "sender_id": msg.sender_id,
-                    "content": msg.content,
-                    "msg_type": msg.msg_type,
-                    "metadata": {
-                        **msg.metadata,
-                        "recipient_role": recipient_role,
-                        "recipient_id": recipient_id,
+            await asyncio.wait_for(
+                push_message_to_websocket(
+                    self.task_id,
+                    {
+                        "msg_id": msg.msg_id,
+                        "layer": msg.layer.value,
+                        "sender_role": msg.sender_role,
+                        "sender_id": msg.sender_id,
+                        "content": msg.content,
+                        "msg_type": msg.msg_type,
+                        "metadata": {
+                            **msg.metadata,
+                            "recipient_role": recipient_role,
+                            "recipient_id": recipient_id,
+                        },
+                        "timestamp": msg.timestamp.isoformat(),
                     },
-                    "timestamp": msg.timestamp.isoformat(),
-                },
+                ),
+                timeout=5,
             )
+        except asyncio.TimeoutError:
+            logger.warning(f"WebSocket 私聊推送超时，跳过: {self.task_id}")
         except Exception as e:
             logger.warning(f"WebSocket 私聊推送失败: {e}")
         return msg

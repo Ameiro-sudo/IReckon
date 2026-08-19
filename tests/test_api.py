@@ -6,23 +6,21 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
-import pytest
 import pytest_asyncio
 import httpx
 
 from app.web.api import app
 
-pytestmark = pytest.mark.asyncio
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def client(session_db):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def seed_instance(client):
     payload = {
         "id": "test-inst-1",
@@ -67,11 +65,19 @@ async def test_config_get(client):
 
 
 async def test_config_update_roundtrip(client):
-    r = await client.post("/api/config/update", json={"updates": {"server.port": 8888}})
+    r = await client.post(
+        "/api/config/update", json={"updates": {"ui.theme": "cyber"}}
+    )
     assert r.status_code == 200
     r2 = await client.get("/api/config")
-    assert r2.json()["server"]["port"] == 8888
-    await client.post("/api/config/update", json={"updates": {"server.port": 8000}})
+    assert r2.json()["ui"]["theme"] == "cyber"
+    await client.post("/api/config/update", json={"updates": {"ui.theme": "catgirl"}})
+
+
+async def test_config_update_forbidden_key(client):
+    """白名单之外的 key（如 server.port、ai_pool.*）应被拒绝。"""
+    r = await client.post("/api/config/update", json={"updates": {"server.port": 8888}})
+    assert r.status_code == 403
 
 
 async def test_themes(client):
@@ -206,15 +212,15 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
         "/api/ai-instances",
         json={
             "id": iid,
-            "endpoint": "http://localhost:9999/v1",
+            "endpoint": "http://8.8.8.8/v1",
             "model": "auto",
         },
     )
     r = await client.post(f"/api/ai-instances/{iid}/test")
     assert r.status_code == 200
     body = r.json()
-    assert body["status"] == "reachable"
-    assert body["http_status"] == 200
+    assert body["status"] == "ok"
+    assert isinstance(body["latency_ms"], int)
     await client.delete(f"/api/ai-instances/{iid}")
 
 
@@ -239,7 +245,7 @@ async def test_ai_instance_test_unreachable(client, monkeypatch):
         "/api/ai-instances",
         json={
             "id": iid,
-            "endpoint": "http://localhost:1/v1",
+            "endpoint": "http://8.8.8.8:1/v1",
             "model": "auto",
         },
     )
@@ -297,9 +303,9 @@ async def test_artifact_endpoints(client, tmp_path, monkeypatch):
     assert r.status_code == 200
     assert r.json()["content"] == "nested"
 
-    # 路径穿越
+    # 路径穿越（SSRF 防护升级后返回 403）
     r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "../secret.txt"})
-    assert r.status_code == 404
+    assert r.status_code == 403
 
     r = await client.get(f"/api/tasks/{tid}/artifact", params={"path": "nope.py"})
     assert r.status_code == 404

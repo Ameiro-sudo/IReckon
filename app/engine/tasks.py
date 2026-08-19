@@ -1,4 +1,4 @@
-import asyncio, uuid, operator, json, shutil
+import asyncio, uuid, operator, json, shutil, re
 from pathlib import Path
 from typing import Dict, Any, Optional, TypedDict, List, Annotated
 from enum import Enum
@@ -11,6 +11,11 @@ from app.llm.pool import capability_pool, AICapability
 from .room import meeting_room_manager
 from .board import TaskBoard
 from .learner import idle_loop
+
+get = config_manager.get
+
+# 上传批次 ID 白名单：服务端生成 up-<hex> 格式，仅允许小写字母/数字/连字符，防路径穿越
+_UPLOAD_ID_RE = re.compile(r"^[a-z0-9-]{8,}$")
 
 
 class TaskStatus(Enum):
@@ -40,6 +45,7 @@ class TaskState(TypedDict):
     last_code: str
     review_feedback: str
     review_passed_this_round: bool
+    revision_pending: bool
     error: Optional[str]
     task_board_state: Dict[str, Any]
 
@@ -61,6 +67,8 @@ class TaskManager:
 
     async def create_task(self, req: str, upload_id: Optional[str] = None) -> str:
         tid = f"task-{uuid.uuid4().hex[:8]}"
+        if upload_id and not _UPLOAD_ID_RE.match(upload_id):
+            raise ValueError(f"非法的上传批次 ID: {upload_id}")
         from app.utils import make_task_title
 
         title = make_task_title(req)
@@ -79,8 +87,15 @@ class TaskManager:
 
     async def _ingest_uploads(self, tid: str, upload_id: str) -> List[Dict]:
         """把上传的参考文件拷入任务 input 目录，返回引用列表。"""
-        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        data_dir = Path(get("system.data_dir", "./data"))
+        uploads_root = (data_dir / "uploads").resolve()
         src = data_dir / "uploads" / upload_id
+        # 路径穿越防护：解析后的路径必须仍位于 uploads 目录内
+        try:
+            src.resolve().relative_to(uploads_root)
+        except (OSError, ValueError):
+            logger.warning(f"非法的上传批次路径: {upload_id}")
+            return []
         if not src.is_dir():
             logger.warning(f"上传批次不存在: {upload_id}")
             return []
@@ -109,12 +124,20 @@ class TaskManager:
         """把参考文件拼进需求，供调度 AI 理解上下文。"""
         if not refs:
             return req
-        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        data_dir = Path(get("system.data_dir", "./data"))
+        data_root = data_dir.resolve()
         lines = [req, "", "【用户上传的参考文件】"]
         for r in refs:
             lines.append(f"- {r['name']} ({r['size']} bytes)")
         for r in refs[:5]:
             p = data_dir / r.get("path", "")
+            # 路径穿越防护：解析后的路径必须仍位于 data 目录内，否则跳过
+            try:
+                p = p.resolve()
+                p.relative_to(data_root)
+            except (OSError, ValueError):
+                logger.warning(f"跳过非法参考文件路径: {r.get('path', '')}")
+                continue
             if not p.is_file() or p.stat().st_size > 200_000:
                 continue
             try:
@@ -130,7 +153,7 @@ class TaskManager:
 
         async def _run():
             try:
-                md = config_manager.get("task_defaults.max_task_duration_seconds", 3600)
+                md = get("task_defaults.max_task_duration_seconds", 3600)
                 await asyncio.wait_for(body(), timeout=md)
             except asyncio.TimeoutError:
                 logger.error(f"任务{tid}超时")
@@ -182,11 +205,16 @@ class TaskManager:
         if file_refs:
             req = self._build_requirement_with_files(req, file_refs)
             logger.info(f"任务{tid}已附加 {len(file_refs)} 个参考文件")
-        cap = (
-            await capability_pool.get_by_id(scid)
-            if scid
-            else (await capability_pool.get_all())[0]
-        )
+        if scid:
+            cap = await capability_pool.get_by_id(scid)
+        else:
+            caps = await capability_pool.get_all()
+            if not caps:
+                # 缓存可能过期（TTL 内空结果），强制刷新一次再判空
+                caps = await capability_pool.get_all(refresh=True)
+            if not caps:
+                raise RuntimeError("能力池为空，请先在设置中添加 AI 实例")
+            cap = caps[0]
         sch = SchedulerAgent(cap)
         sch.bind_context(tid, cancellation_event=ce)
         sr = await sch.execute(req, tid)
@@ -217,10 +245,11 @@ class TaskManager:
             "messages": [],
             "status": TaskStatus.EXECUTING,
             "review_rounds": 0,
-            "max_review_rounds": 5,
+            "max_review_rounds": get("task_defaults.max_review_rounds", 5),
             "last_code": "",
             "review_feedback": "",
             "review_passed_this_round": False,
+            "revision_pending": False,
             "error": None,
             "task_board_state": tbs,
         }
@@ -289,6 +318,7 @@ class TaskManager:
             "last_code": snap.get("last_code", ""),
             "review_feedback": snap.get("review_feedback", ""),
             "review_passed_this_round": snap.get("review_passed_this_round", False),
+            "revision_pending": snap.get("revision_pending", False),
             "error": snap.get("error"),
             "task_board_state": task_board.get_state_dict(),
         }
@@ -303,7 +333,7 @@ class TaskManager:
 
         async def _run_resumed():
             try:
-                md = config_manager.get("task_defaults.max_task_duration_seconds", 3600)
+                md = get("task_defaults.max_task_duration_seconds", 3600)
                 final = await asyncio.wait_for(engine.run(resumed_state), timeout=md)
                 await sm.save_snapshot(final)
                 await db.execute(

@@ -1,14 +1,38 @@
-import asyncio, time
+import asyncio, re, time
 from datetime import datetime, timezone
+from typing import List, Optional
 from loguru import logger
 from app.core.config import config_manager
 from app.llm.pool import capability_pool
 from app.agents.learner import LearnerAgent
 
+get = config_manager.get
+
+# GitHub Trending 页面上的非仓库链接前缀（用户/组织名不会是这些词）
+_NON_REPO_PREFIXES = (
+    "topics",
+    "collections",
+    "login",
+    "signup",
+    "explore",
+    "features",
+    "settings",
+    "about",
+    "sponsors",
+    "pricing",
+    "search",
+    "join",
+    "events",
+    "marketplace",
+    "orgs",
+    "site",
+    "customer-stories",
+)
+
 
 class IdleLearningLoop:
     def __init__(self):
-        self.idle_trigger_minutes = config_manager.get(
+        self.idle_trigger_minutes = get(
             "learning.idle_trigger_minutes", 30
         )
         self._last_task_time = time.time()
@@ -16,6 +40,8 @@ class IdleLearningLoop:
         self._learn_count = 0
         self._last_reset_date = datetime.now(timezone.utc).date()
         self.max_learn_sessions_per_day = 10
+        # 持有后台学习任务引用，便于 shutdown 时取消
+        self._learning_task: Optional["asyncio.Task"] = None
 
     async def run(self):
         logger.info(f"空闲学习循环已启动，触发间隔: {self.idle_trigger_minutes} 分钟")
@@ -34,7 +60,46 @@ class IdleLearningLoop:
                 logger.info(
                     f"空闲学习 ({self._learn_count + 1}/{self.max_learn_sessions_per_day})"
                 )
-                asyncio.create_task(self._start_learning())
+                self._learning_task = asyncio.create_task(self._start_learning())
+
+    def cancel(self):
+        """取消正在进行的后台学习任务（shutdown 时调用）。"""
+        if self._learning_task:
+            self._learning_task.cancel()
+            self._learning_task = None
+            logger.info("已取消空闲学习任务")
+
+    async def _fetch_trending_repos(self, url: str) -> List[str]:
+        """抓取 GitHub Trending 页面，提取 <owner>/<repo> 候选列表（前 20 个）。"""
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(
+                timeout=10,
+                headers={"User-Agent": "Mozilla/5.0 (IReckon-Learner)"},
+                follow_redirects=True,
+            ) as client:
+                resp = await client.get(url)
+                if resp.status_code != 200:
+                    raise RuntimeError(f"HTTP {resp.status_code}")
+                html = resp.text
+        except Exception as e:
+            logger.warning(f"抓取 {url} 失败，降级为直接传 URL 文本: {e}")
+            return []
+        candidates = []
+        for match in re.findall(r'href="/([^/"]+/[^/"]+)"', html):
+            owner, _, repo = match.partition("/")
+            if not owner or not repo:
+                continue
+            if owner in _NON_REPO_PREFIXES:
+                continue
+            if repo.endswith(".md") or "/" in repo:
+                continue
+            if match not in candidates:
+                candidates.append(match)
+            if len(candidates) >= 20:
+                break
+        return candidates
 
     async def _start_learning(self):
         self._learning = True
@@ -50,17 +115,29 @@ class IdleLearningLoop:
                 cap = all_caps[0]
             learner = LearnerAgent(cap)
             learner.bind_context("idle-learn")
-            url = config_manager.get(
+            # 对白名单里的每个 URL 都处理，而不是只取第一个
+            for url in get(
                 "learning.source_whitelist", ["https://github.com/trending"]
-            )[0]
-            result = await learner.learn_from_source(
-                url, "分析 GitHub Trending 高星项目，提炼设计模式。"
-            )
-            logger.info(f"学习完成: {result.get('summary', '')[:100]}...")
+            ):
+                repos = await self._fetch_trending_repos(url)
+                if repos:
+                    content = (
+                        "候选仓库列表（从页面提取）：\n"
+                        + "\n".join(f"- {r}" for r in repos)
+                        + "\n\n分析 GitHub Trending 高星项目，提炼设计模式。"
+                    )
+                else:
+                    # 抓取失败降级为原行为：直接传 URL 文本
+                    content = "分析 GitHub Trending 高星项目，提炼设计模式。"
+                result = await learner.learn_from_source(url, content)
+                logger.info(
+                    f"学习完成: {result.get('summary', '')[:100]}... (来源: {url})"
+                )
         except Exception as e:
             logger.error(f"学习异常: {e}")
         finally:
             self._learning = False
+            self._learning_task = None
 
     def notify_task_started(self):
         self._last_task_time = time.time()

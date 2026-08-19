@@ -58,7 +58,7 @@ class ConfigManager:
         self._start_watcher()
         atexit.register(self.shutdown)
 
-    def _load_config(self) -> None:
+    def _load_config(self, force: bool = False) -> None:
         if not self.config_path.exists():
             logger.warning(f"配置文件不存在: {self.config_path}，使用空配置")
             with self._config_lock:
@@ -67,7 +67,8 @@ class ConfigManager:
 
         # 计算配置文件哈希
         current_hash = hashlib.md5(self.config_path.read_bytes()).hexdigest()
-        if current_hash == self._config_hash:
+        # force=True（手动 reload）时跳过哈希短路，确保环境变量变更后重新展开
+        if not force and current_hash == self._config_hash:
             return  # 配置未变化，跳过加载
 
         try:
@@ -125,7 +126,7 @@ class ConfigManager:
         logger.debug("配置文件监视器已停止")
 
     def reload(self) -> None:
-        self._load_config()
+        self._load_config(force=True)
         logger.info("配置文件已手动重载")
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -142,6 +143,22 @@ class ConfigManager:
 
         with self._config_lock:
             return copy.deepcopy(self.config)
+
+    def get_redacted(self) -> Dict[str, Any]:
+        """深拷贝后掩码所有键名含 api_key 的值为 "***"，防止 API Key 泄露。"""
+
+        def _mask(node: Any) -> Any:
+            if isinstance(node, dict):
+                return {
+                    k: ("***" if "api_key" in str(k).lower() else _mask(v))
+                    for k, v in node.items()
+                }
+            if isinstance(node, list):
+                return [_mask(item) for item in node]
+            return node
+
+        with self._config_lock:
+            return _mask(self.get_all())
 
 
 class ConfigChangeHandler(FileSystemEventHandler):

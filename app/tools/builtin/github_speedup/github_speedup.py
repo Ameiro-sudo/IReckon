@@ -9,8 +9,8 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import json
-import os
 import concurrent.futures
+from pathlib import Path
 from typing import Optional, Tuple
 
 MIRROR_POOL = [
@@ -25,6 +25,8 @@ MIRROR_POOL = [
 ]
 
 SPEED_TEST_TIMEOUT = 5
+DOWNLOAD_TIMEOUT = 60
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024  # 100MB
 _cached_best_mirror: Optional[str] = None
 _cached_best_time: float = float("inf")
 _cache_timestamp: float = 0.0
@@ -32,11 +34,28 @@ _CACHE_TTL = 60
 
 
 def _require_http_url(url: str) -> str:
-    """仅允许 http/https 协议，防止 file:// 等非预期 scheme。"""
+    """仅允许 http/https 协议且 host 为 GitHub 域，防止 file:// 等非预期 scheme。"""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"仅支持 http/https URL: {url}")
+    host = (parsed.hostname or "").lower()
+    allowed_suffixes = (
+        "github.com",
+        "raw.githubusercontent.com",
+        "api.github.com",
+        "objects.githubusercontent.com",
+        "codeload.github.com",
+    )
+    if not any(host == s or host.endswith("." + s) for s in allowed_suffixes):
+        raise ValueError(f"仅允许 GitHub 域名: {url}")
     return url
+
+
+def _safe_target_dir(save_dir: str) -> Path:
+    """校验目标目录为绝对路径并存在。"""
+    target = Path(save_dir).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def _test_one_mirror(mirror: str) -> Tuple[str, float]:
@@ -109,6 +128,25 @@ def _build_api_request(url: str):
     return req
 
 
+def _stream_download(req: urllib.request.Request, save_path: Path) -> bool:
+    """流式下载并限流：累计超过 MAX_DOWNLOAD_BYTES 即中止。"""
+    total = 0
+    with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as resp, open(  # nosec B310: url 已通过 _require_http_url 校验
+        save_path, "wb"
+    ) as f:
+        while True:
+            chunk = resp.read(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_DOWNLOAD_BYTES:
+                f.close()
+                save_path.unlink(missing_ok=True)
+                raise ValueError(f"下载超过 {MAX_DOWNLOAD_BYTES} 字节上限，已中止")
+            f.write(chunk)
+    return True
+
+
 def github_access_helper(operation: str, *args, **kwargs):
     """Handle GitHub access operations."""
     if operation == "speed_test":
@@ -128,20 +166,25 @@ def github_access_helper(operation: str, *args, **kwargs):
         repo_url = args[0] if args else None
         if not repo_url:
             return "Repository URL is required"
-        target = (
-            args[1]
-            if len(args) > 1
-            else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        try:
+            repo_url = _require_http_url(repo_url)
+            target_dir = _safe_target_dir(
+                args[1] if len(args) > 1 else "."
+            )
+        except ValueError as e:
+            return str(e)
+        target = target_dir / (
+            repo_url.rstrip("/").split("/")[-1].replace(".git", "")
         )
         if not best_mirror:
             returncode, stdout, stderr = _run_command(
-                ["git", "clone", repo_url, target]
+                ["git", "clone", repo_url, str(target)]
             )
             if returncode == 0:
                 return f"Clone succeeded -> {target}"
             return f"Clone failed: {stderr}"
         proxy_url = _proxy_url(best_mirror, repo_url)
-        returncode, stdout, stderr = _run_command(["git", "clone", proxy_url, target])
+        returncode, stdout, stderr = _run_command(["git", "clone", proxy_url, str(target)])
         if returncode == 0:
             return f"Clone succeeded via {best_mirror} -> {target}"
         return f"Clone failed: {stderr}"
@@ -150,6 +193,10 @@ def github_access_helper(operation: str, *args, **kwargs):
         raw_url = args[0] if args else None
         if not raw_url:
             return "Raw URL is required"
+        try:
+            raw_url = _require_http_url(raw_url)
+        except ValueError as e:
+            return str(e)
         urls_to_try = []
         if best_mirror:
             urls_to_try.append(_proxy_url(best_mirror, raw_url))
@@ -158,7 +205,10 @@ def github_access_helper(operation: str, *args, **kwargs):
             try:
                 req = _build_api_request(url)
                 with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: url 已通过 _require_http_url 校验
-                    return resp.read().decode("utf-8", errors="replace")
+                    content = resp.read(MAX_DOWNLOAD_BYTES + 1)
+                    if len(content) > MAX_DOWNLOAD_BYTES:
+                        return "下载超过 100MB 上限"
+                    return content.decode("utf-8", errors="replace")
             except Exception:
                 continue
         return "Download failed"
@@ -167,6 +217,8 @@ def github_access_helper(operation: str, *args, **kwargs):
         repo = args[0] if args else None
         if not repo:
             return "Repository name is required"
+        if not isinstance(repo, str) or "/" not in repo:
+            return "Repository name must be owner/repo"
         api_url = f"https://api.github.com/repos/{repo}/releases/latest"
         urls = []
         if best_mirror:
@@ -197,6 +249,10 @@ def github_access_helper(operation: str, *args, **kwargs):
         save_dir = args[1] if len(args) > 1 else "."
         if not repo:
             return "Repository name is required"
+        try:
+            target_dir = _safe_target_dir(save_dir)
+        except ValueError as e:
+            return str(e)
         info = github_access_helper("release_info", repo)
         if isinstance(info, str):
             return info
@@ -205,7 +261,15 @@ def github_access_helper(operation: str, *args, **kwargs):
             return "Release has no assets"
         asset = assets[0]
         download_url = asset["browser_download_url"]
-        file_name = asset["name"]
+        try:
+            download_url = _require_http_url(download_url)
+        except ValueError as e:
+            return str(e)
+        # 文件名校验：禁止路径穿越
+        file_name = Path(asset.get("name") or "asset").name
+        save_path = (target_dir / file_name).resolve()
+        if save_path.parent != target_dir:
+            return "非法文件名"
         urls = []
         if best_mirror:
             urls.append(_proxy_url(best_mirror, download_url))
@@ -213,12 +277,10 @@ def github_access_helper(operation: str, *args, **kwargs):
         for url in urls:
             try:
                 req = _build_api_request(url)
-                with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310: url 已通过 _require_http_url 校验
-                    content = resp.read()
-                    save_path = os.path.join(save_dir, file_name)
-                    with open(save_path, "wb") as f:
-                        f.write(content)
-                    return f"Download succeeded: {save_path}"
+                _stream_download(req, save_path)
+                return f"Download succeeded: {save_path}"
+            except ValueError as e:
+                return str(e)
             except Exception:
                 continue
         return "Download failed"
@@ -227,12 +289,17 @@ def github_access_helper(operation: str, *args, **kwargs):
         repo_url = args[0] if args else None
         if not repo_url:
             return "Repository URL is required"
-        target = (
-            args[1]
-            if len(args) > 1
-            else repo_url.rstrip("/").split("/")[-1].replace(".git", "")
+        try:
+            repo_url = _require_http_url(repo_url)
+            target_dir = _safe_target_dir(
+                args[1] if len(args) > 1 else "."
+            )
+        except ValueError as e:
+            return str(e)
+        target = target_dir / (
+            repo_url.rstrip("/").split("/")[-1].replace(".git", "")
         )
-        returncode, stdout, stderr = _run_command(["git", "clone", repo_url, target])
+        returncode, stdout, stderr = _run_command(["git", "clone", repo_url, str(target)])
         if returncode == 0:
             return f"Clone succeeded -> {target}"
         return f"Clone failed: {stderr}"

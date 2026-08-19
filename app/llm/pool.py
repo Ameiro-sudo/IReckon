@@ -6,6 +6,11 @@ from app.core.database import db
 from app.core.config import config_manager
 
 
+def get(key: str, default: Any = None) -> Any:
+    """配置读取快捷方式：读不到返回默认值（默认值全部内置于代码）。"""
+    return config_manager.get(key, default)
+
+
 @dataclass
 class AICapability:
     id: str
@@ -51,16 +56,17 @@ class CapabilityPool:
         self.capabilities: Dict[str, AICapability] = {}
         self._refresh_lock = asyncio.Lock()
         self._last_refresh = 0
-        self.refresh_interval = 60
+        # 刷新间隔 / 内存缓存 TTL 从配置读取（默认 60s / 30s）
+        self.refresh_interval = get("ai_pool.refresh_interval", 60)
         self._memory_cache: Dict[str, AICapability] = {}
         self._cache_timestamps: Dict[str, float] = {}
-        self._cache_ttl = 30  # 内存缓存过期时间(秒)
+        self._cache_ttl = get("ai_pool.cache_ttl", 30)  # 内存缓存过期时间(秒)
 
     async def _init_from_config_if_empty(self):
         rows = await db.fetch_all("SELECT COUNT(*) FROM ai_instances")
         if rows and rows[0][0] > 0:
             return
-        for inst in config_manager.get("ai_pool.instances", []):
+        for inst in get("ai_pool.instances", []):
             cap = AICapability(
                 id=inst["id"],
                 name=inst["name"],
@@ -70,7 +76,7 @@ class CapabilityPool:
                 parameters=inst.get("parameters", {}),
                 tags=inst.get("tags", []),
                 cost_per_1k_tokens=inst.get("cost_per_1k_tokens", 0.0),
-                max_context=inst.get("max_context", 4096),
+                max_context=inst.get("max_context", get("task_defaults.max_context", 4096)),
                 enabled=inst.get("enabled", True),
             )
             await db.save_ai_instance(cap.to_dict())

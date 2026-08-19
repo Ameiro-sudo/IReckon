@@ -79,6 +79,7 @@ persistence:
   max_snapshots_per_task: 20
   snapshot_interval_seconds: 60
 security:
+  api_token: ""
   code_scanner: bandit
   local_command_levels:
     L1_auto_exec: true
@@ -105,7 +106,7 @@ self_update:
   repo: Ameiro-sudo/IReckon
 server:
   frontend_dev_url: http://127.0.0.1:3000
-  host: 0.0.0.0
+  host: 127.0.0.1
   log_level: INFO
   open_browser: false
   port: 8000
@@ -115,8 +116,8 @@ system:
   name: IReckon
   version: 0.1.0
 task_defaults:
-  loop_detection_max_rounds: 5
-  loop_similarity_threshold: 0.9
+  loop_detection_max_rounds: 8
+  loop_similarity_threshold: 0.95
   max_review_rounds: 5
   max_task_duration_seconds: 7200
   max_task_tokens_per_task: 1000000

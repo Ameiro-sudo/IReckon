@@ -38,12 +38,17 @@ def _strip_comments(text: str) -> str:
 
 
 def _balance_trim(text: str, opener: str, closer: str) -> Optional[str]:
-    """从第一个 opener 开始截取到平衡闭合的块。"""
+    """从第一个 opener 开始截取到平衡闭合的块。
+
+    识别双引号与单引号字符串边界：被 '...' 包裹的区域整体跳过，
+    避免把字符串里的撇号/括号误当成结构字符。
+    """
     start = text.find(opener)
     if start == -1:
         return None
     depth = 0
     in_str = False
+    quote = ""
     esc = False
     for i in range(start, len(text)):
         ch = text[i]
@@ -52,11 +57,12 @@ def _balance_trim(text: str, opener: str, closer: str) -> Optional[str]:
                 esc = False
             elif ch == "\\":
                 esc = True
-            elif ch == '"':
+            elif ch == quote:
                 in_str = False
             continue
-        if ch == '"':
+        if ch in "\"'":
             in_str = True
+            quote = ch
         elif ch == opener:
             depth += 1
         elif ch == closer:
@@ -75,9 +81,52 @@ def _repair(text: str) -> str:
     return text
 
 
+_UNQUOTED_KEY = re.compile(r"([{,\s])([A-Za-z_][A-Za-z0-9_]*)(\s*:)")
+
+
 def _repair_quotes(text: str) -> str:
-    """将单引号统一为双引号（LLM 常输出 Python 风格 dict）。"""
-    return text.replace("'", '"')
+    """修复未加引号的 key（LLM 常输出 Python 风格 dict）。
+
+    仅把 { / 逗号 / 空白 后紧跟的裸 key 包成双引号；整体跳过引号字符串区域，
+    避免把单引号内的撇号（如 don't）误改成双引号破坏内容。
+    """
+    out: list = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "\"'":
+            # 引号字符串（含转义）整体跳过
+            quote = ch
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == quote:
+                    j += 1
+                    break
+                j += 1
+            if quote == "'":
+                # 单引号字符串转为双引号（转义内部双引号/反斜杠），
+                # 使 Python 风格 dict 的字符串值可被 json 解析
+                inner = text[i + 1 : j - 1]
+                escaped = inner.replace("\\", "\\\\").replace('"', '\\"')
+                out.append('"' + escaped + '"')
+            else:
+                out.append(text[i:j])
+            i = j
+            continue
+        m = _UNQUOTED_KEY.match(text, i)
+        if m:
+            out.append(text[i : m.start(2)])
+            out.append('"')
+            out.append(m.group(2))
+            out.append('"')
+            i = m.end(2)
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def extract_json(text: str) -> Any:

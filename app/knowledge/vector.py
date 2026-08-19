@@ -1,9 +1,13 @@
 import asyncio
+import re
 from typing import List, Dict, Optional
 import chromadb
 from chromadb.utils import embedding_functions
 from pathlib import Path
 from app.core.config import config_manager
+
+_COLLECTION_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_MAX_RESULTS = 100
 
 
 class VectorStore:
@@ -16,12 +20,18 @@ class VectorStore:
         self._collections = {}
         self._locks: Dict[str, asyncio.Lock] = {}
 
+    def _validate_collection(self, name: str) -> str:
+        if not name or not _COLLECTION_RE.match(name):
+            raise ValueError(f"非法 collection 名: {name!r}")
+        return name
+
     def _get_lock(self, name: str) -> asyncio.Lock:
         if name not in self._locks:
             self._locks[name] = asyncio.Lock()
         return self._locks[name]
 
     def _get_collection(self, name: str):
+        self._validate_collection(name)
         if name not in self._collections:
             try:
                 self._collections[name] = self._client.get_collection(
@@ -50,6 +60,7 @@ class VectorStore:
     async def search(
         self, collection: str, query: str, n_results: int = 5
     ) -> List[Dict]:
+        n_results = max(1, min(int(n_results), _MAX_RESULTS))
         lock = self._get_lock(collection)
         async with lock:
             col = self._get_collection(collection)

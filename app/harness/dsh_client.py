@@ -7,11 +7,13 @@ DeepSeek Harness (dsh) 客户端
 import asyncio
 import importlib.util
 import os
+import shlex
 import shutil
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -114,6 +116,57 @@ class DSHResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
+class _StdoutSink:
+    """stdout 收集器：累计超过 max_bytes 后截断，后续输出丢弃。"""
+
+    def __init__(self, max_bytes: int = 200 * 1024):
+        self._max = max_bytes
+        self._parts: List[bytes] = []
+        self._size = 0
+        self._truncated = False
+
+    def feed(self, line: bytes) -> None:
+        if self._truncated:
+            return
+        room = self._max - self._size
+        if room <= 0:
+            self._truncated = True
+            return
+        if len(line) > room:
+            self._parts.append(line[:room])
+            self._size = self._max
+            self._truncated = True
+            logger.warning(f"[dsh CLI] stdout 超过 {self._max} 字节，后续输出已截断")
+        else:
+            self._parts.append(line)
+            self._size += len(line)
+
+    def text(self) -> str:
+        return b"".join(self._parts).decode(errors="replace")
+
+
+class _StderrTail:
+    """stderr 收集器：每行增量转发到 logger(warning)，并保留尾部用于报错。"""
+
+    def __init__(self, max_bytes: int = 2000):
+        self._max = max_bytes
+        self._parts: List[bytes] = []
+        self._size = 0
+
+    def feed(self, line: bytes) -> None:
+        text = line.decode(errors="replace").rstrip()
+        if text:
+            logger.warning(f"[dsh CLI stderr] {text}")
+        self._parts.append(line)
+        self._size += len(line)
+        while self._size > self._max and len(self._parts) > 1:
+            dropped = self._parts.pop(0)
+            self._size -= len(dropped)
+
+    def text(self) -> str:
+        return b"".join(self._parts).decode(errors="replace")
+
+
 class DSHClient:
     """
     DeepSeek Harness 客户端核心类～
@@ -124,21 +177,39 @@ class DSHClient:
         self.cfg = cfg or config_manager
         self._sdk_checked: Optional[bool] = None
         self._cli_checked: Optional[bool] = None
+        # 探测时间戳：构造即视为已探测（兼容测试直接赋值 _sdk_checked/_cli_checked）
+        self._sdk_checked_at: float = time.monotonic()
+        self._cli_checked_at: float = time.monotonic()
+        # per-session 互斥锁：同一 session_root+session_id 的 SDK/CLI 通道串行执行，
+        # 防止 SDK 超时后线程仍在跑时 CLI 通道并发启动
+        self._session_locks: Dict[str, asyncio.Lock] = {}
 
     # ---- 可用性探测 ----
 
     def sdk_available(self) -> bool:
-        """Python SDK (deepseek-harness-sdk) 是否可用～"""
-        if self._sdk_checked is None:
-            self._sdk_checked = importlib.util.find_spec("deepseek_harness") is not None
+        """Python SDK (deepseek-harness-sdk) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
+        ttl = float(self._get("availability_ttl_seconds", 300))
+        if (
+            self._sdk_checked is None
+            or time.monotonic() - self._sdk_checked_at > ttl
+        ):
+            self._sdk_checked = (
+                importlib.util.find_spec("deepseek_harness") is not None
+            )
+            self._sdk_checked_at = time.monotonic()
         return self._sdk_checked
 
     def cli_available(self) -> bool:
-        """headless CLI (npx @deepseek-ai/dsh) 是否可用～"""
-        if self._cli_checked is None:
+        """headless CLI (npx @deepseek-ai/dsh) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
+        ttl = float(self._get("availability_ttl_seconds", 300))
+        if (
+            self._cli_checked is None
+            or time.monotonic() - self._cli_checked_at > ttl
+        ):
             self._cli_checked = (
                 shutil.which("npx") is not None or shutil.which("node") is not None
             )
+            self._cli_checked_at = time.monotonic()
         return self._cli_checked
 
     def available_mode(self) -> str:
@@ -156,6 +227,15 @@ class DSHClient:
 
     def _enabled(self) -> bool:
         return bool(self._get("enabled", True))
+
+    def _session_lock(self, session_root: str, session_id: str) -> asyncio.Lock:
+        """per-session 互斥锁：key = session_root + session_id。"""
+        key = f"{session_root}|{session_id}"
+        lock = self._session_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._session_locks[key] = lock
+        return lock
 
     def _cordis_config(self) -> Optional[Path]:
         """解析 cordis 组合配置，缺失时用内置模板生成～"""
@@ -177,17 +257,28 @@ class DSHClient:
         return p
 
     def _resolve_workspace(self, workspace: Optional[str], session_id: str) -> Path:
-        """工作区：显式传入优先，否则按 session_id 隔离～"""
+        """工作区：显式传入优先，否则按 session_id 隔离。
+
+        resolve 后必须位于 workspace_root 之下（防越权/符号链接逃逸），否则拒绝。
+        """
+        root = self._get("workspace_root", "./data/harness/workspaces")
+        base = Path(root)
+        if not base.is_absolute():
+            base = Path(getattr(self.cfg, "base_dir", Path.cwd())).resolve() / base
+        base = base.resolve()
         if workspace:
             p = Path(workspace)
             if not p.is_absolute():
                 p = Path.cwd() / p
+            p = p.resolve()  # resolve 同时处理符号链接
         else:
-            root = self._get("workspace_root", "./data/harness/workspaces")
-            base = Path(root)
-            if not base.is_absolute():
-                base = Path(getattr(self.cfg, "base_dir", Path.cwd())).resolve() / base
             p = base / session_id
+        try:
+            p.relative_to(base)
+        except ValueError:
+            raise ValueError(
+                f"工作区路径 {p} 必须在 workspace_root({base}) 之下"
+            ) from None
         p.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -198,6 +289,69 @@ class DSHClient:
             base = Path(getattr(self.cfg, "base_dir", Path.cwd())).resolve() / base
         base.mkdir(parents=True, exist_ok=True)
         return str(base)
+
+    # ---- CLI 命令解析 / 子进程环境 ----
+
+    def _resolve_cli_cmd(self, task: str) -> List[str]:
+        """解析 CLI 命令为可执行列表。
+
+        - harness.cli_command 是字符串（如 "npx @deepseek-ai/dsh"），shlex.split 成列表；
+        - 首个可执行文件用 shutil.which 解析真实路径（Windows 上 npx → npx.cmd），
+          否则 create_subprocess_exec 在 Windows 无法直接执行裸 "npx"；
+        - dsh 若支持 -- 分隔符（cli_double_dash 默认 true），先追加 "--" 再跟 task，
+          防止 task 被解析成命令参数注入；不支持时跳过直接追加 task。
+        """
+        raw = self._get("cli_command", "npx @deepseek-ai/dsh")
+        if isinstance(raw, str):
+            parts = shlex.split(raw)
+        elif isinstance(raw, (list, tuple)):
+            parts = [str(p) for p in raw]
+        else:
+            raise ValueError(f"harness.cli_command 类型不合法: {type(raw).__name__}")
+        if not parts:
+            raise ValueError("harness.cli_command 为空")
+        resolved = [shutil.which(parts[0]) or parts[0]] + list(parts[1:])
+        resolved += ["--profile", "headless"]
+        if self._get("cli_double_dash", True):
+            resolved.append("--")
+        resolved.append(task)
+        return resolved
+
+    def _build_cli_env(
+        self, session_root: str, model: str, max_tokens: int
+    ) -> Dict[str, str]:
+        """构造子进程环境：仅透传白名单变量（PATH/HOME/DEEPSEEK_API_KEY/DSH_* 等）。"""
+        env: Dict[str, str] = {}
+        # 系统必要变量白名单
+        for k in (
+            "PATH",
+            "HOME",
+            "USERPROFILE",
+            "SYSTEMROOT",
+            "COMSPEC",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+            "LANG",
+            "LC_ALL",
+        ):
+            if k in os.environ:
+                env[k] = os.environ[k]
+        # DSH_* 运行时变量白名单（dsh 自身约定的配置前缀）
+        for k, v in os.environ.items():
+            if k.startswith("DSH_"):
+                env[k] = v
+        env.setdefault("DSH_MODEL", model)
+        env.setdefault("DSH_SESSION_ROOT", session_root)
+        env.setdefault("DSH_MAX_TOKENS", str(max_tokens))
+        # API key 经 env 完整透传（子进程需要访问）
+        env["DEEPSEEK_API_KEY"] = os.environ.get(
+            "DEEPSEEK_API_KEY", self._get("api_key", "")
+        )
+        base_url = self._get("base_url", "")
+        if base_url:
+            env["DEEPSEEK_BASE_URL"] = base_url
+        return env
 
     # ---- 执行入口 ----
 
@@ -214,6 +368,7 @@ class DSHClient:
         在独立工作区运行一个 dsh 任务～
         - workspace: 工作区路径，默认 data/harness/workspaces/<session_id>
         - session_id: 会话 ID，复用同一 ID 可延续对话与持久 Bash 状态
+        - 同一 session 串行：SDK/CLI 通道执行前都先获取 per-session 互斥锁
         """
         if not self._enabled():
             return DSHResult(
@@ -223,46 +378,92 @@ class DSHClient:
             return DSHResult(ok=False, error="任务描述为空")
 
         sid = session_id or f"session-{uuid.uuid4().hex[:12]}"
-        ws = self._resolve_workspace(workspace, sid)
+        try:
+            ws = self._resolve_workspace(workspace, sid)
+        except ValueError as e:
+            return DSHResult(ok=False, session_id=sid, error=str(e))
         model = model or self._get("model", "deepseek-v4-flash")
         max_tokens = max_tokens or self._get("max_tokens", 49152)
         timeout = timeout or self._get("timeout_seconds", 600)
         mode = self._get("mode", "auto")
         session_root = self._resolve_session_root()
 
-        if mode in ("sdk", "auto") and self.sdk_available():
-            try:
-                return await asyncio.wait_for(
-                    self._run_sdk(task, ws, sid, session_root, model, max_tokens),
-                    timeout=timeout,
+        # 同一 session 串行执行（防 SDK 线程未收尾时 CLI 并发启动）
+        async with self._session_lock(session_root, sid):
+            if mode in ("sdk", "auto") and self.sdk_available():
+                sdk_task = asyncio.create_task(
+                    self._run_sdk(task, ws, sid, session_root, model, max_tokens)
                 )
-            except asyncio.TimeoutError:
-                logger.warning(f"dsh SDK 超时({timeout}s)，尝试 CLI 降级...")
-            except Exception as e:
-                logger.warning(f"dsh SDK 失败: {e}，尝试 CLI 降级...")
+                try:
+                    # shield：超时不打断 asyncio.to_thread 的等待，线程继续收尾
+                    return await asyncio.wait_for(
+                        asyncio.shield(sdk_task), timeout=timeout
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        f"dsh SDK 超过 {timeout}s 未完成，等待线程收尾..."
+                    )
+                    try:
+                        # 等 SDK 线程结束并取其结果（线程不可取消，必须等待）
+                        result = await asyncio.wait_for(
+                            asyncio.shield(sdk_task), timeout=30
+                        )
+                        logger.warning(
+                            f"dsh SDK 线程已收尾（实际耗时超过 {timeout}s），采用其结果"
+                        )
+                        return result
+                    except asyncio.TimeoutError:
+                        # 额外 30s 仍未完成：记录 error 并返回超时错误，不启动 CLI 通道
+                        logger.error(
+                            "dsh SDK 线程 30s 内未收尾，放弃 CLI 降级，返回超时错误"
+                        )
+                        return DSHResult(
+                            session_id=sid,
+                            workspace=str(ws),
+                            mode="sdk",
+                            ok=False,
+                            error=f"dsh SDK 执行超时({timeout}s)",
+                        )
+                    except Exception as e:
+                        # SDK 线程以异常收尾（线程已结束，可安全降级 CLI）
+                        logger.warning(f"dsh SDK 失败: {e}，尝试 CLI 降级...")
+                except Exception as e:
+                    # 非超时的 SDK 失败（线程已结束，可安全降级 CLI）
+                    logger.warning(f"dsh SDK 失败: {e}，尝试 CLI 降级...")
 
-        if mode in ("cli", "auto") and self.cli_available():
-            try:
-                return await asyncio.wait_for(
-                    self._run_cli(task, ws, sid, session_root, model, max_tokens),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                return DSHResult(
-                    final_response="",
-                    session_id=sid,
-                    workspace=str(ws),
-                    mode="cli",
-                    ok=False,
-                    error=f"dsh CLI 执行超时({timeout}s)",
-                )
+            if mode in ("cli", "auto") and self.cli_available():
+                try:
+                    return await asyncio.wait_for(
+                        self._run_cli(
+                            task, ws, sid, session_root, model, max_tokens, timeout
+                        ),
+                        timeout=timeout,
+                    )
+                except asyncio.TimeoutError:
+                    return DSHResult(
+                        final_response="",
+                        session_id=sid,
+                        workspace=str(ws),
+                        mode="cli",
+                        ok=False,
+                        error=f"dsh CLI 执行超时({timeout}s)",
+                    )
+                except Exception as e:
+                    logger.error(f"dsh CLI 失败: {e}")
+                    return DSHResult(
+                        session_id=sid,
+                        workspace=str(ws),
+                        mode="cli",
+                        ok=False,
+                        error=f"dsh CLI 失败: {e}",
+                    )
 
-        return DSHResult(
-            session_id=sid,
-            workspace=str(ws),
-            ok=False,
-            error="无可用通道：请安装 deepseek-harness-sdk 或 Node.js(npx @deepseek-ai/dsh)",
-        )
+            return DSHResult(
+                session_id=sid,
+                workspace=str(ws),
+                ok=False,
+                error="无可用通道：请安装 deepseek-harness-sdk 或 Node.js(npx @deepseek-ai/dsh)",
+            )
 
     async def _run_sdk(
         self,
@@ -302,6 +503,24 @@ class DSHClient:
 
         return await asyncio.to_thread(_inner)
 
+    async def _drain_cli(self, proc, stdout_sink, stderr_tail):
+        """增量读取 stdout/stderr：communicate() 会一次攒满内存，这里改为增量。
+
+        - stdout：累计超过 200KB 截断（丢弃后续）；
+        - stderr：每行实时转发到 logger（warning 级）+ 保留尾部用于报错。
+        """
+
+        async def drain(stream, sink):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                sink.feed(line)
+
+        await asyncio.gather(
+            drain(proc.stdout, stdout_sink), drain(proc.stderr, stderr_tail)
+        )
+
     async def _run_cli(
         self,
         task: str,
@@ -310,25 +529,23 @@ class DSHClient:
         session_root: str,
         model: str,
         max_tokens: int,
+        timeout: int,
     ) -> DSHResult:
-        """CLI 通道：npx @deepseek-ai/dsh --profile headless "task"～"""
-        cmd_str = self._get("cli_command", "npx @deepseek-ai/dsh")
-        cmd = cmd_str.split()
-        cmd.append("--profile")
-        cmd.append("headless")
-        cmd.append(task)
+        """CLI 通道：npx @deepseek-ai/dsh --profile headless [--] <task>～"""
+        try:
+            cmd = self._resolve_cli_cmd(task)
+        except (ValueError, OSError) as e:
+            return DSHResult(
+                session_id=session_id,
+                workspace=str(workspace),
+                mode="cli",
+                ok=False,
+                error=f"CLI 命令解析失败: {e}",
+            )
 
-        env = dict(os.environ)
-        env.setdefault("DSH_MODEL", model)
-        env.setdefault("DSH_SESSION_ROOT", session_root)
-        env.setdefault("DSH_MAX_TOKENS", str(max_tokens))
-        base_url = self._get("base_url", "")
-        if base_url:
-            env["DEEPSEEK_BASE_URL"] = base_url
-        if "DEEPSEEK_API_KEY" not in env:
-            env["DEEPSEEK_API_KEY"] = self._get("api_key", "")
+        env = self._build_cli_env(session_root, model, max_tokens)
 
-        logger.info(f"dsh CLI 运行任务 {session_id} 于 {workspace}")
+        logger.info(f"dsh CLI 运行任务 {session_id} 于 {workspace}: {cmd}")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(workspace),
@@ -336,19 +553,42 @@ class DSHClient:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate()
-        out = stdout.decode(errors="replace")
-        err = stderr.decode(errors="replace")
+
+        stdout_sink = _StdoutSink(max_bytes=200 * 1024)  # stdout 上限 200KB
+        stderr_tail = _StderrTail(max_bytes=2000)
+        try:
+            await asyncio.wait_for(
+                self._drain_cli(proc, stdout_sink, stderr_tail), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            # 超时路径必须 kill + wait 回收子进程，防止僵尸进程
+            proc.kill()
+            await proc.wait()
+            logger.warning(f"dsh CLI 执行超时({timeout}s)，已 kill 子进程")
+            return DSHResult(
+                session_id=session_id,
+                workspace=str(workspace),
+                mode="cli",
+                ok=False,
+                error=f"dsh CLI 执行超时({timeout}s)",
+            )
+        except BaseException:
+            # 外部取消等：同样回收子进程后继续抛出
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+            raise
+
         if proc.returncode != 0:
             return DSHResult(
                 session_id=session_id,
                 workspace=str(workspace),
                 mode="cli",
                 ok=False,
-                error=f"dsh CLI 退出码 {proc.returncode}: {err[:2000]}",
+                error=f"dsh CLI 退出码 {proc.returncode}: {stderr_tail.text()[:2000]}",
             )
         return DSHResult(
-            final_response=out.strip(),
+            final_response=stdout_sink.text().strip(),
             session_id=session_id,
             workspace=str(workspace),
             mode="cli",

@@ -21,6 +21,28 @@ class PartsLibrary:
         tags: List[str],
         created_by: str,
     ) -> str:
+        # 入库前静态扫描：高危问题拒绝入库（供应链防护）
+        try:
+            from app.security.scanner import code_scanner
+
+            findings = await code_scanner.scan(code, language or "python")
+            high_risks = [
+                f
+                for f in findings
+                if f.get("issue_severity") in ("HIGH", "CRITICAL")
+                or f.get("severity") in ("HIGH", "CRITICAL")
+            ]
+            if high_risks:
+                logger.warning(
+                    f"零件 {name} 静态扫描发现高危问题，拒绝入库: "
+                    f"{[f.get('issue_text') or f.get('title') for f in high_risks][:3]}"
+                )
+                raise ValueError("零件代码存在高危安全风险，拒绝入库")
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.warning(f"零件入库前扫描失败（放行但记录）: {e}")
+
         part_id = f"part-{uuid.uuid4().hex[:8]}"
         await db.execute(
             """INSERT INTO tool_parts

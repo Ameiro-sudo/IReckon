@@ -7,6 +7,40 @@ import re
 import textwrap
 from typing import Any, Callable, Dict
 
+_MAX_INPUT_LEN = 100 * 1024
+_MAX_PATTERN_LEN = 512
+
+
+def _safe_format(s: str, *args, **kwargs) -> Any:
+    """仅允许简单 {name} 占位符，拒绝属性/下标访问（防信息泄露）。"""
+    if "__" in s or "." in s or "[" in s or "]" in s:
+        return "格式模板不允许属性/下标访问"
+    return s.format(*args, **kwargs)
+
+
+def _check_pattern(pattern: str) -> None:
+    if not isinstance(pattern, str):
+        raise ValueError("pattern 必须为字符串")
+    if len(pattern) > _MAX_PATTERN_LEN:
+        raise ValueError(f"pattern 超过 {_MAX_PATTERN_LEN} 字符上限")
+
+
+def _regex_search(pattern: str, s: str) -> Any:
+    _check_pattern(pattern)
+    m = re.search(pattern, s)
+    return m.group() if m else None
+
+
+def _regex_findall(pattern: str, s: str) -> Any:
+    _check_pattern(pattern)
+    return re.findall(pattern, s)
+
+
+def _regex_sub(pattern: str, repl: str, s: str) -> Any:
+    _check_pattern(pattern)
+    return re.sub(pattern, repl, s)
+
+
 OPERATIONS: Dict[str, Callable[..., Any]] = {
     "upper": lambda s: s.upper(),
     "lower": lambda s: s.lower(),
@@ -33,8 +67,8 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "join": lambda sep, *args: sep.join(args),
     "partition": lambda s, sep: s.partition(sep),
     "rpartition": lambda s, sep: s.rpartition(sep),
-    "format": lambda s, *args, **kwargs: s.format(*args, **kwargs),
-    "template": lambda template, **kwargs: template.format(**kwargs),
+    "format": _safe_format,
+    "template": lambda template, **kwargs: _safe_format(template, **kwargs),
     "isalpha": lambda s: s.isalpha(),
     "isdigit": lambda s: s.isdigit(),
     "isalnum": lambda s: s.isalnum(),
@@ -50,11 +84,9 @@ OPERATIONS: Dict[str, Callable[..., Any]] = {
     "wrap": lambda s, width=70: textwrap.wrap(s, width),
     "dedent": lambda s: textwrap.dedent(s),
     "indent": lambda s, prefix="    ": textwrap.indent(s, prefix),
-    "regex_findall": lambda pattern, s: re.findall(pattern, s),
-    "regex_search": lambda pattern, s: (
-        m.group() if (m := re.search(pattern, s)) else None
-    ),
-    "regex_sub": lambda pattern, repl, s: re.sub(pattern, repl, s),
+    "regex_findall": _regex_findall,
+    "regex_search": _regex_search,
+    "regex_sub": _regex_sub,
 }
 
 
@@ -63,6 +95,9 @@ def string_toolbox(operation: str, *args, **kwargs):
     if operation not in OPERATIONS:
         return f"Unsupported operation: {operation}. Supported: {', '.join(sorted(OPERATIONS.keys()))}"
     try:
+        for arg in args:
+            if isinstance(arg, str) and len(arg) > _MAX_INPUT_LEN:
+                return f"输入字符串超过 {_MAX_INPUT_LEN} 字符上限"
         return OPERATIONS[operation](*args, **kwargs)
     except Exception as e:
         return f"Error performing string operation: {e}"

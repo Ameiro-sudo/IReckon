@@ -10,17 +10,19 @@ from loguru import logger
 
 from .config import config_manager
 
+get = config_manager.get
+
 
 class StateManager:
     def __init__(self, task_id: str):
         self.task_id = task_id
-        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        data_dir = Path( get("system.data_dir", "./data"))
         self.states_dir = data_dir / "states" / task_id
         self.states_dir.mkdir(parents=True, exist_ok=True)
-        self.snapshot_interval = config_manager.get(
+        self.snapshot_interval = get(
             "persistence.snapshot_interval_seconds", 60
         )
-        self.max_snapshots = config_manager.get(
+        self.max_snapshots = get(
             "persistence.max_snapshots_per_task", 20
         )
 
@@ -45,7 +47,8 @@ class StateManager:
         raise TypeError(f"Type {type(obj)} not serializable")
 
     async def save_snapshot(self, state: Dict[str, Any]) -> None:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        # 毫秒级时间戳，避免同秒多次快照互相覆盖
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
         snapshot_file = self.states_dir / f"snapshot_{timestamp}.json"
 
         # MeetingRoom 含 asyncio 对象不可深拷贝/序列化，仅保留 room_id

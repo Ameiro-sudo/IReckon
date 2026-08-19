@@ -20,6 +20,7 @@ class CodeScanner:
 
     async def scan(self, code, language="python"):
         if not self._available:
+            logger.warning(f"扫描工具 {self.tool} 不可用，跳过静态扫描")
             return []
         filepath = None
         try:
@@ -53,10 +54,14 @@ class CodeScanner:
                     stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-                if proc.returncode == 0:
-                    import json
+                # bandit 发现漏洞时退出码为 1，但 JSON 输出仍然有效——必须无条件解析
+                import json
 
+                try:
                     return json.loads(stdout.decode()).get("results", [])
+                except Exception as e:
+                    logger.warning(f"bandit 输出解析失败 (exit={proc.returncode}): {e}")
+                    return []
             elif self.tool == "semgrep":
                 proc = await asyncio.create_subprocess_exec(
                     "semgrep",
@@ -70,7 +75,14 @@ class CodeScanner:
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
                 import json
 
-                return json.loads(stdout.decode()).get("results", [])
+                try:
+                    return json.loads(stdout.decode()).get("results", [])
+                except Exception as e:
+                    logger.warning(f"semgrep 输出解析失败 (exit={proc.returncode}): {e}")
+                    return []
+            else:
+                logger.warning(f"未知扫描工具: {self.tool}")
+                return []
         except asyncio.TimeoutError:
             if proc:
                 try:

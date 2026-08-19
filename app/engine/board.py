@@ -8,7 +8,6 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from datetime import datetime, timezone
 import json
-import ast
 
 from app.core.database import db
 from app.core.logger import logger
@@ -119,8 +118,11 @@ class TaskBoard:
             if plan_row and plan_row[0]:
                 try:
                     plan = json.loads(plan_row[0])
-                except json.JSONDecodeError:
-                    plan = ast.literal_eval(plan_row[0])
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(
+                        f"[{self.task_id}] config_snapshot 解析失败，看板阶段列表为空"
+                    )
+                    plan = {}
                 self._phases = plan.get("phases", [])
             return self.state
         return None
@@ -173,10 +175,32 @@ class TaskBoard:
         return self.state
 
     async def _persist(self):
-        await db.execute(
-            "INSERT INTO task_board_states (task_id, state_json) VALUES (?, ?)",
-            (self.task_id, json.dumps(self.state.to_dict(), ensure_ascii=False)),
-        )
+        """UPSERT 保存看板状态（每任务仅保留最新一行），避免表无界增长。"""
+        # 确保 task_id 唯一约束存在，支撑 ON CONFLICT 语义（旧库可能有重复行）
+        try:
+            await db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_board_task_unique "
+                "ON task_board_states(task_id)"
+            )
+        except Exception as e:
+            logger.warning(f"[{self.task_id}] 创建看板唯一索引失败: {e}")
+        payload = json.dumps(self.state.to_dict(), ensure_ascii=False)
+        try:
+            await db.execute(
+                "INSERT INTO task_board_states (task_id, state_json) VALUES (?, ?) "
+                "ON CONFLICT(task_id) DO UPDATE SET "
+                "state_json=excluded.state_json, updated_at=CURRENT_TIMESTAMP",
+                (self.task_id, payload),
+            )
+        except Exception as e:
+            logger.warning(f"[{self.task_id}] 看板 UPSERT 失败，回退为清理后插入: {e}")
+            await db.execute(
+                "DELETE FROM task_board_states WHERE task_id=?", (self.task_id,)
+            )
+            await db.execute(
+                "INSERT INTO task_board_states (task_id, state_json) VALUES (?, ?)",
+                (self.task_id, payload),
+            )
 
     async def broadcast_to_room(self, room):
         if room is None:
@@ -215,7 +239,7 @@ class TaskBoard:
             if plan_row and plan_row[0]:
                 try:
                     plan = json.loads(plan_row[0])
-                except json.JSONDecodeError:
-                    plan = ast.literal_eval(plan_row[0])
+                except (json.JSONDecodeError, TypeError):
+                    plan = {}
                 board._phases = plan.get("phases", [])
         return board

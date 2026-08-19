@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from loguru import logger
 
 from app.core.config import config_manager
@@ -13,6 +13,12 @@ router = APIRouter(prefix="/api", tags=["uploads"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES = 20
+# 上传文件扩展名白名单
+_ALLOWED_EXTENSIONS = {
+    ".py", ".txt", ".md", ".json", ".yaml", ".yml", ".js", ".ts",
+    ".jsx", ".tsx", ".html", ".css", ".sh", ".toml", ".ini", ".cfg",
+    ".sql", ".csv", ".log", ".ipynb",
+}
 
 
 @router.post("/uploads")
@@ -24,13 +30,22 @@ async def upload_files(files: List[UploadFile] = File(...)):
         return {"status": "error", "error": f"最多上传 {MAX_FILES} 个文件"}
     upload_id = f"up-{uuid.uuid4().hex[:12]}"
     data_dir = Path(config_manager.get("system.data_dir", "./data"))
-    dest = data_dir / "uploads" / upload_id
+    uploads_root = (data_dir / "uploads").resolve()
+    dest = (uploads_root / upload_id).resolve()
+    try:
+        # 防目录穿越：dest 必须位于 data_dir/uploads 之下
+        dest.relative_to(uploads_root)
+    except ValueError:
+        raise HTTPException(400, "非法上传路径")
     dest.mkdir(parents=True, exist_ok=True)
 
     saved = []
     for f in files:
         name = Path(f.filename or "file").name
         if not name or name in (".", ".."):
+            continue
+        if Path(name).suffix.lower() not in _ALLOWED_EXTENSIONS:
+            logger.warning(f"文件 {name} 扩展名不在白名单，跳过")
             continue
         content = await f.read()
         if len(content) > MAX_FILE_SIZE:

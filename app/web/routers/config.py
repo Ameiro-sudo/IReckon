@@ -12,6 +12,18 @@ from app.core.config import config_manager
 
 router = APIRouter(prefix="/api", tags=["config"])
 
+# 允许通过 API 更新的配置白名单（前缀 ui.* 全部放行）
+_UPDATE_WHITELIST = {
+    "server.open_browser",
+    "server.frontend_dev_url",
+    "system.log_level",
+    "server.log_level",
+}
+
+
+def _is_allowed_update_key(key: str) -> bool:
+    return key.startswith("ui.") or key in _UPDATE_WHITELIST
+
 
 class ConfigUpdateRequest(BaseModel):
     updates: Dict[str, Any]
@@ -19,13 +31,18 @@ class ConfigUpdateRequest(BaseModel):
 
 @router.get("/config")
 async def get_config():
-    return config_manager.get_all()
+    # 掩码 api_key 后再返回，避免明文泄露
+    return config_manager.get_redacted()
 
 
 @router.post("/config/update")
 async def update_config(req: ConfigUpdateRequest):
     if not req.updates:
         raise HTTPException(422, "updates 不能为空")
+    # 白名单校验：只允许更新 UI 与少量安全配置项，防止任意 key 写入造成 RCE 链
+    for key in req.updates:
+        if not _is_allowed_update_key(key):
+            raise HTTPException(403, f"不允许更新配置项: {key}")
     config_path = config_manager.config_path
     with open(config_path, "r", encoding="utf-8") as f:
         current = yaml.safe_load(f) or {}
