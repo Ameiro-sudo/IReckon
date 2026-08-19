@@ -1,6 +1,6 @@
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, List
 from loguru import logger
 from app.core.logger import _log_queue
 
@@ -9,6 +9,10 @@ class ConnectionManager:
     def __init__(self):
         self.task_connections: Dict[str, Set[WebSocket]] = {}
         self.global_connections: Set[WebSocket] = set()
+        self._send_locks: Dict[str, asyncio.Lock] = {}
+        self._batch_queues: Dict[str, List[dict]] = {}
+        self._batch_timers: Dict[str, asyncio.Task] = {}
+        self._batch_interval = 0.05  # 50ms 批量发送间隔
 
     async def connect(self, websocket: WebSocket, task_id: Optional[str] = None):
         await websocket.accept()
@@ -16,6 +20,8 @@ class ConnectionManager:
             if task_id not in self.task_connections:
                 self.task_connections[task_id] = set()
             self.task_connections[task_id].add(websocket)
+            if task_id not in self._send_locks:
+                self._send_locks[task_id] = asyncio.Lock()
             logger.debug(f"WebSocket 连接任务 {task_id}")
         else:
             self.global_connections.add(websocket)
@@ -26,24 +32,54 @@ class ConnectionManager:
             self.task_connections[task_id].discard(websocket)
             if not self.task_connections[task_id]:
                 del self.task_connections[task_id]
+                self._send_locks.pop(task_id, None)
+                self._batch_queues.pop(task_id, None)
+                if task_id in self._batch_timers:
+                    self._batch_timers[task_id].cancel()
+                    del self._batch_timers[task_id]
         self.global_connections.discard(websocket)
 
     async def broadcast_to_task(self, task_id: str, message: dict):
         if task_id in self.task_connections:
-            dead = set()
-            for ws in self.task_connections[task_id]:
-                try:
-                    await ws.send_json(message)
-                except Exception:
-                    dead.add(ws)
-            for ws in dead:
-                self.disconnect(ws, task_id)
+            async with self._send_locks.get(task_id, asyncio.Lock()):
+                dead = set()
+                for ws in self.task_connections[task_id]:
+                    try:
+                        await ws.send_json(message)
+                    except Exception:
+                        dead.add(ws)
+                for ws in dead:
+                    self.disconnect(ws, task_id)
+
+    async def broadcast_to_task_batch(self, task_id: str, messages: List[dict]):
+        if task_id in self.task_connections:
+            async with self._send_locks.get(task_id, asyncio.Lock()):
+                dead = set()
+                for ws in self.task_connections[task_id]:
+                    try:
+                        for msg in messages:
+                            await ws.send_json(msg)
+                    except Exception:
+                        dead.add(ws)
+                for ws in dead:
+                    self.disconnect(ws, task_id)
 
     async def broadcast_global(self, message: dict):
         dead = set()
         for ws in self.global_connections:
             try:
                 await ws.send_json(message)
+            except Exception:
+                dead.add(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+    async def broadcast_global_batch(self, messages: List[dict]):
+        dead = set()
+        for ws in self.global_connections:
+            try:
+                for msg in messages:
+                    await ws.send_json(msg)
             except Exception:
                 dead.add(ws)
         for ws in dead:
@@ -101,12 +137,21 @@ async def log_consumer():
     try:
         while True:
             await asyncio.sleep(0.5)
+            messages = []
             while not _log_queue.empty():
                 try:
                     raw = _log_queue.get_nowait()
                     level, _, msg = raw.partition("|")
-                    await push_log_to_websocket(level.strip(), msg.strip())
+                    log_msg = {
+                        "type": "log",
+                        "level": level.strip(),
+                        "message": msg.strip(),
+                        "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+                    }
+                    messages.append(log_msg)
                 except Exception:
                     pass
+            if messages:
+                await manager.broadcast_global_batch(messages)
     except asyncio.CancelledError:
         pass

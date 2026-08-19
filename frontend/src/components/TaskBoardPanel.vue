@@ -5,11 +5,11 @@
       <StatusPill :status="phaseStatus" />
     </div>
 
-    <div>
+    <div class="board-progress">
       <div class="progress-track">
         <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
       </div>
-      <div class="flex-between" style="margin-top: 5px;">
+      <div class="flex-between" style="margin-top: 6px;">
         <span class="text-xs text-muted">阶段 {{ (board.current_stage || 0) + 1 }}/{{ board.total_stages || 1 }} · {{ board.stage_name || '待规划' }}</span>
         <span class="mono text-xs" style="color: var(--accent); font-weight: 600;">{{ progressPercent }}%</span>
       </div>
@@ -28,7 +28,9 @@
       <div class="board-section-title">已完成</div>
       <div class="board-list">
         <div v-for="(w, i) in board.completed_work" :key="i" class="board-item done">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span class="board-check">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
           {{ w }}
         </div>
       </div>
@@ -88,9 +90,15 @@ const progressPercent = computed(() => {
 .board-title {
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
+}
+
+.board-progress {
+  padding: 10px 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .board-goal {
@@ -102,10 +110,9 @@ const progressPercent = computed(() => {
 .board-section-title {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 
 .board-chips {
@@ -116,23 +123,23 @@ const progressPercent = computed(() => {
 
 .board-chip {
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
 }
 
 .board-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .board-item {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
@@ -142,14 +149,22 @@ const progressPercent = computed(() => {
   color: var(--success);
 }
 
-.board-item svg {
-  margin-top: 3px;
+.board-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: var(--success-soft);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .pending-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--warning);
   margin-top: 6px;

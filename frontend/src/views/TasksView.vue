@@ -210,7 +210,7 @@ function shortTime(ts) {
 }
 
 .tasks-table-wrap {
-  padding: 4px 8px 8px;
+  padding: 8px 12px 12px;
   overflow-x: auto;
 }
 

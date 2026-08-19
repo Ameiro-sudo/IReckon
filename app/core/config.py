@@ -4,6 +4,7 @@
 """
 
 import atexit
+import hashlib
 import os
 import re
 import threading
@@ -11,7 +12,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
-from loguru import logger
+# 导入 logger 模块以尽早统一日志格式（logger 内部对 config 是惰性导入，无循环依赖）
+from app.core.logger import logger
 
 # watchdog 是文件监视器，可以自动检测配置文件变化～
 try:
@@ -44,6 +46,7 @@ class ConfigManager:
         self._initialized = True
         self._config_lock = threading.RLock()
         self._observer: Optional[Any] = None
+        self._config_hash: Optional[str] = None
 
         self.base_dir = Path(os.environ.get("IRECKON_HOME", ".")).resolve()
         self.config_path = (self.base_dir / "config" / "config.yaml").resolve()
@@ -62,6 +65,11 @@ class ConfigManager:
                 self.config = {}
             return
 
+        # 计算配置文件哈希
+        current_hash = hashlib.md5(self.config_path.read_bytes()).hexdigest()
+        if current_hash == self._config_hash:
+            return  # 配置未变化，跳过加载
+
         try:
             with self.config_path.open("r", encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
@@ -72,6 +80,7 @@ class ConfigManager:
         with self._config_lock:
             self.config = self._expand_env_vars(raw)
 
+        self._config_hash = current_hash
         logger.debug(f"配置加载成功: {self.config_path}")
 
     def _expand_env_vars(self, value: Any) -> Any:

@@ -16,7 +16,7 @@ from app.core.config import config_manager
 
 app = FastAPI(
     title="IReckon AI Factory",
-    version=config_manager.get("system.version", "2.2.0"),
+    version=config_manager.get("system.version", "0.1.0"),
 )
 app.add_middleware(
     CORSMiddleware,

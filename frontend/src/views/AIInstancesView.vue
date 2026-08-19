@@ -288,10 +288,11 @@ function formatContext(n) {
 .inst-details {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 10px 12px;
+  gap: 6px;
+  padding: 11px 13px;
   background: var(--bg-subtle);
-  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   font-size: 12px;
 }
 

@@ -7,24 +7,64 @@ import asyncio, random, re, time
 from typing import Dict, Any
 from enum import Enum
 from dataclasses import dataclass
-import litellm
-from litellm import acompletion
 import httpx
 from loguru import logger
 from app.core.config import config_manager
 
-# 可以重试的异常类型
-RETRYABLE_EXCEPTIONS = (
-    litellm.exceptions.APIConnectionError,
-    litellm.exceptions.APIError,
-    litellm.exceptions.Timeout,
-    litellm.exceptions.RateLimitError,
-    litellm.exceptions.ServiceUnavailableError,
-    litellm.exceptions.BadGatewayError,
-    litellm.exceptions.InternalServerError,
-    ConnectionError,
-    TimeoutError,
-)
+_llm = None
+
+
+def _get_litellm():
+    """惰性加载 litellm（重依赖，首次导入需数秒，仅实际调用 LLM 时才加载）。"""
+    global _llm
+    if _llm is None:
+        import litellm as _lm
+
+        _llm = _lm
+    return _llm
+
+
+def __getattr__(name: str):
+    """PEP 562：litellm / acompletion 按需提供，兼容 monkeypatch。"""
+    if name == "litellm":
+        lm = _get_litellm()
+        globals()["litellm"] = lm
+        return lm
+    if name == "acompletion":
+        lm = _get_litellm()
+        globals()["acompletion"] = lm.acompletion
+        return lm.acompletion
+    raise AttributeError(name)
+
+
+def _get_acompletion():
+    """返回 acompletion 可调用对象。
+
+    优先取模块 dict（兼容测试 monkeypatch），否则惰性加载 litellm 并缓存。
+    注意：函数体内的裸名走 LOAD_GLOBAL，不会触发模块级 __getattr__（PEP 562 仅对
+    ``module.attr`` 属性访问生效），因此调用点必须经此函数解析。
+    """
+    fn = globals().get("acompletion")
+    if fn is None:
+        lm = _get_litellm()
+        fn = lm.acompletion
+        globals()["acompletion"] = fn
+    return fn
+
+
+def _retryable_exceptions():
+    lm = _get_litellm()
+    return (
+        lm.exceptions.APIConnectionError,
+        lm.exceptions.APIError,
+        lm.exceptions.Timeout,
+        lm.exceptions.RateLimitError,
+        lm.exceptions.ServiceUnavailableError,
+        lm.exceptions.BadGatewayError,
+        lm.exceptions.InternalServerError,
+        ConnectionError,
+        TimeoutError,
+    )
 
 
 class LLMCallError(Exception):
@@ -141,17 +181,27 @@ class LLMClient:
 
         self.health = EndpointHealth()  # 健康检查
         self._http_client = None
+        self._http_configured = False
         self._client_lock = asyncio.Lock()
         self._global_cancel_event = None  # 全局取消事件
 
-        # 配置 httpx 客户端
+    async def _ensure_http_client(self):
+        """首次真实调用时再配置 litellm 的 httpx 客户端（避免导入期加载 litellm）。"""
+        if self._http_configured:
+            return
         try:
-            litellm._async_client = httpx.AsyncClient(
-                limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
-                timeout=httpx.Timeout(30, connect=10),
+            _get_litellm()._async_client = httpx.AsyncClient(
+                limits=httpx.Limits(
+                    max_keepalive_connections=50,
+                    max_connections=200,
+                    keepalive_expiry=30,
+                ),
+                timeout=httpx.Timeout(60, connect=10),
+                http2=True,
             )
-        except:
+        except Exception:
             pass
+        self._http_configured = True
 
     def set_global_cancel_event(self, ev):
         """设置全局取消事件"""
@@ -174,6 +224,7 @@ class LLMClient:
         统一的调用入口
         根据 stream 参数决定走流式还是非流式路径
         """
+        await self._ensure_http_client()
         cancel_evt = cancellation_event or self._global_cancel_event
         if stream:
             return self._call_stream(
@@ -273,7 +324,7 @@ class LLMClient:
                 raise LLMCallError("用户取消")
 
             try:
-                resp = await acompletion(**params)
+                resp = await _get_acompletion()(**params)
                 usage = {
                     "prompt_tokens": resp.usage.prompt_tokens,
                     "completion_tokens": resp.usage.completion_tokens,
@@ -300,7 +351,7 @@ class LLMClient:
                 await self.health.record_failure(cap.endpoint)
 
                 # 不可重试的错误直接抛出
-                if not isinstance(e, RETRYABLE_EXCEPTIONS):
+                if not isinstance(e, _retryable_exceptions()):
                     raise LLMCallError(f"不可重试错误: {e}", e)
 
                 # 重试次数用完
@@ -411,7 +462,7 @@ class LLMClient:
 
             resp = None
             try:
-                resp = await acompletion(**params)
+                resp = await _get_acompletion()(**params)
                 async for chunk in resp:
                     if cancel_evt and cancel_evt.is_set():
                         break
@@ -421,7 +472,7 @@ class LLMClient:
             except Exception as e:
                 attempt += 1
                 # 不可重试的错误 或 达到重试上限 → 降级。
-                if not isinstance(e, RETRYABLE_EXCEPTIONS) or attempt > retry_limit:
+                if not isinstance(e, _retryable_exceptions()) or attempt > retry_limit:
                     logger.warning(f"流式失败，降级为非流式: {e}")
                     try:
                         nr = await self._call_non_stream(

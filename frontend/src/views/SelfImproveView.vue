@@ -157,7 +157,7 @@ async function pushChanges() {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   padding: 1px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
 }
 

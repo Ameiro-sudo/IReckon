@@ -6,7 +6,6 @@ IReckon 主入口文件
 
 import asyncio
 import io
-import logging
 import os
 import shutil
 import signal
@@ -15,14 +14,33 @@ import subprocess
 import sys
 import webbrowser
 
-# 让输出更乖，不闹脾气～ (防止编码问题)
+# 统一输出编码为 UTF-8，防止 Windows 控制台/重定向时中文乱码
 os.environ["UVICORN_ACCESS_LOGGING"] = "0"
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-logging.basicConfig(handlers=[], level=logging.WARNING)
+
+
+def _utf8_stream(stream):
+    """确保输出流使用 UTF-8 编码。
+
+    优先就地 reconfigure（TextIOWrapper 均支持），避免重新包装导致底层
+    缓冲被重复包裹而失效（例如 pytest 捕获流）。
+    """
+    try:
+        stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        return stream
+    except Exception:
+        try:
+            if stream is not None and hasattr(stream, "buffer"):
+                return io.TextIOWrapper(stream.buffer, encoding="utf-8", errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
+    return stream
+
+
+sys.stdout = _utf8_stream(sys.stdout)
+sys.stderr = _utf8_stream(sys.stderr)
 
 # 导入各个模块，它们都是系统的小零件～
-from app.core.logger import setup_logging, logger
+from app.core.logger import setup_logging, log_banner, logger
 from app.core.database import db
 from app.core.config import config_manager
 from app.core.updater import updater
@@ -64,6 +82,7 @@ class IReckonApp:
         self._tasks = []                          # 存放后台任务们
         self._frontend_proc = None                # 前端进程（Vue酱～）
         self._shutdown_started = False            # 避免重复关闭
+        self._server = None                       # 后端 uvicorn Server 实例
 
     async def initialize(self):
         """初始化所有组件，系统要开始工作啦！"""
@@ -113,7 +132,9 @@ class IReckonApp:
                     text=True,
                     check=True
                 )
-                logger.info(proc.stdout)
+                stdout = proc.stdout.strip()
+                if stdout:
+                    log_banner("npm install 输出", stdout.splitlines())
             except subprocess.CalledProcessError as e:
                 logger.warning(f"前端依赖安装失败: {e.returncode} {e.stderr}")
                 return
@@ -183,42 +204,44 @@ class IReckonApp:
         return self._shutdown_event
 
 
-async def start_backend(shutdown_event: asyncio.Event):
+async def start_backend(app: "IReckonApp"):
     """启动 FastAPI 后端服务～"""
     import uvicorn
-    
-    # 把 uvicorn 的日志关掉，让它安静如鸡～
-    for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
-        log = logging.getLogger(name)
-        log.handlers = []
-        log.propagate = False
-    
+
     host = config_manager.get("server.host", "0.0.0.0")
     port = config_manager.get("server.port", 8000)
-    
-    config = uvicorn.Config("app.web.api:app", host=host, port=port, log_level="warning", loop="asyncio", access_log=False)
-    
-    # 打印启动信息，超酷炫的！
+
+    config = uvicorn.Config("app.web.api:app", host=host, port=port, log_level="warning", loop="asyncio", access_log=False, log_config=None)
+
+    # 打印启动信息
     lan_ip = _get_lan_ip()
-    lan_line = f"  局域网访问  http://{lan_ip}:{port}\n" if lan_ip else ""
-    logger.info(f"\n{'=' * 46}\n  IReckon v{config_manager.get('system.version')} 已启动\n{'=' * 46}\n"
-                f"  后端 API   http://{host}:{port}\n"
-                f"  交互文档   http://{host}:{port}/docs\n"
-                f"  前端界面   http://{host}:{port}\n"
-                f"{lan_line}"
-                f"  健康检查   http://{host}:{port}/api/health\n"
-                f"{'=' * 46}")
+    frontend_line = (
+        f"前端界面   {config_manager.get('server.frontend_dev_url', 'http://127.0.0.1:3000')} (开发模式)"
+        if app._frontend_proc
+        else f"前端界面   http://{host}:{port}"
+    )
+    log_banner(
+        f"IReckon v{config_manager.get('system.version')} 已启动",
+        [
+            f"后端 API   http://{host}:{port}",
+            f"交互文档   http://{host}:{port}/docs",
+            frontend_line,
+            f"局域网访问 http://{lan_ip}:{port}" if lan_ip else "",
+            f"健康检查   http://{host}:{port}/api/health",
+        ],
+    )
     
     if config_manager.get("server.open_browser", False):
         webbrowser.open(f"http://{host}:{port}")  # 自动打开浏览器，懒人福利！
     try:
-        await uvicorn.Server(config).serve()
+        app._server = uvicorn.Server(config)
+        await app._server.serve()
     except SystemExit as exc:
         logger.warning(f"uvicorn exited with code {exc.code}")
     except Exception:
         logger.exception("启动后端服务时发生异常")
     finally:
-        shutdown_event.set()
+        app._shutdown_event.set()
 
 
 async def main():
@@ -233,22 +256,41 @@ async def main():
         except NotImplementedError: pass
     
     # 启动后端，然后等待关闭信号
-    backend_task = asyncio.create_task(start_backend(app._shutdown_event))
+    backend_task = asyncio.create_task(start_backend(app))
     backend_task.add_done_callback(lambda task: app.shutdown_event.set() if not app._shutdown_event.is_set() else None)
     try:
         await app._shutdown_event.wait()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("收到退出信号 (Ctrl+C)，正在退出...")
     finally:
         if not backend_task.done():
-            backend_task.cancel()
-            try:
-                await backend_task
-            except asyncio.CancelledError:
-                pass
-            except SystemExit as exc:
-                logger.warning(f"后端任务退出 SystemExit: {exc.code}")
+            if app._server is not None:
+                # 优雅停机：让 uvicorn 走正常的 lifespan.shutdown 流程
+                app._server.should_exit = True
+                try:
+                    await asyncio.wait_for(asyncio.shield(backend_task), timeout=10)
+                except asyncio.TimeoutError:
+                    logger.warning("后端服务 10 秒内未退出，强制取消")
+                    backend_task.cancel()
+            else:
+                backend_task.cancel()
+        try:
+            await backend_task
+        except asyncio.CancelledError:
+            pass
+        except SystemExit as exc:
+            logger.warning(f"后端任务退出 SystemExit: {exc.code}")
         await app.shutdown()
+
+
+def run_cli():
+    """命令行入口：等价于直接执行 `python main.py`。"""
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
     # 发射！启动！
-    asyncio.run(main())
+    run_cli()

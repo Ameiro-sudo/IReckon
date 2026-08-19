@@ -9,7 +9,7 @@
       </template>
     </PageHeader>
 
-    <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; height: calc(100vh - 200px);">
+    <div class="fill-view">
       <LogViewer ref="viewerRef" />
     </div>
   </div>

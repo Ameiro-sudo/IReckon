@@ -15,27 +15,52 @@
   <!-- KPI -->
   <div class="kpi-grid">
     <div class="panel kpi card-hover">
-      <div class="kpi-label">总任务数</div>
+      <div class="kpi-head">
+        <div class="kpi-label">总任务数</div>
+        <span class="kpi-icon kpi-total">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        </span>
+      </div>
       <div class="kpi-value">{{ stats?.total_tasks ?? '—' }}</div>
       <div class="kpi-sub">全部历史任务</div>
     </div>
     <div class="panel kpi card-hover">
-      <div class="kpi-label">进行中</div>
+      <div class="kpi-head">
+        <div class="kpi-label">进行中</div>
+        <span class="kpi-icon kpi-active">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </span>
+      </div>
       <div class="kpi-value" style="color: var(--warning);">{{ stats?.active_tasks ?? '—' }}</div>
       <div class="kpi-sub">规划/执行/审查/修订</div>
     </div>
     <div class="panel kpi card-hover">
-      <div class="kpi-label">已完成</div>
+      <div class="kpi-head">
+        <div class="kpi-label">已完成</div>
+        <span class="kpi-icon kpi-done">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </span>
+      </div>
       <div class="kpi-value" style="color: var(--success);">{{ stats?.completed_tasks ?? '—' }}</div>
       <div class="kpi-sub">交付成功</div>
     </div>
     <div class="panel kpi card-hover">
-      <div class="kpi-label">失败</div>
+      <div class="kpi-head">
+        <div class="kpi-label">失败</div>
+        <span class="kpi-icon kpi-fail">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </span>
+      </div>
       <div class="kpi-value" style="color: var(--error);">{{ stats?.failed_tasks ?? '—' }}</div>
       <div class="kpi-sub">需要关注</div>
     </div>
     <div class="panel kpi card-hover">
-      <div class="kpi-label">AI 实例</div>
+      <div class="kpi-head">
+        <div class="kpi-label">AI 实例</div>
+        <span class="kpi-icon kpi-ai">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 2.5-1 4.8-2.6 6.5"/><path d="M12 2a10 10 0 0 0-7.4 16.5"/><circle cx="12" cy="12" r="3"/></svg>
+        </span>
+      </div>
       <div class="kpi-value">{{ stats?.ai_enabled ?? '—' }}/{{ stats?.ai_instances ?? '—' }}</div>
       <div class="kpi-sub">启用/总数</div>
     </div>
@@ -265,12 +290,19 @@ const uptime = computed(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .kpi {
-  padding: 16px 18px;
+  padding: 18px 20px;
+}
+
+.kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .kpi-label {
@@ -279,11 +311,27 @@ const uptime = computed(() => {
   font-weight: 500;
 }
 
+.kpi-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-total { background: var(--accent-soft); color: var(--accent); }
+.kpi-active { background: var(--warning-soft); color: var(--warning); }
+.kpi-done { background: var(--success-soft); color: var(--success); }
+.kpi-fail { background: var(--error-soft); color: var(--error); }
+.kpi-ai { background: #f5f3ff; color: var(--st-planning); }
+
 .kpi-value {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 4px 0 2px;
+  letter-spacing: -0.025em;
+  margin: 10px 0 3px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -295,8 +343,8 @@ const uptime = computed(() => {
 .dash-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .dist-track {
@@ -305,7 +353,8 @@ const uptime = computed(() => {
   border-radius: 6px;
   overflow: hidden;
   background: var(--bg-subtle);
-  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
 }
 
 .dist-seg {
@@ -353,6 +402,10 @@ const uptime = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .top-task {
@@ -377,7 +430,7 @@ const uptime = computed(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 9px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -409,7 +462,7 @@ const uptime = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border-radius: var(--radius);
   cursor: pointer;
   border: 1px solid transparent;

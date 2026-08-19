@@ -131,8 +131,9 @@ function formatValue(val) {
   flex-direction: column;
   gap: 8px;
   background: var(--bg-subtle);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 13px 15px;
 }
 
 .update-row {

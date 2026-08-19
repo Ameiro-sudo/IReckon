@@ -3,7 +3,7 @@
     <PageHeader title="交付产物" subtitle="浏览所有任务生成的交付文件">
     </PageHeader>
 
-    <div style="flex: 1; min-height: 0; height: calc(100vh - 200px);">
+    <div class="fill-view">
       <ArtifactBrowser />
     </div>
   </div>

@@ -152,9 +152,10 @@ defineExpose({ reload })
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
+  background: var(--bg-subtle);
 }
 
 .live-dot {
@@ -188,7 +189,7 @@ defineExpose({ reload })
 .log-body {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 0;
+  padding: 12px 0;
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.7;
@@ -196,21 +197,28 @@ defineExpose({ reload })
 
 .log-line {
   display: flex;
-  gap: 10px;
-  padding: 1px 14px;
+  gap: 12px;
+  padding: 2px 16px;
   white-space: pre-wrap;
   word-break: break-all;
+  border-left: 2px solid transparent;
 }
 
 .log-line:hover {
   background: var(--bg-hover);
 }
 
+.log-line.lv-error {
+  border-left-color: var(--error);
+}
+
 .log-level {
   flex-shrink: 0;
-  width: 60px;
+  width: 62px;
   font-weight: 600;
   user-select: none;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
 }
 
 .lv-debug .log-level { color: var(--text-muted); }

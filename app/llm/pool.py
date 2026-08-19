@@ -52,6 +52,9 @@ class CapabilityPool:
         self._refresh_lock = asyncio.Lock()
         self._last_refresh = 0
         self.refresh_interval = 60
+        self._memory_cache: Dict[str, AICapability] = {}
+        self._cache_timestamps: Dict[str, float] = {}
+        self._cache_ttl = 30  # 内存缓存过期时间(秒)
 
     async def _init_from_config_if_empty(self):
         rows = await db.fetch_all("SELECT COUNT(*) FROM ai_instances")
@@ -82,6 +85,9 @@ class CapabilityPool:
             instances = await db.get_all_ai_instances(enabled_only=True)
             self.capabilities = {i["id"]: AICapability(**i) for i in instances}
             self._last_refresh = now
+            # 清空内存缓存
+            self._memory_cache.clear()
+            self._cache_timestamps.clear()
 
     async def get_all(self, refresh=False):
         if refresh or not self.capabilities:
@@ -89,9 +95,21 @@ class CapabilityPool:
         return list(self.capabilities.values())
 
     async def get_by_id(self, iid):
+        # 检查内存缓存
+        now = time.time()
+        if iid in self._memory_cache:
+            cached_time = self._cache_timestamps.get(iid, 0)
+            if now - cached_time < self._cache_ttl:
+                return self._memory_cache[iid]
+        
         if not self.capabilities:
             await self.refresh()
-        return self.capabilities.get(iid)
+        
+        result = self.capabilities.get(iid)
+        if result:
+            self._memory_cache[iid] = result
+            self._cache_timestamps[iid] = now
+        return result
 
     async def find_best_match(
         self,

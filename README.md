@@ -1,4 +1,4 @@
-<p align="center">
+<p style="text-align:center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-0.109%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Vue_3-4.21%2B-4FC08D?style=for-the-badge&logo=vue.js" alt="Vue 3">
@@ -11,11 +11,11 @@
   <img src="https://img.shields.io/badge/%E7%8A%B6%E6%80%81-Beta-yellow?style=for-the-badge" alt="Status">
 </p>
 
-<h1 align="center">IReckon — Multi-Agent Autonomous Programming System</h1>
-<p align="center"><em>I think it can work</em></p>
+<h1 style="text-align:center">IReckon — Multi-Agent Autonomous Programming System</h1>
+<p style="text-align:center"><em>I think it can work</em></p>
 
-<p align="center">
-  <a href="README_EN.md">English</a>
+<p style="text-align:center">
+  <a href="docs/README_EN.md">English</a>
 </p>
 
 ---
@@ -67,10 +67,10 @@ graph TB
     end
 
     subgraph Infrastructure["基础设施层"]
-        LLM[LLM 能力池<br/>litellm · 100+ 模型]
+        LLM[LLM 能力池<br/>litellm + 100+ 模型]
         VDB[(ChromaDB<br/>向量数据库)]
         SDB[(SQLite<br/>关系数据库)]
-        SEC[安全套件<br/>Bandit · semgrep · udocker]
+        SEC[安全套件<br/>Bandit + semgrep + udocker]
         KB[知识库<br/>文件存储]
     end
 
@@ -265,7 +265,7 @@ cd deploy && docker compose up -d --build
 | 层 | 技术 |
 |----|------|
 | 语言 | Python 3.10+ (asyncio) |
-| LLM 接口 | litellm（100+ 模型）· DeepSeek V4 原生 |
+| LLM 接口 | litellm（100+ 模型）+ DeepSeek V4 原生 |
 | 执行引擎 | DeepSeek Harness (dsh) — SDK / headless CLI |
 | 工作流引擎 | LangGraph |
 | 向量数据库 | ChromaDB |
@@ -353,9 +353,14 @@ python scripts/test_run.py
 
 ---
 
-<p align="center">
+<details>
+<summary>English README</summary>
+
+<p style="text-align:center">
   <sub>IReckon Team 用心打造</sub>
-</p> It orchestrates a team of specialized AI agents through a formalized software development lifecycle — planning, coding, reviewing, revising, and delivery — with zero human intervention during execution.
+</p>
+
+It orchestrates a team of specialized AI agents through a formalized software development lifecycle — planning, coding, reviewing, revising, and delivery — with zero human intervention during execution.
 
 Built on a **LangGraph-driven state machine** with conditional routing, loop detection, and automatic model escalation, IReckon handles the full software development pipeline within a secure, sandboxed environment.
 
@@ -400,10 +405,10 @@ graph TB
     end
 
     subgraph Infrastructure["Infrastructure Layer"]
-        LLM[LLM Pool<br/>litellm · 100+ Models]
+        LLM[LLM Pool<br/>litellm + 100+ Models]
         VDB[(ChromaDB<br/>Vector Store)]
         SDB[(SQLite<br/>Relational DB)]
-        SEC[Security Suite<br/>Bandit · semgrep · udocker]
+        SEC[Security Suite<br/>Bandit + semgrep + udocker]
         KB[Knowledge Base<br/>File Store]
     end
 
@@ -600,6 +605,6 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
-<p align="center">
+<p style="text-align:center">
   <sub>IReckon Team 用心打造</sub>
 </p>

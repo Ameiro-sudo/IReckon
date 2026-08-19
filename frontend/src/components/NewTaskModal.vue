@@ -184,10 +184,10 @@ defineExpose({ open })
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 22px 16px;
+  gap: 5px;
+  padding: 26px 16px;
   border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   color: var(--text-muted);
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -207,7 +207,7 @@ defineExpose({ open })
 .file-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   margin-top: 8px;
   max-height: 140px;
   overflow-y: auto;
@@ -217,7 +217,7 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 7px 11px;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius);

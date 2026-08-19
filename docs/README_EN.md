@@ -1,4 +1,4 @@
-<p align="center">
+<p style="text-align:center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-0.109%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Vue_3-4.21%2B-4FC08D?style=for-the-badge&logo=vue.js" alt="Vue 3">
@@ -11,8 +11,8 @@
   <img src="https://img.shields.io/badge/status-Beta-yellow?style=for-the-badge" alt="Status">
 </p>
 
-<h1 align="center">IReckon — Multi-Agent Autonomous Programming System</h1>
-<p align="center"><em>I think it can work</em></p>
+<h1 style="text-align:center">IReckon — Multi-Agent Autonomous Programming System</h1>
+<p style="text-align:center"><em>I think it can work</em></p>
 
 ---
 
@@ -63,10 +63,10 @@ graph TB
     end
 
     subgraph Infrastructure["Infrastructure Layer"]
-        LLM[LLM Pool<br/>litellm · 100+ Models]
+        LLM[LLM Pool<br/>litellm + 100+ Models]
         VDB[(ChromaDB<br/>Vector Store)]
         SDB[(SQLite<br/>Relational DB)]
-        SEC[Security Suite<br/>Bandit · semgrep · udocker]
+        SEC[Security Suite<br/>Bandit + semgrep + udocker]
         KB[Knowledge Base<br/>File Store]
     end
 
@@ -263,6 +263,6 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
-<p align="center">
+<p style="text-align:center">
   <sub>Built by the IReckon Team</sub>
 </p>

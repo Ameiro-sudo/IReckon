@@ -177,6 +177,7 @@ function formatSize(bytes) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--bg-subtle);
 }
 
 .ab-task-search {
@@ -206,7 +207,9 @@ function formatSize(bytes) {
 }
 
 .ab-task.active {
-  background: var(--bg-active);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .ab-task-name {
@@ -250,6 +253,7 @@ function formatSize(bytes) {
   border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 6px;
+  background: var(--bg-subtle);
 }
 
 .ab-file {
@@ -267,7 +271,9 @@ function formatSize(bytes) {
 }
 
 .ab-file.active {
-  background: var(--bg-active);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .ab-file-icon {

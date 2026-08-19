@@ -113,7 +113,7 @@ system:
   data_dir: ./data
   log_level: INFO
   name: IReckon
-  version: 2.2.0
+  version: 0.1.0
 task_defaults:
   loop_detection_max_rounds: 5
   loop_similarity_threshold: 0.9

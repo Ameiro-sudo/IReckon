@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import List, Dict
 from langgraph.graph import StateGraph, END
@@ -92,18 +93,25 @@ class WorkflowEngine:
                 "task_board_state": s.get("task_board_state", {}),
             }
 
-        await self._checkpoint(s)
         phase = phases[pi]
-        await self._push_execute_progress(tid, pi, len(phases), phase)
+        
+        # 并行执行独立操作
+        checkpoint_task = self._checkpoint(s)
+        push_task = self._push_execute_progress(tid, pi, len(phases), phase)
+        tb_task = TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
+        room_task = meeting_room_manager.get_room(s["task_id"])
+        
+        await asyncio.gather(checkpoint_task, push_task)
+        tb, room = await asyncio.gather(tb_task, room_task)
 
-        tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
 
-        room = await meeting_room_manager.get_room(s["task_id"])
         ex = self._create_executor(s)
-        await tb.update(phase=TaskPhase.EXECUTING)
-        await tb.broadcast_to_room(room)
+        await asyncio.gather(
+            tb.update(phase=TaskPhase.EXECUTING),
+            tb.broadcast_to_room(room)
+        )
 
         ctx = tb.state.generate_context_prompt("executor")
         result = await ex.execute(
@@ -218,21 +226,27 @@ class WorkflowEngine:
         tid, phases = s["task_id"], s["phases"]
         pi = s["current_phase"]
         bp = pi / len(phases) if phases else 0
-        await push_progress(tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}")
+        
+        # 并行执行独立操作
+        push_task = push_progress(tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}")
+        checkpoint_task = self._checkpoint(s)
+        tb_task = TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
+        room_task = meeting_room_manager.get_room(s["task_id"])
+        
+        await asyncio.gather(push_task, checkpoint_task)
+        tb, room = await asyncio.gather(tb_task, room_task)
 
-        await self._checkpoint(s)
-
-        tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
 
         code = s["last_code"]
         reqs = phases[pi].get("description", "")
-        room = await meeting_room_manager.get_room(s["task_id"])
         reviewers = self._create_reviewers(s)
 
-        await tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"])
-        await tb.broadcast_to_room(room)
+        await asyncio.gather(
+            tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"]),
+            tb.broadcast_to_room(room)
+        )
 
         ctx = tb.state.generate_context_prompt("reviewer")
         plan = s.get("plan", {})
@@ -240,16 +254,23 @@ class WorkflowEngine:
             f"\n任务复杂度: {plan.get('complexity', 'simple')}\n"
             f"原始需求: {s.get('user_request', '')}"
         )
-        results = []
-        for rv in reviewers:
-            res = await rv.execute(
+        
+        # 并行执行多个评审者
+        async def run_reviewer(rv):
+            return await rv.execute(
                 {
                     "code": code,
                     "requirements": reqs + scope,
                     "task_context": ctx,
                 }
             )
-            results.append((rv, res))
+        
+        reviewer_results = await asyncio.gather(
+            *[run_reviewer(rv) for rv in reviewers]
+        )
+        
+        results = list(zip(reviewers, reviewer_results))
+        for rv, res in results:
             await self._broadcast_review_result(tid, room, rv, res)
 
         passed = all(res.get("passed", False) for _, res in results)

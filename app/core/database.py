@@ -7,6 +7,7 @@
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, Optional
 import aiosqlite
@@ -37,6 +38,8 @@ class Database:
         self._fernet = None  # 加密器
         self._write_lock = asyncio.Lock()  # 写操作锁
         self._connect_lock = asyncio.Lock()  # 连接锁
+        self._query_cache: Dict[str, tuple] = {}  # 查询缓存
+        self._cache_ttl = 30  # 缓存过期时间(秒)
 
         # 确定数据库文件位置～
         data_dir = Path(config_manager.get("system.data_dir", "./data"))
@@ -134,23 +137,46 @@ class Database:
             async with self._conn.cursor() as cur:
                 await cur.execute(sql, params)
                 await self._conn.commit()
+                self._invalidate_cache()
                 return cur.lastrowid or 0
 
     async def fetch_one(self, sql, params=()):
         """查询单条记录～"""
         if self._conn is None:
             await self.connect()
+        
+        cache_key = f"{sql}:{params}"
+        if cache_key in self._query_cache:
+            cached_time, result = self._query_cache[cache_key]
+            if time.time() - cached_time < self._cache_ttl:
+                return result
+        
         async with self._conn.cursor() as cur:
             await cur.execute(sql, params)
-            return await cur.fetchone()
+            result = await cur.fetchone()
+            self._query_cache[cache_key] = (time.time(), result)
+            return result
 
     async def fetch_all(self, sql, params=()):
         """查询多条记录～"""
         if self._conn is None:
             await self.connect()
+        
+        cache_key = f"{sql}:{params}"
+        if cache_key in self._query_cache:
+            cached_time, result = self._query_cache[cache_key]
+            if time.time() - cached_time < self._cache_ttl:
+                return result
+        
         async with self._conn.cursor() as cur:
             await cur.execute(sql, params)
-            return await cur.fetchall()
+            result = await cur.fetchall()
+            self._query_cache[cache_key] = (time.time(), result)
+            return result
+
+    def _invalidate_cache(self):
+        """清空查询缓存"""
+        self._query_cache.clear()
 
     async def save_ai_instance(self, instance: Dict):
         """

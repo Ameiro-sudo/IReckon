@@ -15,7 +15,7 @@ from .config import config_manager
 class Updater:
     def __init__(self):
         self._repo = config_manager.get("self_update.repo", "Ameiro-sudo/IReckon")
-        self._current_version = config_manager.get("system.version", "2.0.0")
+        self._current_version = config_manager.get("system.version", "0.1.0")
         self._check_interval = config_manager.get(
             "self_update.check_interval_hours", 24
         )

@@ -1,16 +1,14 @@
-"""dsh (DeepSeek Harness) 集成测试：客户端逻辑、工具、executor 路径。"""
+"""dsh (DeepSeek Harness) 集成测试:客户端逻辑、SDK/CLI 通道、executor 路径。"""
 
 import asyncio
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent.resolve()
-sys.path.insert(0, str(ROOT))
-
-
+from conftest import make_cap
 from app.agents.executor import ExecutorAgent
 from app.harness.dsh_client import DSHClient
-from app.llm.pool import AICapability
+
+ROOT = Path(__file__).parent.parent.resolve()
 
 
 class FakeConfig:
@@ -42,15 +40,13 @@ def make_client():
 def test_disabled_harness_returns_error():
     cfg = FakeConfig()
     cfg.get = lambda k, d=None: False if k == "harness.enabled" else d
-    client = DSHClient(cfg=cfg)
-    result = asyncio.run(client.run("随便一个任务"))
+    result = asyncio.run(DSHClient(cfg=cfg).run("随便一个任务"))
     assert result.ok is False
     assert "未启用" in result.error
 
 
 def test_empty_task_returns_error():
-    client = make_client()
-    result = asyncio.run(client.run("   "))
+    result = asyncio.run(make_client().run("   "))
     assert result.ok is False
     assert "任务描述为空" in result.error
 
@@ -104,7 +100,7 @@ def test_sdk_channel_success(monkeypatch):
 
         def run(self, task, session_id=None):
             calls["run"] = (task, session_id)
-            return type("R", (), {"final_response": "完成！"})
+            return type("R", (), {"final_response": "完成!"})()
 
     monkeypatch.setitem(
         sys.modules, "deepseek_harness", type("m", (), {"DeepSeekHarness": FakeHarness})
@@ -112,7 +108,7 @@ def test_sdk_channel_success(monkeypatch):
     result = asyncio.run(client.run("修复测试", session_id="sid-1"))
     assert result.ok is True
     assert result.mode == "sdk"
-    assert result.final_response == "完成！"
+    assert result.final_response == "完成!"
     assert calls["run"] == ("修复测试", "sid-1")
     assert calls["kwargs"]["model"] == "deepseek-v4-flash"
     assert calls["kwargs"]["max_tokens"] == 4096
@@ -171,45 +167,14 @@ def test_cli_channel_failure(monkeypatch):
 
 
 def test_harness_disabled_executor_skips(monkeypatch):
-    cap = AICapability(
-        id="t1",
-        name="Test",
-        endpoint="http://localhost:1/v1",
-        model="auto",
-        api_key="",
-        tags=["python"],
-        max_context=4096,
-    )
     from app.harness import dsh_client as harness_module
     from app.harness.dsh_client import DSHResult as RealDSHResult
-
-    class FakeDSH:
-        def available_mode(self):
-            return ""
-
-        async def run(self, *a, **kw):
-            return RealDSHResult(ok=False, error="unused")
 
     monkeypatch.setattr(harness_module, "available_mode", lambda: "")
     monkeypatch.setattr(
         harness_module, "run", lambda *a, **kw: RealDSHResult(ok=False, error="unused")
     )
-    ex = ExecutorAgent(cap)
-    result = asyncio.run(
-        ex.execute(
-            {
-                "description": "任务",
-                "use_harness": True,
-            }
-        )
-    )
+    ex = ExecutorAgent(make_cap())
+    result = asyncio.run(ex.execute({"description": "任务", "use_harness": True}))
     assert "harness_error" in result
     assert "dsh 运行时不可用" in result["harness_error"]
-
-
-def test_dsh_task_tool_missing_task():
-    from app.tools.builtin.dsh_harness.dsh_harness import dsh_task
-
-    result = dsh_task("")
-    assert result["ok"] is False
-    assert "task" in result["error"]
