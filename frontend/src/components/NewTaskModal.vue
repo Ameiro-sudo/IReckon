@@ -16,7 +16,7 @@
             @keydown.ctrl.enter.prevent="submit"
             @keydown.meta.enter.prevent="submit"
           ></textarea>
-          <div class="text-xs text-muted" style="margin-top: 4px;">Ctrl+Enter / ⌘+Enter 快捷提交</div>
+          <div class="text-xs text-muted" style="margin-top: 5px;">Ctrl+Enter / ⌘+Enter 快捷提交</div>
         </div>
 
         <div class="form-group">
@@ -30,18 +30,18 @@
             @drop.prevent="onDrop"
           >
             <input ref="fileInput" type="file" multiple class="hidden-input" @change="onPick" />
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span class="text-sm text-secondary">点击选择或拖拽文件到此处</span>
             <span class="text-xs text-muted">每个文件 ≤ 10MB，最多 20 个</span>
           </div>
 
           <div v-if="files.length" class="file-list">
             <div v-for="(f, i) in files" :key="f.name + i" class="file-item">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               <span class="mono file-name overflow-ellipsis" :title="f.name">{{ f.name }}</span>
               <span class="mono text-muted text-xs">{{ formatSize(f.size) }}</span>
               <button type="button" class="btn btn-ghost btn-icon" @click="removeFile(i)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
           </div>
@@ -165,7 +165,7 @@ defineExpose({ open })
 .btn-spinner {
   width: 12px;
   height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
@@ -185,7 +185,7 @@ defineExpose({ open })
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 26px 16px;
+  padding: 24px 16px;
   border: 1.5px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   cursor: pointer;
@@ -217,7 +217,7 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 11px;
+  padding: 6px 10px;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius);

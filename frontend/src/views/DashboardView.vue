@@ -2,11 +2,11 @@
   <PageHeader title="仪表盘" subtitle="系统概览与运行状态">
     <template #actions>
       <router-link to="/logs" class="btn btn-secondary">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         系统日志
       </router-link>
       <button class="btn btn-secondary" @click="refreshAll">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         刷新
       </button>
     </template>
@@ -18,7 +18,7 @@
       <div class="kpi-head">
         <div class="kpi-label">总任务数</div>
         <span class="kpi-icon kpi-total">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
         </span>
       </div>
       <div class="kpi-value">{{ stats?.total_tasks ?? '—' }}</div>
@@ -28,17 +28,17 @@
       <div class="kpi-head">
         <div class="kpi-label">进行中</div>
         <span class="kpi-icon kpi-active">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </span>
       </div>
-      <div class="kpi-value" style="color: var(--warning);">{{ stats?.active_tasks ?? '—' }}</div>
+      <div class="kpi-value" style="color: var(--st-executing);">{{ stats?.active_tasks ?? '—' }}</div>
       <div class="kpi-sub">规划/执行/审查/修订</div>
     </div>
     <div class="panel kpi card-hover">
       <div class="kpi-head">
         <div class="kpi-label">已完成</div>
         <span class="kpi-icon kpi-done">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </span>
       </div>
       <div class="kpi-value" style="color: var(--success);">{{ stats?.completed_tasks ?? '—' }}</div>
@@ -48,7 +48,7 @@
       <div class="kpi-head">
         <div class="kpi-label">失败</div>
         <span class="kpi-icon kpi-fail">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         </span>
       </div>
       <div class="kpi-value" style="color: var(--error);">{{ stats?.failed_tasks ?? '—' }}</div>
@@ -58,7 +58,7 @@
       <div class="kpi-head">
         <div class="kpi-label">AI 实例</div>
         <span class="kpi-icon kpi-ai">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 2.5-1 4.8-2.6 6.5"/><path d="M12 2a10 10 0 0 0-7.4 16.5"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
         </span>
       </div>
       <div class="kpi-value">{{ stats?.ai_enabled ?? '—' }}/{{ stats?.ai_instances ?? '—' }}</div>
@@ -119,7 +119,7 @@
       </div>
 
       <div v-if="usage?.by_task?.length" style="margin-top: 16px;">
-        <div class="panel-title" style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;">TOP 任务消耗</div>
+        <div class="panel-title" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);">TOP 任务消耗</div>
         <div v-for="t in usage.by_task.slice(0, 5)" :key="t.task_id" class="top-task">
           <span class="mono top-task-id overflow-ellipsis">{{ t.task_id }}</span>
           <div class="progress-track" style="flex: 1;">
@@ -159,7 +159,7 @@
         </div>
         <div class="info-row">
           <span class="info-label">版本更新</span>
-          <span v-if="health.update_available" class="pill st-warning" style="background: var(--warning-soft); color: var(--warning);">
+          <span v-if="health.update_available" class="pill st-warning">
             新版本 v{{ health.latest_version }}
           </span>
           <span v-else class="text-sm text-secondary">已是最新</span>
@@ -290,12 +290,12 @@ const uptime = computed(() => {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .kpi {
-  padding: 18px 20px;
+  padding: 16px 18px;
 }
 
 .kpi-head {
@@ -312,9 +312,9 @@ const uptime = computed(() => {
 }
 
 .kpi-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -322,16 +322,16 @@ const uptime = computed(() => {
 }
 
 .kpi-total { background: var(--accent-soft); color: var(--accent); }
-.kpi-active { background: var(--warning-soft); color: var(--warning); }
+.kpi-active { background: var(--warning-soft); color: var(--st-executing); }
 .kpi-done { background: var(--success-soft); color: var(--success); }
 .kpi-fail { background: var(--error-soft); color: var(--error); }
-.kpi-ai { background: #f5f3ff; color: var(--st-planning); }
+.kpi-ai { background: rgba(124, 58, 237, 0.1); color: var(--st-planning); }
 
 .kpi-value {
-  font-size: 28px;
+  font-size: 27px;
   font-weight: 700;
-  letter-spacing: -0.025em;
-  margin: 10px 0 3px;
+  letter-spacing: -0.03em;
+  margin: 9px 0 3px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -343,18 +343,18 @@ const uptime = computed(() => {
 .dash-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .dist-track {
   display: flex;
-  height: 12px;
-  border-radius: 6px;
+  height: 10px;
+  border-radius: 5px;
   overflow: hidden;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .dist-seg {

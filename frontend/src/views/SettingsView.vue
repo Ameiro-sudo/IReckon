@@ -122,7 +122,7 @@ function formatValue(val) {
 .settings-grid {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   max-width: 680px;
 }
 

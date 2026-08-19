@@ -7,11 +7,11 @@
         <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
       </select>
       <button class="btn btn-secondary" @click="refresh">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         刷新
       </button>
       <button class="btn btn-primary" @click="openCreate">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         新任务
       </button>
     </template>
@@ -49,8 +49,8 @@
             <div class="flex-center" style="justify-content: flex-end; gap: 6px;" @click.stop>
               <button v-if="isActive(task)" class="btn btn-danger btn-sm" @click="cancel(task)">取消</button>
               <button v-else-if="['failed', 'paused'].includes(task.status)" class="btn btn-secondary btn-sm" @click="resume(task)">恢复</button>
-              <button class="btn btn-ghost btn-sm" title="删除任务" @click="remove(task)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <button class="btn btn-ghost btn-icon" title="删除任务" @click="remove(task)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
           </td>
@@ -60,7 +60,7 @@
 
     <div v-if="!filteredTasks.length" class="empty-state">
       <div class="empty-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
       </div>
       <p>{{ tasks.length ? '无匹配任务' : '暂无任务' }}</p>
       <button v-if="!tasks.length" class="btn btn-primary btn-sm" @click="openCreate">创建第一个任务</button>
@@ -204,13 +204,13 @@ function shortTime(ts) {
 }
 
 .filter-select {
-  width: 130px;
-  padding: 6px 10px;
+  width: 132px;
+  padding: 6px 26px 6px 10px;
   font-size: 13px;
 }
 
 .tasks-table-wrap {
-  padding: 8px 12px 12px;
+  padding: 6px 12px 12px;
   overflow-x: auto;
 }
 

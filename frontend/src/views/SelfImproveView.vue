@@ -40,7 +40,7 @@
           <div v-for="file in lastResult.files_changed" :key="file" class="file-item mono">{{ file }}</div>
         </div>
         <div class="result-ok" v-if="lastResult.status === 'ok'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           分析完成
         </div>
       </div>
@@ -49,7 +49,7 @@
         <p class="text-sm">{{ error }}</p>
       </div>
     </div>
-    </div>
+  </div>
   </div>
 </template>
 <script setup>
@@ -192,6 +192,6 @@ async function pushChanges() {
   border-radius: var(--radius);
   background: var(--error-soft);
   color: var(--error);
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  border: 1px solid transparent;
 }
 </style>

@@ -3,7 +3,7 @@
     <PageHeader title="AI 实例" subtitle="管理 AI 模型连接与能力实例">
     <template #actions>
       <button class="btn btn-primary" @click="openCreate">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         添加实例
       </button>
     </template>
@@ -65,7 +65,7 @@
 
     <div v-if="!instances.length" class="panel empty-state" style="grid-column: 1 / -1;">
       <div class="empty-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 2.5-1 4.8-2.6 6.5"/><path d="M12 2a10 10 0 0 0-7.4 16.5"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
       </div>
       <p>暂无 AI 实例</p>
       <button class="btn btn-primary btn-sm" @click="openCreate">添加第一个实例</button>
@@ -235,7 +235,7 @@ function formatContext(n) {
 .inst-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
 .inst-card {
@@ -252,11 +252,11 @@ function formatContext(n) {
 }
 
 .inst-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-contrast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -364,45 +364,4 @@ function formatContext(n) {
 }
 
 .inst-actions .btn { flex: 1; }
-
-.switch-label {
-  display: flex !important;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.switch-label input { display: none; }
-
-.switch-track {
-  width: 34px;
-  height: 19px;
-  border-radius: 10px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-strong);
-  position: relative;
-  transition: background 0.15s ease;
-}
-
-.switch-thumb {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: #fff;
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  transition: transform 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.switch-label input:checked + .switch-track {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.switch-label input:checked + .switch-track .switch-thumb {
-  transform: translateX(15px);
-}
 </style>

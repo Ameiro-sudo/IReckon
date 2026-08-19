@@ -29,7 +29,7 @@
       <div class="board-list">
         <div v-for="(w, i) in board.completed_work" :key="i" class="board-item done">
           <span class="board-check">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </span>
           {{ w }}
         </div>
@@ -88,9 +88,10 @@ const progressPercent = computed(() => {
 }
 
 .board-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
@@ -111,6 +112,7 @@ const progressPercent = computed(() => {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 7px;
 }
@@ -150,11 +152,11 @@ const progressPercent = computed(() => {
 }
 
 .board-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
   background: var(--success-soft);
-  border: 1px solid rgba(22, 163, 74, 0.3);
+  border: 1px solid rgba(21, 159, 99, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -36,7 +36,7 @@
           </div>
           <div class="flex-center">
             <a :href="downloadUrl" class="btn btn-secondary btn-sm" target="_blank">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               下载 ZIP
             </a>
           </div>
@@ -55,8 +55,8 @@
               @click="openFile(f)"
             >
               <span class="ab-file-icon">
-                <svg v-if="isText(f)" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>
+                <svg v-if="isText(f)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>
               </span>
               <span class="ab-file-path mono overflow-ellipsis">{{ f.path }}</span>
               <span class="ab-file-size mono text-muted">{{ formatSize(f.size) }}</span>
@@ -166,7 +166,7 @@ function formatSize(bytes) {
   min-height: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -196,10 +196,11 @@ function formatSize(bytes) {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.1s ease;
+  border: 1px solid transparent;
 }
 
 .ab-task:hover {
@@ -208,7 +209,7 @@ function formatSize(bytes) {
 
 .ab-task.active {
   background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
+  border-color: var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
 
@@ -260,10 +261,11 @@ function formatSize(bytes) {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 6px 9px;
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.1s ease;
+  border: 1px solid transparent;
 }
 
 .ab-file:hover {
@@ -272,7 +274,7 @@ function formatSize(bytes) {
 
 .ab-file.active {
   background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
+  border-color: var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
 

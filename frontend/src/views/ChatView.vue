@@ -1,142 +1,139 @@
 <template>
-  <div class="view-root">
-    <div class="page chat-page">
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">聊天</h1>
-          <p class="page-subtitle">与 AI 智能体团队对话，实时跟踪任务执行</p>
-        </div>
-        <div class="header-actions">
-          <button class="btn btn-primary" @click="openCreate">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            新建任务
-          </button>
-        </div>
+  <div class="view-root chat-page">
+    <div class="chat-headbar">
+      <div>
+        <h1 class="page-title">聊天</h1>
+        <p class="page-subtitle">与 AI 智能体团队对话，实时跟踪任务执行</p>
       </div>
-
-      <div class="chat-shell">
-    <aside class="chat-side">
-      <div class="chat-side-head">
-        <div class="flex-center">
-          <span class="text-sm" style="font-weight: 600;">任务</span>
-        </div>
-      </div>
-
-      <div class="chat-side-search">
-        <input v-model="searchText" class="input" placeholder="搜索任务..." />
-      </div>
-
-      <div class="chat-side-list">
-        <div
-          v-for="task in filteredTasks"
-          :key="task.task_id"
-          class="chat-task"
-          :class="{ active: currentTask?.task_id === task.task_id }"
-          @click="selectTask(task)"
-          :title="task.user_request"
-        >
-          <div class="chat-task-top">
-            <span class="chat-task-name overflow-ellipsis">{{ taskTitle(task) }}</span>
-            <StatusPill :status="task.status" />
-          </div>
-          <div class="chat-task-meta">
-            <span>{{ formatTime(task.created_at) }}</span>
-            <span v-if="task.tokens" class="mono">{{ task.tokens.toLocaleString() }}</span>
-          </div>
-        </div>
-        <div v-if="!filteredTasks.length" class="empty-state" style="padding: 30px 10px;">
-          <p class="text-sm">{{ tasks.length ? '无匹配任务' : '暂无任务，点击右上角新建' }}</p>
-        </div>
-      </div>
-    </aside>
-
-    <section class="chat-main">
-      <div class="chat-head">
-        <div class="flex-center" style="min-width: 0;">
-          <span class="conn-dot" :class="wsConnected ? 'on' : 'off'" :title="wsConnected ? '实时连接' : '连接断开，重连中...'"></span>
-          <h2 class="chat-title overflow-ellipsis" :title="currentTask?.user_request">{{ taskTitle(currentTask) }}</h2>
-        </div>
-        <div class="flex-center">
-          <select v-model="selectedLayer" class="input layer-select" @change="onLayerChange">
-            <option value="L1">公共广场</option>
-            <option value="L2">会议层</option>
-          </select>
-          <template v-if="currentTask">
-            <button v-if="isActive" class="btn btn-danger btn-sm" @click="cancelCurrent">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              取消
-            </button>
-            <button v-else-if="['failed', 'paused'].includes(currentTask.status)" class="btn btn-secondary btn-sm" @click="resumeCurrent">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              恢复
-            </button>
-            <a :href="downloadUrl" class="btn btn-secondary btn-sm" target="_blank" title="下载交付产物">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              产物
-            </a>
-          </template>
-        </div>
-      </div>
-
-      <div class="chat-body">
-        <div class="chat-messages" ref="messagesRef">
-          <div v-if="!currentTask" class="empty-state">
-            <div class="empty-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <p>选择左侧任务，或创建一个新任务</p>
-            <button class="btn btn-primary" @click="openCreate">创建新任务</button>
-          </div>
-
-          <div v-else class="msg-list">
-            <div
-              v-for="(msg, i) in messages"
-              :key="msg.msg_id || i"
-              class="msg"
-              :class="{ own: msg.role === 'user', sys: msg.role === 'system' }"
-            >
-              <div class="msg-avatar" :style="{ background: roleColor(msg.role) }">{{ avatarText(msg.role) }}</div>
-              <div class="msg-body">
-                <div class="msg-meta">
-                  <span class="msg-role" :style="{ color: roleColor(msg.role) }">{{ roleLabel(msg.role) }}</span>
-                  <span v-if="msg.msg_type === 'task_board_update'" class="msg-tag">看板</span>
-                  <span v-else-if="msg.msg_type === 'security_warning'" class="msg-tag danger">安全</span>
-                  <span v-else-if="msg.msg_type === 'code'" class="msg-tag">代码</span>
-                  <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
-                </div>
-                <div class="msg-content" v-html="renderContent(msg)"></div>
-              </div>
-            </div>
-            <div v-if="loading" class="msg-loading">
-              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-            </div>
-          </div>
-        </div>
-
-        <aside class="chat-board" v-if="currentTask">
-          <TaskBoardPanel :board="taskStore.board" />
-        </aside>
-      </div>
-
-      <div class="chat-input-bar">
-        <textarea
-          v-model="inputText"
-          class="input"
-          placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-          rows="1"
-          :disabled="!currentTask"
-          @keydown="handleKeydown"
-        ></textarea>
-        <button class="btn btn-primary" :disabled="!inputText.trim() || !currentTask" @click="sendMsg">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          发送
+      <div class="header-actions">
+        <button class="btn btn-primary" @click="openCreate">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新建任务
         </button>
       </div>
-    </section>
+    </div>
+
+    <div class="chat-shell">
+      <aside class="chat-side">
+        <div class="chat-side-head">
+          <span class="text-sm" style="font-weight: 600;">任务</span>
+          <span class="text-xs text-muted mono">{{ tasks.length }}</span>
+        </div>
+
+        <div class="chat-side-search">
+          <input v-model="searchText" class="input" placeholder="搜索任务..." />
+        </div>
+
+        <div class="chat-side-list">
+          <div
+            v-for="task in filteredTasks"
+            :key="task.task_id"
+            class="chat-task"
+            :class="{ active: currentTask?.task_id === task.task_id }"
+            @click="selectTask(task)"
+            :title="task.user_request"
+          >
+            <div class="chat-task-top">
+              <span class="chat-task-name overflow-ellipsis">{{ taskTitle(task) }}</span>
+              <StatusPill :status="task.status" />
+            </div>
+            <div class="chat-task-meta">
+              <span>{{ formatTime(task.created_at) }}</span>
+              <span v-if="task.tokens" class="mono">{{ task.tokens.toLocaleString() }}</span>
+            </div>
+          </div>
+          <div v-if="!filteredTasks.length" class="empty-state" style="padding: 30px 10px;">
+            <p class="text-sm">{{ tasks.length ? '无匹配任务' : '暂无任务，点击右上角新建' }}</p>
+          </div>
+        </div>
+      </aside>
+
+      <section class="chat-main">
+        <div class="chat-head">
+          <div class="flex-center" style="min-width: 0;">
+            <span class="conn-dot" :class="wsConnected ? 'on' : 'off'" :title="wsConnected ? '实时连接' : '连接断开，重连中...'"></span>
+            <h2 class="chat-title overflow-ellipsis" :title="currentTask?.user_request">{{ taskTitle(currentTask) }}</h2>
+          </div>
+          <div class="flex-center chat-head-actions">
+            <select v-model="selectedLayer" class="input layer-select" @change="onLayerChange">
+              <option value="L1">公共广场</option>
+              <option value="L2">会议层</option>
+            </select>
+            <template v-if="currentTask">
+              <button v-if="isActive" class="btn btn-danger btn-sm" @click="cancelCurrent">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                取消
+              </button>
+              <button v-else-if="['failed', 'paused'].includes(currentTask.status)" class="btn btn-secondary btn-sm" @click="resumeCurrent">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                恢复
+              </button>
+              <a :href="downloadUrl" class="btn btn-secondary btn-sm" target="_blank" title="下载交付产物">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                产物
+              </a>
+            </template>
+          </div>
+        </div>
+
+        <div class="chat-body">
+          <div class="chat-messages" ref="messagesRef">
+            <div v-if="!currentTask" class="empty-state">
+              <div class="empty-icon">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <p>选择左侧任务，或创建一个新任务</p>
+              <button class="btn btn-primary" @click="openCreate">创建新任务</button>
+            </div>
+
+            <div v-else class="msg-list">
+              <div
+                v-for="(msg, i) in messages"
+                :key="msg.msg_id || i"
+                class="msg"
+                :class="{ own: msg.role === 'user', sys: msg.role === 'system' }"
+              >
+                <div class="msg-avatar" :style="{ background: roleColor(msg.role) }">{{ avatarText(msg.role) }}</div>
+                <div class="msg-body">
+                  <div class="msg-meta">
+                    <span class="msg-role" :style="{ color: roleColor(msg.role) }">{{ roleLabel(msg.role) }}</span>
+                    <span v-if="msg.msg_type === 'task_board_update'" class="msg-tag">看板</span>
+                    <span v-else-if="msg.msg_type === 'security_warning'" class="msg-tag danger">安全</span>
+                    <span v-else-if="msg.msg_type === 'code'" class="msg-tag">代码</span>
+                    <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
+                  </div>
+                  <div class="msg-content" v-html="renderContent(msg)"></div>
+                </div>
+              </div>
+              <div v-if="loading" class="msg-loading">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="chat-board" v-if="currentTask">
+            <TaskBoardPanel :board="taskStore.board" />
+          </aside>
+        </div>
+
+        <div class="chat-input-bar">
+          <textarea
+            v-model="inputText"
+            class="input"
+            placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+            rows="1"
+            :disabled="!currentTask"
+            @keydown="handleKeydown"
+          ></textarea>
+          <button class="btn btn-primary" :disabled="!inputText.trim() || !currentTask" @click="sendMsg">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            发送
+          </button>
+        </div>
+      </section>
+    </div>
 
     <NewTaskModal ref="modalRef" @created="onTaskCreated" />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -340,20 +337,20 @@ function renderContent(msg) {
 </script>
 
 <style scoped>
-.view-root {
-  flex: 1;
-  min-height: 0;
+.chat-page {
+  padding: 30px 34px 26px;
+  max-width: 1440px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
-.chat-page {
-  flex: 1;
+.chat-headbar {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding-bottom: 24px;
-  max-width: 100%;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .chat-shell {
@@ -365,13 +362,13 @@ function renderContent(msg) {
 
 /* 左侧任务列表 */
 .chat-side {
-  width: 264px;
+  width: 268px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   min-height: 0;
   overflow: hidden;
 }
@@ -380,7 +377,7 @@ function renderContent(msg) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 13px 16px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -396,7 +393,7 @@ function renderContent(msg) {
 }
 
 .chat-task {
-  padding: 10px 12px;
+  padding: 9px 10px;
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.12s ease;
@@ -447,7 +444,7 @@ function renderContent(msg) {
   flex-direction: column;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -456,14 +453,19 @@ function renderContent(msg) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 18px;
+  padding: 11px 16px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
 }
 
 .chat-title {
   font-size: 14px;
   font-weight: 600;
-  margin-left: 6px;
+  margin-left: 4px;
+}
+
+.chat-head-actions {
+  flex-shrink: 0;
 }
 
 .conn-dot {
@@ -483,8 +485,9 @@ function renderContent(msg) {
 
 .layer-select {
   width: auto;
-  padding: 5px 10px;
+  padding: 5px 26px 5px 10px;
   font-size: 12px;
+  background-color: var(--bg-surface);
 }
 
 .chat-body {
@@ -497,18 +500,19 @@ function renderContent(msg) {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 22px 26px;
+  padding: 20px 24px;
+  background: var(--bg);
 }
 
 .msg-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .msg {
   display: flex;
-  gap: 11px;
+  gap: 10px;
   max-width: 82%;
 }
 
@@ -523,22 +527,21 @@ function renderContent(msg) {
 }
 
 .msg-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
   margin-top: 2px;
-  box-shadow: 0 1px 3px rgba(24, 24, 27, 0.18);
 }
 
 .msg.own .msg-avatar {
-  background: var(--accent-gradient) !important;
+  background: var(--accent) !important;
 }
 
 .msg-body {
@@ -549,7 +552,7 @@ function renderContent(msg) {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   padding: 0 2px;
 }
 
@@ -560,17 +563,18 @@ function renderContent(msg) {
 
 .msg-tag {
   font-size: 10px;
-  padding: 1px 8px;
+  padding: 0 7px;
   border-radius: 999px;
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   color: var(--text-muted);
+  line-height: 1.7;
 }
 
 .msg-tag.danger {
   background: var(--error-soft);
   color: var(--error);
-  border-color: rgba(220, 38, 38, 0.2);
+  border-color: transparent;
 }
 
 .msg-time {
@@ -579,7 +583,7 @@ function renderContent(msg) {
 }
 
 .msg-content {
-  padding: 12px 15px;
+  padding: 11px 14px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -590,15 +594,14 @@ function renderContent(msg) {
 }
 
 .msg.own .msg-content {
-  background: var(--accent-gradient);
+  background: var(--accent);
   border-color: transparent;
-  color: #fff;
-  box-shadow: var(--shadow-accent);
+  color: var(--accent-contrast);
 }
 
 .msg.own .msg-content :deep(:not(pre) > code) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 
@@ -640,7 +643,7 @@ function renderContent(msg) {
 
 /* 右侧看板 */
 .chat-board {
-  width: 272px;
+  width: 276px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   padding: 18px;
@@ -651,34 +654,47 @@ function renderContent(msg) {
 .chat-input-bar {
   display: flex;
   gap: 10px;
-  padding: 14px 18px;
+  padding: 13px 16px;
   border-top: 1px solid var(--border);
   align-items: flex-end;
+  background: var(--bg-surface);
 }
 
 .chat-input-bar textarea {
   flex: 1;
-  min-height: 40px;
+  min-height: 38px;
   max-height: 120px;
   resize: none;
-  padding: 10px 14px;
+  padding: 9px 13px;
   border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
 }
 
-@media (max-width: 900px) {
+.chat-input-bar textarea:focus {
+  background: var(--bg-surface);
+}
+
+@media (max-width: 1100px) {
   .chat-board { display: none; }
 }
 
 @media (max-width: 768px) {
+  .chat-page {
+    padding: 16px 12px 16px;
+  }
+
   .chat-shell {
     flex-direction: column;
     gap: 8px;
   }
+
   .chat-side {
     width: 100%;
     max-height: 30%;
   }
+
   .chat-side-search { display: none; }
+
   .msg { max-width: 94%; }
 }
 </style>

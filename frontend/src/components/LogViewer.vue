@@ -143,7 +143,7 @@ defineExpose({ reload })
   min-height: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 
@@ -152,7 +152,7 @@ defineExpose({ reload })
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 11px 14px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   background: var(--bg-subtle);
@@ -189,7 +189,7 @@ defineExpose({ reload })
 .log-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 0;
+  padding: 10px 0;
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.7;
@@ -198,7 +198,7 @@ defineExpose({ reload })
 .log-line {
   display: flex;
   gap: 12px;
-  padding: 2px 16px;
+  padding: 1.5px 16px;
   white-space: pre-wrap;
   word-break: break-all;
   border-left: 2px solid transparent;
@@ -210,6 +210,7 @@ defineExpose({ reload })
 
 .log-line.lv-error {
   border-left-color: var(--error);
+  background: var(--error-soft);
 }
 
 .log-level {
