@@ -24,7 +24,7 @@
         </div>
       </div>
 
-      <div class="flex gap-8" style="margin-top: 14px;">
+      <div class="flex gap-8 update-actions">
         <button class="btn btn-secondary" :disabled="checking" @click="checkUpdate">
           {{ checking ? '检查中...' : '检查更新' }}
         </button>
@@ -42,7 +42,7 @@
           <span class="config-key mono">{{ key }}</span>
           <span class="config-val mono overflow-ellipsis">{{ formatValue(val) }}</span>
         </div>
-        <div v-if="!topLevelKeys.length" class="text-sm text-muted" style="padding: 12px;">加载配置中...</div>
+        <div v-if="!topLevelKeys.length" class="text-sm text-muted config-loading">加载配置中...</div>
       </div>
     </div>
 
@@ -52,7 +52,7 @@
         <span>IReckon AI Factory</span>
         <span class="mono text-muted">v{{ version }}</span>
       </div>
-      <p class="text-sm text-muted" style="margin-top: 6px;">
+      <p class="text-sm text-muted about-desc">
         多智能体自主编程系统 — 由专业 AI 智能体团队完成规划、编码、审查与交付。
       </p>
     </div>
@@ -61,9 +61,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { configAPI, updateAPI, healthAPI } from '../api/index.js'
-import { useToast } from '../composables/useToast.js'
+import {computed, onMounted, ref} from 'vue'
+import {configAPI, healthAPI, updateAPI} from '../api/index.js'
+import {useToast} from '../composables/useToast.js'
 import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
@@ -179,5 +179,17 @@ function formatValue(val) {
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
+}
+
+.update-actions {
+  margin-top: 14px;
+}
+
+.about-desc {
+  margin-top: 6px;
+}
+
+.config-loading {
+  padding: 12px;
 }
 </style>

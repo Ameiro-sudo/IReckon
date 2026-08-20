@@ -8,9 +8,7 @@ from typing import Any, Dict, Optional
 import aiofiles
 from loguru import logger
 
-from .config import config_manager
-
-get = config_manager.get
+from .config import get
 
 
 class StateManager:

@@ -70,6 +70,7 @@ async def update_config(req: ConfigUpdateRequest):
 async def list_themes():
     from app.engine.style import style_engine
 
+    style_engine._ensure_themes()
     return {
         name: {"name": t.get("name", name)} for name, t in style_engine._themes.items()
     }

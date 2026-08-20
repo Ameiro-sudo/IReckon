@@ -1,9 +1,22 @@
 from typing import Dict, Optional
 from datetime import datetime, timezone
 from loguru import logger
-from app.core.config import config_manager
+from app.core.config import get
 
-get = config_manager.get
+
+def _current_month() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+async def get_summary() -> Dict:
+    """聚合用量：数据库持久化数据。"""
+    try:
+        from app.core.database import db
+
+        return await db.get_usage_summary()
+    except Exception as e:
+        logger.warning(f"用量汇总失败: {e}")
+    return {"total_tokens": 0, "total_cost": 0.0}
 
 
 class CostTracker:
@@ -60,7 +73,7 @@ class CostTracker:
         except Exception as e:
             logger.warning(f"用量落库失败: {e}")
 
-        now = self._current_month()
+        now = _current_month()
         self._monthly_usage[now] = self._monthly_usage.get(now, 0) + tokens
         self._monthly_cost[now] = self._monthly_cost.get(now, 0.0) + cost
         if self._monthly_usage[now] > self.monthly_warning_threshold:
@@ -163,7 +176,7 @@ class CostTracker:
                 return int(row[0])
         except Exception as e:
             logger.warning(f"读取本月用量失败: {e}")
-        return self._monthly_usage.get(self._current_month(), 0)
+        return self._monthly_usage.get(_current_month(), 0)
 
     async def get_monthly_cost(self) -> float:
         """本月美元成本：DB SUM，读不到时回退内存。"""
@@ -179,7 +192,7 @@ class CostTracker:
                 return float(row[0])
         except Exception as e:
             logger.warning(f"读取本月成本失败: {e}")
-        return self._monthly_cost.get(self._current_month(), 0.0)
+        return self._monthly_cost.get(_current_month(), 0.0)
 
     def get_task_usage(self, task_id: str) -> int:
         """同步取任务用量（内存快照，兼容旧调用方/测试）。"""
@@ -199,19 +212,6 @@ class CostTracker:
         except Exception as e:
             logger.warning(f"读取任务 {task_id} 预算失败: {e}")
         return float(get("task_defaults.budget_limit_usd", 0.0))
-
-    async def get_summary(self) -> Dict:
-        """聚合用量：数据库持久化数据。"""
-        try:
-            from app.core.database import db
-
-            return await db.get_usage_summary()
-        except Exception as e:
-            logger.warning(f"用量汇总失败: {e}")
-        return {"total_tokens": 0, "total_cost": 0.0}
-
-    def _current_month(self) -> str:
-        return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 cost_tracker = CostTracker()

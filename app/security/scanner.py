@@ -3,13 +3,15 @@ import tempfile
 import os
 import subprocess
 from loguru import logger
-from app.core.config import config_manager
+
+from app.core.config import get
 
 
 class CodeScanner:
     def __init__(self, tool=None):
-        self.tool = tool or config_manager.get("security.code_scanner", "bandit")
-        self._available = self._check_tool()
+        self.tool = tool or get("security.code_scanner", "bandit")
+        # 懒探测：首次 scan 时才检查工具，避免导入期执行 subprocess
+        self._available = None
 
     def _check_tool(self):
         try:
@@ -19,6 +21,8 @@ class CodeScanner:
             return False
 
     async def scan(self, code, language="python"):
+        if self._available is None:
+            self._available = await asyncio.to_thread(self._check_tool)
         if not self._available:
             logger.warning(f"扫描工具 {self.tool} 不可用，跳过静态扫描")
             return []
@@ -58,7 +62,7 @@ class CodeScanner:
                 import json
 
                 try:
-                    return json.loads(stdout.decode()).get("results", [])
+                    return json.loads(stdout).get("results", [])
                 except Exception as e:
                     logger.warning(f"bandit 输出解析失败 (exit={proc.returncode}): {e}")
                     return []
@@ -76,7 +80,7 @@ class CodeScanner:
                 import json
 
                 try:
-                    return json.loads(stdout.decode()).get("results", [])
+                    return json.loads(stdout).get("results", [])
                 except Exception as e:
                     logger.warning(
                         f"semgrep 输出解析失败 (exit={proc.returncode}): {e}"

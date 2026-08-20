@@ -7,9 +7,9 @@ from pathlib import Path
 
 from app.agents import base as base_agents
 from app.core.database import db
-from app.engine.cost import CostTracker
+from app.engine.cost import CostTracker, _current_month
 from app.engine.detector import LoopDetector
-from app.engine.machine import WorkflowEngine
+from app.engine.machine import WorkflowEngine, review_router, revise_router
 from app.engine.tasks import TaskStatus, task_manager
 
 
@@ -44,7 +44,7 @@ def test_review_router_pass_last_phase():
         "current_phase": 1,
         "phases": [{"phase": "a"}, {"phase": "b"}],
     }
-    assert make_engine().review_router(state) == "pass"
+    assert review_router(state) == "pass"
 
 
 def test_review_router_pass_more_phases():
@@ -54,7 +54,7 @@ def test_review_router_pass_more_phases():
         "current_phase": 0,
         "phases": [{"phase": "a"}, {"phase": "b"}],
     }
-    assert make_engine().review_router(state) == "revise"
+    assert review_router(state) == "revise"
 
 
 def test_review_router_rounds_exhausted():
@@ -66,7 +66,7 @@ def test_review_router_rounds_exhausted():
         "current_phase": 0,
         "phases": [{"phase": "a"}],
     }
-    assert make_engine().review_router(state) == "fail"
+    assert review_router(state) == "fail"
 
 
 def test_review_router_retry():
@@ -78,13 +78,13 @@ def test_review_router_retry():
         "current_phase": 0,
         "phases": [{"phase": "a"}],
     }
-    assert make_engine().review_router(state) == "revise"
+    assert review_router(state) == "revise"
 
 
 def test_revise_router():
     engine = make_engine()
-    assert engine.revise_router({"status": TaskStatus.EXECUTING}) == "execute"
-    assert engine.revise_router({"status": TaskStatus.REVIEWING}) == "review"
+    assert revise_router({"status": TaskStatus.EXECUTING}) == "execute"
+    assert revise_router({"status": TaskStatus.REVIEWING}) == "review"
 
 
 # ---------- 成本追踪 ----------
@@ -102,7 +102,7 @@ async def test_cost_tracker_monthly_warning():
     ct = CostTracker()
     ct.monthly_warning_threshold = 50
     await ct.add_usage("t2", 100, 0.0)
-    assert ct._monthly_usage[ct._current_month()] >= 100
+    assert ct._monthly_usage[ _current_month()] >= 100
 
 
 async def test_cost_tracker_is_over_budget():

@@ -1,29 +1,32 @@
 import asyncio
 from typing import Dict, Any
 from loguru import logger
-from app.core.config import config_manager
+
+from app.core.config import get
+
+
+def _check_engine() -> bool:
+    import subprocess
+
+    try:
+        subprocess.run(["udocker", "--version"], capture_output=True, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        logger.warning("udocker 不可用，沙箱功能将降级")
+        return False
 
 
 class Sandbox:
     """udocker 容器沙箱：提供资源受限的隔离执行。"""
 
     def __init__(self):
-        self.engine = config_manager.get("security.sandbox.engine", "udocker")
-        self.image = config_manager.get("security.sandbox.image", "python:3.11-slim")
-        self.memory_limit = config_manager.get("security.sandbox.memory_limit", "512m")
-        self.cpu_limit = config_manager.get("security.sandbox.cpu_limit", 1.0)
-        self._available = self._check_engine()
-        self._image_ready = not self._available  # 引擎不可用时无需拉镜像
-
-    def _check_engine(self) -> bool:
-        import subprocess
-
-        try:
-            subprocess.run(["udocker", "--version"], capture_output=True, check=True)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.warning("udocker 不可用，沙箱功能将降级")
-            return False
+        self.engine = get("security.sandbox.engine", "udocker")
+        self.image = get("security.sandbox.image", "python:3.11-slim")
+        self.memory_limit = get("security.sandbox.memory_limit", "512m")
+        self.cpu_limit = get("security.sandbox.cpu_limit", 1.0)
+        # 懒探测：首次 run 时才检查 udocker，避免导入期阻塞（无 udocker 环境也正常启动）
+        self._available = None
+        self._image_ready = None
 
     def _ensure_image(self) -> bool:
         """确保镜像已存在；缺失时尝试拉取（带超时）。"""
@@ -59,18 +62,21 @@ class Sandbox:
             return False
 
     async def run(self, command: str, timeout: int = 30) -> Dict[str, Any]:
+        # 首次调用时探测 udocker 可用性（走线程，避免阻塞事件循环）
+        if self._available is None:
+            self._available = await asyncio.to_thread(_check_engine)
         if not self._available:
             logger.warning("沙箱不可用，无法执行")
             return {"stdout": "", "stderr": "sandbox unavailable", "returncode": -1}
 
+        if self._image_ready is None:
+            self._image_ready = await asyncio.to_thread(self._ensure_image)
         if not self._image_ready:
-            self._image_ready = self._ensure_image()
-            if not self._image_ready:
-                return {
-                    "stdout": "",
-                    "stderr": "sandbox image unavailable",
-                    "returncode": -1,
-                }
+            return {
+                "stdout": "",
+                "stderr": "sandbox image unavailable",
+                "returncode": -1,
+            }
 
         cmd = [
             "udocker",

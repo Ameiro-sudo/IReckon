@@ -167,6 +167,25 @@ class _StderrTail:
         return b"".join(self._parts).decode(errors="replace")
 
 
+async def _drain_cli(proc, stdout_sink, stderr_tail):
+    """增量读取 stdout/stderr：communicate() 会一次攒满内存，这里改为增量。
+
+    - stdout：累计超过 200KB 截断（丢弃后续）；
+    - stderr：每行实时转发到 logger（warning 级）+ 保留尾部用于报错。
+    """
+
+    async def drain(stream, sink):
+        while True:
+            line = await stream.readline()
+            if not line:
+                break
+            sink.feed(line)
+
+    await asyncio.gather(
+        drain(proc.stdout, stdout_sink), drain(proc.stderr, stderr_tail)
+    )
+
+
 class DSHClient:
     """
     DeepSeek Harness 客户端核心类～
@@ -186,7 +205,7 @@ class DSHClient:
 
     # ---- 可用性探测 ----
 
-    def sdk_available(self) -> bool:
+    def sdk_available(self) -> bool | None:
         """Python SDK (deepseek-harness-sdk) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
         ttl = float(self._get("availability_ttl_seconds", 300))
         if self._sdk_checked is None or time.monotonic() - self._sdk_checked_at > ttl:
@@ -194,7 +213,7 @@ class DSHClient:
             self._sdk_checked_at = time.monotonic()
         return self._sdk_checked
 
-    def cli_available(self) -> bool:
+    def cli_available(self) -> bool | None:
         """headless CLI (npx @deepseek-ai/dsh) 是否可用～（探测结果 TTL 缓存，默认 300s）"""
         ttl = float(self._get("availability_ttl_seconds", 300))
         if self._cli_checked is None or time.monotonic() - self._cli_checked_at > ttl:
@@ -227,6 +246,11 @@ class DSHClient:
         if lock is None:
             lock = asyncio.Lock()
             self._session_locks[key] = lock
+        # 长驻进程下修剪不再使用的锁，防止无界增长
+        if len(self._session_locks) > 100:
+            stale = [k for k, v in self._session_locks.items() if not v.locked()]
+            for k in stale[:50]:
+                self._session_locks.pop(k, None)
         return lock
 
     def _cordis_config(self) -> Optional[Path]:
@@ -493,24 +517,6 @@ class DSHClient:
 
         return await asyncio.to_thread(_inner)
 
-    async def _drain_cli(self, proc, stdout_sink, stderr_tail):
-        """增量读取 stdout/stderr：communicate() 会一次攒满内存，这里改为增量。
-
-        - stdout：累计超过 200KB 截断（丢弃后续）；
-        - stderr：每行实时转发到 logger（warning 级）+ 保留尾部用于报错。
-        """
-
-        async def drain(stream, sink):
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break
-                sink.feed(line)
-
-        await asyncio.gather(
-            drain(proc.stdout, stdout_sink), drain(proc.stderr, stderr_tail)
-        )
-
     async def _run_cli(
         self,
         task: str,
@@ -548,7 +554,7 @@ class DSHClient:
         stderr_tail = _StderrTail(max_bytes=2000)
         try:
             await asyncio.wait_for(
-                self._drain_cli(proc, stdout_sink, stderr_tail), timeout=timeout
+                _drain_cli(proc, stdout_sink, stderr_tail), timeout=timeout
             )
         except asyncio.TimeoutError:
             # 超时路径必须 kill + wait 回收子进程，防止僵尸进程

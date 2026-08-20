@@ -4,7 +4,60 @@ from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
 from app.knowledge.files import FileKnowledgeBase
-from app.tools.library import parts_library
+from app.tools.library import add_part
+
+
+async def extract_tool(
+    name: str, description: str, language: str, code: str, tags: List[str]
+) -> str:
+    return await add_part(
+        name=name,
+        description=description,
+        language=language,
+        code=code,
+        input_schema={},
+        output_schema={},
+        tags=tags,
+        created_by="learner",
+    )
+
+
+def _extract_tool_suggestions(response: str) -> List[Dict[str, str]]:
+    suggestions: List[Dict[str, str]] = []
+    lines = response.split("\n")
+    current: Dict[str, str] = {}
+    in_code = False
+    code_lines: List[str] = []
+    for line in lines:
+        if line.startswith("工具名称：") or line.startswith("名称："):
+            if current:
+                if code_lines:
+                    current["code"] = "\n".join(code_lines)
+                suggestions.append(current)
+            current = {"name": line.split("：", 1)[1].strip()}
+            in_code = False
+            code_lines = []
+        elif line.startswith("描述："):
+            if current is not None:
+                current["description"] = line.split("：", 1)[1].strip()
+        elif line.startswith("语言："):
+            if current is not None:
+                current["language"] = line.split("：", 1)[1].strip()
+        elif "```" in line and not in_code:
+            in_code = True
+            code_lines = []
+        elif "```" in line and in_code:
+            in_code = False
+            if current is not None:
+                current["code"] = "\n".join(code_lines)
+            code_lines = []
+        elif in_code:
+            code_lines.append(line)
+    if current:
+        if code_lines and "code" not in current:
+            current["code"] = "\n".join(code_lines)
+        suggestions.append(current)
+    return suggestions
 
 
 @register_role(
@@ -67,63 +120,12 @@ URL:
         return {
             "summary": response,
             "source": url,
-            "tool_suggestions": self._extract_tool_suggestions(response),
+            "tool_suggestions": _extract_tool_suggestions(response),
         }
-
-    def _extract_tool_suggestions(self, response: str) -> List[Dict[str, str]]:
-        suggestions: List[Dict[str, str]] = []
-        lines = response.split("\n")
-        current: Dict[str, str] = {}
-        in_code = False
-        code_lines: List[str] = []
-        for line in lines:
-            if line.startswith("工具名称：") or line.startswith("名称："):
-                if current:
-                    if code_lines:
-                        current["code"] = "\n".join(code_lines)
-                    suggestions.append(current)
-                current = {"name": line.split("：", 1)[1].strip()}
-                in_code = False
-                code_lines = []
-            elif line.startswith("描述："):
-                if current is not None:
-                    current["description"] = line.split("：", 1)[1].strip()
-            elif line.startswith("语言："):
-                if current is not None:
-                    current["language"] = line.split("：", 1)[1].strip()
-            elif "```" in line and not in_code:
-                in_code = True
-                code_lines = []
-            elif "```" in line and in_code:
-                in_code = False
-                if current is not None:
-                    current["code"] = "\n".join(code_lines)
-                code_lines = []
-            elif in_code:
-                code_lines.append(line)
-        if current:
-            if code_lines and "code" not in current:
-                current["code"] = "\n".join(code_lines)
-            suggestions.append(current)
-        return suggestions
 
     async def save_pattern(self, title: str, content: str, source: str) -> str:
         return await self.kb.add_entry(
             entry_type="patterns", title=title, content=content, source=source
-        )
-
-    async def extract_tool(
-        self, name: str, description: str, language: str, code: str, tags: List[str]
-    ) -> str:
-        return await parts_library.add_part(
-            name=name,
-            description=description,
-            language=language,
-            code=code,
-            input_schema={},
-            output_schema={},
-            tags=tags,
-            created_by="learner",
         )
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -135,7 +137,7 @@ URL:
             if result.get("tool_suggestions"):
                 for tool in result["tool_suggestions"]:
                     if tool.get("name") and tool.get("code"):
-                        await self.extract_tool(
+                        await extract_tool(
                             name=tool.get("name", ""),
                             description=tool.get("description", ""),
                             language=tool.get("language", "python"),

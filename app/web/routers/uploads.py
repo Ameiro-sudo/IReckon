@@ -7,7 +7,8 @@ from typing import List
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from loguru import logger
 
-from app.core.config import config_manager
+
+from app.core.config import get
 
 router = APIRouter(prefix="/api", tags=["uploads"])
 
@@ -46,7 +47,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
     if len(files) > MAX_FILES:
         return {"status": "error", "error": f"最多上传 {MAX_FILES} 个文件"}
     upload_id = f"up-{uuid.uuid4().hex[:12]}"
-    data_dir = Path(config_manager.get("system.data_dir", "./data"))
+    data_dir = Path(get("system.data_dir", "./data"))
     uploads_root = (data_dir / "uploads").resolve()
     dest = (uploads_root / upload_id).resolve()
     try:
@@ -64,7 +65,8 @@ async def upload_files(files: List[UploadFile] = File(...)):
         if Path(name).suffix.lower() not in _ALLOWED_EXTENSIONS:
             logger.warning(f"文件 {name} 扩展名不在白名单，跳过")
             continue
-        content = await f.read()
+        # 只读 MAX_FILE_SIZE+1 字节：超限即跳过，防止未限流大文件耗尽内存
+        content = await f.read(MAX_FILE_SIZE + 1)
         if len(content) > MAX_FILE_SIZE:
             logger.warning(f"文件 {name} 超过大小限制，跳过")
             continue

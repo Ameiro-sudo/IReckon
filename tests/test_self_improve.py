@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import app.engine.self_improve as si_mod
-from app.engine.self_improve import SelfImprover
+from app.engine.self_improve import SelfImprover, _get_executor, _parse_analysis
 from conftest import ROOT, make_cap
 
 # 触发 app/agents/* 的角色注册（executor 等），供 role_registry.create_agent 使用
@@ -72,7 +72,7 @@ def test_analyze_no_executor(monkeypatch):
     async def _no_executor(tid):
         return None
 
-    monkeypatch.setattr(imp, "_get_executor", _no_executor)
+    monkeypatch.setattr(si_mod, "_get_executor", _no_executor)
     result = asyncio.run(imp.analyze("t1"))
     assert result["success"] is False
     assert "Executor" in result["error"]
@@ -85,7 +85,7 @@ def test_analyze_success(monkeypatch):
     async def _get_exec(tid):
         return executor
 
-    monkeypatch.setattr(imp, "_get_executor", _get_exec)
+    monkeypatch.setattr(si_mod, "_get_executor", _get_exec)
     result = asyncio.run(imp.analyze("t1"))
     assert result["success"] is True
     assert "发现了一些问题" in result["analysis"]
@@ -108,7 +108,7 @@ def test_get_executor_uses_find_best_match(monkeypatch):
         return cap
 
     monkeypatch.setattr(si_mod.capability_pool, "find_best_match", fake_find)
-    ex = asyncio.run(imp._get_executor("t1"))
+    ex = asyncio.run( _get_executor("t1"))
     assert ex is not None
     assert ex.context is not None
     assert ex.context.task_id == "t1"
@@ -122,7 +122,7 @@ def test_get_executor_falls_back_to_get_all(monkeypatch):
         return [cap]
 
     monkeypatch.setattr(si_mod.capability_pool, "get_all", fake_get_all)
-    ex = asyncio.run(imp._get_executor("t1"))
+    ex = asyncio.run( _get_executor("t1"))
     assert ex is not None
 
 
@@ -133,7 +133,7 @@ def test_get_executor_no_caps(monkeypatch):
         return []
 
     monkeypatch.setattr(si_mod.capability_pool, "get_all", fake_get_all)
-    assert asyncio.run(imp._get_executor("t1")) is None
+    assert asyncio.run( _get_executor("t1")) is None
 
 
 def test_get_executor_unregistered_role(monkeypatch):
@@ -147,7 +147,7 @@ def test_get_executor_unregistered_role(monkeypatch):
     monkeypatch.setattr(
         si_mod.role_registry, "create_agent", lambda role, cap, **kw: None
     )
-    assert asyncio.run(imp._get_executor("t1")) is None
+    assert asyncio.run( _get_executor("t1")) is None
 
 
 # ---------- 源文件扫描 ----------
@@ -197,10 +197,10 @@ def test_build_analysis_prompt_many_files(monkeypatch):
 
 def test_parse_analysis(monkeypatch):
     imp = make_improver(monkeypatch)
-    result = imp._parse_analysis("发现 2 个文件需要修改")
+    result = _parse_analysis("发现 2 个文件需要修改")
     assert result["success"] is True
     assert result["changes_proposed"] == 2
-    empty = imp._parse_analysis("没有发现")
+    empty = _parse_analysis("没有发现")
     assert empty["changes_proposed"] == 0
 
 

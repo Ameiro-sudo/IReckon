@@ -18,16 +18,16 @@
   </PageHeader>
 
   <div class="panel tasks-table-wrap">
-    <table class="table">
+    <table class="table" aria-label="任务列表">
       <thead>
         <tr>
-          <th style="width: 92px;">ID</th>
-          <th>标题</th>
-          <th style="width: 88px;">状态</th>
-          <th style="width: 180px;">进度</th>
-          <th style="width: 90px;">Tokens</th>
-          <th style="width: 70px;">创建时间</th>
-          <th style="width: 150px; text-align: right;">操作</th>
+          <th style="width: 92px;" scope="col">ID</th>
+          <th scope="col">标题</th>
+          <th style="width: 88px;" scope="col">状态</th>
+          <th style="width: 180px;" scope="col">进度</th>
+          <th style="width: 90px;" scope="col">Tokens</th>
+          <th style="width: 70px;" scope="col">创建时间</th>
+          <th style="width: 150px; text-align: right;" scope="col">操作</th>
         </tr>
       </thead>
       <tbody>
@@ -46,10 +46,10 @@
           <td class="mono text-muted">{{ task.tokens ? task.tokens.toLocaleString() : '—' }}</td>
           <td class="text-sm text-secondary">{{ shortTime(task.created_at) }}</td>
           <td>
-            <div class="flex-center" style="justify-content: flex-end; gap: 6px;" @click.stop>
+            <div class="flex-center" style="justify-content: flex-end; gap: 6px;" @click.stop role="group" aria-label="任务操作">
               <button v-if="isActive(task)" class="btn btn-danger btn-sm" @click="cancel(task)">取消</button>
               <button v-else-if="['failed', 'paused'].includes(task.status)" class="btn btn-secondary btn-sm" @click="resume(task)">恢复</button>
-              <button class="btn btn-ghost btn-icon" title="删除任务" @click="remove(task)">
+              <button class="btn btn-ghost btn-icon" title="删除任务" aria-label="删除任务" @click="remove(task)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
@@ -72,11 +72,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useTaskStore } from '../stores/taskStore.js'
-import { useToast } from '../composables/useToast.js'
-import { taskTitle } from '../utils/task.js'
+import {computed, onMounted, onUnmounted, ref} from 'vue'
+import {useRouter} from 'vue-router'
+import {useTaskStore} from '../stores/taskStore.js'
+import {useToast} from '../composables/useToast.js'
+import {phaseBonus, taskTitle} from '../utils/task.js'
 import PageHeader from '../components/PageHeader.vue'
 import StatusPill from '../components/StatusPill.vue'
 import NewTaskModal from '../components/NewTaskModal.vue'
@@ -94,11 +94,6 @@ const statusOptions = [
   { value: 'completed', label: '已完成' }, { value: 'failed', label: '失败' },
   { value: 'paused', label: '已暂停' }
 ]
-
-const phaseBonus = {
-  planning: 0.05, executing: 0.35, reviewing: 0.55, revising: 0.55,
-  delivering: 0.8, completed: 1, failed: 1
-}
 
 const tasks = computed(() => taskStore.tasks)
 const filteredTasks = computed(() => {
@@ -216,5 +211,17 @@ function shortTime(ts) {
 
 @media (max-width: 768px) {
   .filter-select { width: 100%; }
+
+  .tasks-table-wrap {
+    padding: 4px;
+  }
+
+  .table th, .table td {
+    padding: 8px;
+  }
+
+  .table {
+    min-width: 720px;
+  }
 }
 </style>

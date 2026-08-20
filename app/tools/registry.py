@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from loguru import logger
-from .library import parts_library
+from .library import search, add_part
 
 
 def _load_manifest(path: Path):
@@ -50,12 +50,12 @@ async def register_builtin_tools(builtin_dir: str = "app/tools/builtin"):
         with open(code_file, "r", encoding="utf-8") as f:
             code = f.read()
 
-        existing_parts = await parts_library.search(query=manifest["name"])
+        existing_parts = await search(query=manifest["name"])
         if existing_parts:
             logger.debug(f"工具 '{manifest['name']}' 已注册，跳过")
             continue
 
-        await parts_library.add_part(
+        await add_part(
             name=manifest["name"],
             description=manifest.get("description", ""),
             language=manifest.get("language", "python"),

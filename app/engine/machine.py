@@ -6,7 +6,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 from app.llm.pool import capability_pool
 from app.core.database import db
-from app.core.config import config_manager
 from app.core.state import StateManager
 from .tasks import TaskStatus, TaskState
 from .registry import role_registry
@@ -18,10 +17,207 @@ from app.security.supply import SupplyChainFirewall
 from app.security.mining import MiningDetector
 from app.web.push import push_progress
 
-get = config_manager.get
+from app.core.config import get
 
 # 缓存编译后的图，避免每次实例化都重新编译（编译耗时约 100-200ms）
 _compiled_graph_cache = None
+
+
+def revise_router(s):
+    # FAILED 状态不继续修订
+    if s.get("status") == TaskStatus.FAILED:
+        return "fail"
+    return "execute" if s.get("status") == TaskStatus.EXECUTING else "review"
+
+
+async def _maybe_swap_executor(s) -> dict:
+    """评审轮次较多时升级执行 AI；返回更新后的 team，不原地修改状态。"""
+    team = s["team"]
+    if s.get("review_rounds", 0) < 3:
+        return {"team": team}
+    hc = await capability_pool.find_best_match(
+        required_tags=["smart", "architecture"], prefer_cheapest=False
+    )
+    if hc and hc.id != team["executor"][0].id:
+        team = {**team, "executor": [hc, *team["executor"][1:]]}
+        logger.info(f"更换执行AI为{hc.name}")
+    return {"team": team}
+
+
+async def _advance_phase(s, tid, phases, pi):
+    tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
+    if tb.state:
+        await tb.update(
+            advance_stage=True,
+            pending_actions=[f"开始阶段{tb.state.current_stage + 1}"],
+        )
+        room = await meeting_room_manager.get_room(s["task_id"])
+        await tb.broadcast_to_room(room)
+    return {
+        "current_phase": pi + 1,
+        "review_rounds": 0,
+        "review_passed_this_round": False,
+        "revision_pending": False,
+        "status": TaskStatus.EXECUTING,
+        "task_board_state": tb.get_state_dict()
+        if tb.state
+        else s.get("task_board_state", {}),
+    }
+
+
+def review_router(s):
+    # FAILED 状态不进入评审/交付，直接走失败处理
+    if s.get("status") == TaskStatus.FAILED:
+        return "fail"
+    if s.get("review_passed_this_round"):
+        return "pass" if s["current_phase"] + 1 >= len(s["phases"]) else "revise"
+    return (
+        "fail"
+        if s.get("review_rounds", 0)
+        >= s.get("max_review_rounds", get("task_defaults.max_review_rounds", 5))
+        else "revise"
+    )
+
+
+async def _broadcast_review_result(tid: str, room, rv, res: dict):
+    if not room:
+        return
+    passed = res.get("passed", False)
+    fb = res.get("feedback", "")
+    await room.broadcast(
+        MessageLayer.L2_MEETING, "reviewer", rv.context.agent_id, "开始审查..."
+    )
+    await room.broadcast(
+        MessageLayer.L2_MEETING,
+        "reviewer",
+        rv.context.agent_id,
+        f"[{rv.role}] 结论:{'通过' if passed else '需修改'}\n{fb}",
+    )
+
+
+async def _scan_and_broadcast(code: str, room):
+    scans = await code_scanner.scan(code)
+    if scans and room:
+        await room.broadcast(
+            MessageLayer.L2_MEETING,
+            "security_scanner",
+            "bandit",
+            f"发现{len(scans)}个问题",
+            msg_type="security_warning",
+        )
+
+
+async def _broadcast_security_violation(tid: str, room, violations: List[str]):
+    if not room:
+        return
+    await room.broadcast(
+        MessageLayer.L2_MEETING,
+        "security_scanner",
+        "guard",
+        f"安全拦截: {'; '.join(violations)}",
+        msg_type="security_warning",
+    )
+
+
+async def _broadcast_execution_result(tid: str, s: dict, artifacts: dict, room, ex):
+    if not room:
+        return
+    cc = "\n".join(artifacts.values())
+    await room.broadcast(
+        MessageLayer.L2_MEETING,
+        "executor",
+        ex.context.agent_id,
+        f"开始执行: {s['phases'][s['current_phase']].get('description', '')}",
+    )
+    await room.broadcast(
+        MessageLayer.L2_MEETING,
+        "executor",
+        ex.context.agent_id,
+        f"提交代码:\n```\n{cc[:500]}...\n```",
+        msg_type="code",
+    )
+
+
+def _bounded_artifacts(artifacts: dict, limit: int = 200_000) -> dict:
+    """把 artifacts 内容总量截断到 limit 以内（修订上下文用），优先截断大文件。"""
+    total = sum(len(v) for v in artifacts.values())
+    if total <= limit:
+        return artifacts
+    result = {k: v for k, v in artifacts.items()}
+    overflow = total - limit
+    for name in sorted(result, key=lambda k: len(result[k]), reverse=True):
+        if overflow <= 0:
+            break
+        removed = min(overflow, len(result[name]))
+        result[name] = result[name][: len(result[name]) - removed] + "\n...[截断]"
+        overflow -= removed
+    return result
+
+
+def _bounded_context(artifacts: dict, limit: int = 200_000) -> str:
+    """把 artifacts 拼成上下文，超限截断，防止任务上下文无界增长。"""
+    ctx = str(artifacts)
+    if len(ctx) <= limit:
+        return ctx
+    return ctx[:limit] + "\n...[截断]"
+
+
+def _create_executor(s):
+    ec = s["team"]["executor"][0]
+    ex = role_registry.create_agent("executor", ec)
+    if ex is None:
+        raise RuntimeError(f"无法创建执行 Agent（角色 executor，AI 实例 {ec.id}）")
+    ex.bind_context(s["task_id"])
+    return ex
+
+
+async def _push_execute_progress(
+    tid: str, phase_idx: int, total_phases: int, phase: dict
+):
+    bp = phase_idx / total_phases if total_phases else 0
+    await push_progress(tid, bp + 0.2, f"执行中: {phase.get('phase', '')}")
+
+
+async def planning_node(s):
+    await push_progress(s["task_id"], 0.05, "规划中...")
+    return {
+        "status": TaskStatus.EXECUTING,
+        "task_board_state": s.get("task_board_state", {}),
+    }
+
+
+async def _checkpoint(s: dict) -> None:
+    """节点级持久化：保存快照 + 更新任务状态，用于暂停/恢复/崩溃恢复。"""
+    tid = s.get("task_id")
+    if not tid:
+        return
+    try:
+        sm = StateManager(tid)
+        await sm.save_snapshot(s)
+    except Exception as e:
+        logger.warning(f"任务{tid}快照保存失败: {e}")
+    status = s.get("status")
+    if status is not None:
+        try:
+            await db.execute(
+                "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
+                (
+                    status.value if isinstance(status, TaskStatus) else str(status),
+                    tid,
+                ),
+            )
+        except Exception as e:
+            logger.warning(f"任务{tid}状态更新失败: {e}")
+
+
+def execute_router(s):
+    """执行结果路由：FAILED 直接终结，不再进入评审。"""
+    return "fail" if s.get("status") == TaskStatus.FAILED else "review"
+
+
+def _entry_router(s):
+    """入口路由：revision_pending 时（评审未通过被暂停）从 revise 恢复。"""
+    return "revise" if s.get("revision_pending") else "execute"
 
 
 class WorkflowEngine:
@@ -38,63 +234,40 @@ class WorkflowEngine:
 
     def _build_graph(self):
         wf = StateGraph(TaskState)
-        for n in ["planning", "execute", "review", "revise", "deliver", "handle_error"]:
-            wf.add_node(n, getattr(self, f"{n}_node"))
+        nodes = {
+            "planning": planning_node,
+            "execute": self.execute_node,
+            "review": self.review_node,
+            "revise": self.revise_node,
+            "deliver": self.deliver_node,
+            "handle_error": self.handle_error_node,
+        }
+        for name, fn in nodes.items():
+            wf.add_node(name, fn)
         wf.set_entry_point("planning")
         # 入口路由：暂停恢复且待修订时从 revise 重新进入，否则正常从 execute 开始
         wf.add_conditional_edges(
             "planning",
-            self._entry_router,
+            _entry_router,
             {"execute": "execute", "revise": "revise"},
         )
         # 执行结果 FAILED 直接终结，不再进入评审
         wf.add_conditional_edges(
-            "execute", self.execute_router, {"review": "review", "fail": END}
+            "execute", execute_router, {"review": "review", "fail": END}
         )
         wf.add_conditional_edges(
             "review",
-            self.review_router,
+            review_router,
             {"pass": "deliver", "revise": "revise", "fail": "handle_error"},
         )
         wf.add_conditional_edges(
             "revise",
-            self.revise_router,
+            revise_router,
             {"execute": "execute", "review": "review", "fail": "handle_error"},
         )
         wf.add_edge("deliver", END)
         wf.add_edge("handle_error", END)
         return wf.compile(checkpointer=self.checkpointer)
-
-    def _entry_router(self, s):
-        """入口路由：revision_pending 时（评审未通过被暂停）从 revise 恢复。"""
-        return "revise" if s.get("revision_pending") else "execute"
-
-    def execute_router(self, s):
-        """执行结果路由：FAILED 直接终结，不再进入评审。"""
-        return "fail" if s.get("status") == TaskStatus.FAILED else "review"
-
-    async def _checkpoint(self, s: dict) -> None:
-        """节点级持久化：保存快照 + 更新任务状态，用于暂停/恢复/崩溃恢复。"""
-        tid = s.get("task_id")
-        if not tid:
-            return
-        try:
-            sm = StateManager(tid)
-            await sm.save_snapshot(s)
-        except Exception as e:
-            logger.warning(f"任务{tid}快照保存失败: {e}")
-        status = s.get("status")
-        if status is not None:
-            try:
-                await db.execute(
-                    "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
-                    (
-                        status.value if isinstance(status, TaskStatus) else str(status),
-                        tid,
-                    ),
-                )
-            except Exception as e:
-                logger.warning(f"任务{tid}状态更新失败: {e}")
 
     async def _security_violations(self, code: str) -> List[str]:
         violations = []
@@ -103,13 +276,6 @@ class WorkflowEngine:
         if not await self._supply_firewall.check(code):
             violations.append("供应链防火墙拦截：检测到黑名单依赖")
         return violations
-
-    async def planning_node(self, s):
-        await push_progress(s["task_id"], 0.05, "规划中...")
-        return {
-            "status": TaskStatus.EXECUTING,
-            "task_board_state": s.get("task_board_state", {}),
-        }
 
     async def execute_node(self, s):
         # FAILED 状态不继续执行，直接终结
@@ -130,8 +296,8 @@ class WorkflowEngine:
         phase = phases[pi]
 
         # 并行执行独立操作
-        checkpoint_task = self._checkpoint(s)
-        push_task = self._push_execute_progress(tid, pi, len(phases), phase)
+        checkpoint_task = _checkpoint(s)
+        push_task = _push_execute_progress(tid, pi, len(phases), phase)
         tb_task = TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         room_task = meeting_room_manager.get_room(s["task_id"])
 
@@ -141,7 +307,7 @@ class WorkflowEngine:
         if not tb.state:
             raise RuntimeError(f"TaskBoard state not available for {tid}")
 
-        ex = self._create_executor(s)
+        ex = _create_executor(s)
         await asyncio.gather(
             tb.update(phase=TaskPhase.EXECUTING), tb.broadcast_to_room(room)
         )
@@ -151,55 +317,19 @@ class WorkflowEngine:
             {
                 "description": phase.get("description", ""),
                 "expected_artifacts": phase.get("expected_artifacts", []),
-                "context": self._bounded_context(s.get("artifacts", {})),
+                "context": _bounded_context(s.get("artifacts", {})),
                 "task_context": ctx,
-                "complexity": s.get("plan", {}).get("complexity", "simple"),
+                "complexity": s.get("complexity", "simple"),
             }
         )
 
         arts = result.get("artifacts", {})
         return await self._process_execution_result(tid, s, arts, tb, room, ex)
 
-    async def _push_execute_progress(
-        self, tid: str, phase_idx: int, total_phases: int, phase: dict
-    ):
-        bp = phase_idx / total_phases if total_phases else 0
-        await push_progress(tid, bp + 0.2, f"执行中: {phase.get('phase', '')}")
-
-    def _create_executor(self, s):
-        ec = s["team"]["executor"][0]
-        ex = role_registry.create_agent("executor", ec)
-        if ex is None:
-            raise RuntimeError(f"无法创建执行 Agent（角色 executor，AI 实例 {ec.id}）")
-        ex.bind_context(s["task_id"])
-        return ex
-
-    def _bounded_context(self, artifacts: dict, limit: int = 200_000) -> str:
-        """把 artifacts 拼成上下文，超限截断，防止任务上下文无界增长。"""
-        ctx = str(artifacts)
-        if len(ctx) <= limit:
-            return ctx
-        return ctx[:limit] + "\n...[截断]"
-
-    def _bounded_artifacts(self, artifacts: dict, limit: int = 200_000) -> dict:
-        """把 artifacts 内容总量截断到 limit 以内（修订上下文用），优先截断大文件。"""
-        total = sum(len(v) for v in artifacts.values())
-        if total <= limit:
-            return artifacts
-        result = {k: v for k, v in artifacts.items()}
-        overflow = total - limit
-        for name in sorted(result, key=lambda k: len(result[k]), reverse=True):
-            if overflow <= 0:
-                break
-            removed = min(overflow, len(result[name]))
-            result[name] = result[name][: len(result[name]) - removed] + "\n...[截断]"
-            overflow -= removed
-        return result
-
     async def _process_execution_result(
         self, tid: str, s: dict, artifacts: dict, tb: TaskBoard, room, ex
     ):
-        await self._broadcast_execution_result(tid, s, artifacts, room, ex)
+        await _broadcast_execution_result(tid, s, artifacts, room, ex)
         cc = "\n".join(artifacts.values())
         # 按阶段记录输出历史，避免跨阶段输出误判为死循环
         phase_idx = s.get("current_phase", 0)
@@ -215,14 +345,14 @@ class WorkflowEngine:
 
         violations = await self._security_violations(cc)
         if violations:
-            await self._broadcast_security_violation(tid, room, violations)
+            await _broadcast_security_violation(tid, room, violations)
             return {
                 "status": TaskStatus.FAILED,
                 "error": "; ".join(violations),
                 "task_board_state": s.get("task_board_state", {}),
             }
 
-        await self._scan_and_broadcast(cc, room)
+        await _scan_and_broadcast(cc, room)
         await tb.update(
             completed_work=[f"已产出: {', '.join(artifacts.keys())}"],
             pending_actions=["等待评审"],
@@ -238,50 +368,6 @@ class WorkflowEngine:
             "task_board_state": tb.get_state_dict(),
         }
 
-    async def _broadcast_execution_result(
-        self, tid: str, s: dict, artifacts: dict, room, ex
-    ):
-        if not room:
-            return
-        cc = "\n".join(artifacts.values())
-        await room.broadcast(
-            MessageLayer.L2_MEETING,
-            "executor",
-            ex.context.agent_id,
-            f"开始执行: {s['phases'][s['current_phase']].get('description', '')}",
-        )
-        await room.broadcast(
-            MessageLayer.L2_MEETING,
-            "executor",
-            ex.context.agent_id,
-            f"提交代码:\n```\n{cc[:500]}...\n```",
-            msg_type="code",
-        )
-
-    async def _broadcast_security_violation(
-        self, tid: str, room, violations: List[str]
-    ):
-        if not room:
-            return
-        await room.broadcast(
-            MessageLayer.L2_MEETING,
-            "security_scanner",
-            "guard",
-            f"安全拦截: {'; '.join(violations)}",
-            msg_type="security_warning",
-        )
-
-    async def _scan_and_broadcast(self, code: str, room):
-        scans = await code_scanner.scan(code)
-        if scans and room:
-            await room.broadcast(
-                MessageLayer.L2_MEETING,
-                "security_scanner",
-                "bandit",
-                f"发现{len(scans)}个问题",
-                msg_type="security_warning",
-            )
-
     async def review_node(self, s):
         tid, phases = s["task_id"], s["phases"]
         pi = s["current_phase"]
@@ -291,7 +377,7 @@ class WorkflowEngine:
         push_task = push_progress(
             tid, bp + 0.4, f"评审中: {phases[pi].get('phase', '')}"
         )
-        checkpoint_task = self._checkpoint(s)
+        checkpoint_task = _checkpoint(s)
         tb_task = TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         room_task = meeting_room_manager.get_room(s["task_id"])
 
@@ -339,7 +425,7 @@ class WorkflowEngine:
             else:
                 results.append((rv, res))
         for rv, res in results:
-            await self._broadcast_review_result(tid, room, rv, res)
+            await _broadcast_review_result(tid, room, rv, res)
 
         passed = all(res.get("passed", False) for _, res in results)
         fb = "\n\n".join(res.get("feedback", "") for _, res in results)
@@ -381,35 +467,7 @@ class WorkflowEngine:
             if rv:
                 rv.bind_context(s["task_id"])
                 reviewers.append(rv)
-        return reviewers or [self._create_executor(s)]
-
-    async def _broadcast_review_result(self, tid: str, room, rv, res: dict):
-        if not room:
-            return
-        passed = res.get("passed", False)
-        fb = res.get("feedback", "")
-        await room.broadcast(
-            MessageLayer.L2_MEETING, "reviewer", rv.context.agent_id, "开始审查..."
-        )
-        await room.broadcast(
-            MessageLayer.L2_MEETING,
-            "reviewer",
-            rv.context.agent_id,
-            f"[{rv.role}] 结论:{'通过' if passed else '需修改'}\n{fb}",
-        )
-
-    def review_router(self, s):
-        # FAILED 状态不进入评审/交付，直接走失败处理
-        if s.get("status") == TaskStatus.FAILED:
-            return "fail"
-        if s.get("review_passed_this_round"):
-            return "pass" if s["current_phase"] + 1 >= len(s["phases"]) else "revise"
-        return (
-            "fail"
-            if s.get("review_rounds", 0)
-            >= s.get("max_review_rounds", get("task_defaults.max_review_rounds", 5))
-            else "revise"
-        )
+        return reviewers or [_create_executor(s)]
 
     async def revise_node(self, s):
         # FAILED 状态不继续修订
@@ -422,9 +480,9 @@ class WorkflowEngine:
         pi = s["current_phase"]
 
         if s.get("review_passed_this_round"):
-            return await self._advance_phase(s, tid, phases, pi)
+            return await _advance_phase(s, tid, phases, pi)
 
-        await self._checkpoint(s)
+        await _checkpoint(s)
 
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
@@ -434,7 +492,7 @@ class WorkflowEngine:
         await push_progress(tid, bp + 0.6, f"修订中: {phases[pi].get('phase', '')}")
 
         room = await meeting_room_manager.get_room(s["task_id"])
-        team_update = await self._maybe_swap_executor(s)
+        team_update = await _maybe_swap_executor(s)
 
         await tb.update(phase=TaskPhase.REVISING, pending_actions=["修改代码"])
         await tb.broadcast_to_room(room)
@@ -442,39 +500,6 @@ class WorkflowEngine:
         return await self._perform_revision(
             s, tb, room, team_update.get("team", s["team"])
         )
-
-    async def _advance_phase(self, s, tid, phases, pi):
-        tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
-        if tb.state:
-            await tb.update(
-                advance_stage=True,
-                pending_actions=[f"开始阶段{tb.state.current_stage + 1}"],
-            )
-            room = await meeting_room_manager.get_room(s["task_id"])
-            await tb.broadcast_to_room(room)
-        return {
-            "current_phase": pi + 1,
-            "review_rounds": 0,
-            "review_passed_this_round": False,
-            "revision_pending": False,
-            "status": TaskStatus.EXECUTING,
-            "task_board_state": tb.get_state_dict()
-            if tb.state
-            else s.get("task_board_state", {}),
-        }
-
-    async def _maybe_swap_executor(self, s) -> dict:
-        """评审轮次较多时升级执行 AI；返回更新后的 team，不原地修改状态。"""
-        team = s["team"]
-        if s.get("review_rounds", 0) < 3:
-            return {"team": team}
-        hc = await capability_pool.find_best_match(
-            required_tags=["smart", "architecture"], prefer_cheapest=False
-        )
-        if hc and hc.id != team["executor"][0].id:
-            team = {**team, "executor": [hc, *team["executor"][1:]]}
-            logger.info(f"更换执行AI为{hc.name}")
-        return {"team": team}
 
     async def _perform_revision(self, s, tb, room, team=None):
         tid = s["task_id"]
@@ -494,7 +519,7 @@ class WorkflowEngine:
             )
 
         arts = await ex.debug_code(
-            self._bounded_artifacts(s["artifacts"]), s["review_feedback"]
+            _bounded_artifacts(s["artifacts"]), s["review_feedback"]
         )
 
         # 语法复检：修订产物为 Python 代码时先编译验证，失败则保留上一版
@@ -505,7 +530,7 @@ class WorkflowEngine:
                 compile(content, fname, "exec")
             except (SyntaxError, ValueError) as e:
                 logger.error(f"修订后 {fname} 语法错误: {e}，保留上一版")
-                prev = s.get("artifacts", {}).get(fname)
+                prev = s.get(fname)
                 if prev is not None:
                     arts[fname] = prev
                 else:
@@ -523,12 +548,13 @@ class WorkflowEngine:
             logger.info(
                 f"修订后清理 {len(s.get('artifacts', {})) - len(stale)} 个过期文件"
             )
-        # 显式合并旧文件（已过期的剔除）+ 新修订文件，不依赖 reducer 的隐式合并
-        s["artifacts"] = {**stale, **arts}
+        # 显式合并旧文件（已过期的剔除）+ 新修订文件，作为返回值交给 reducer 合并，
+        # 不原地修改传入的状态字典（避免破坏 LangGraph 快照语义）
+        merged_artifacts = {**stale, **arts}
 
         violations = await self._security_violations(rc)
         if violations:
-            await self._broadcast_security_violation(tid, room, violations)
+            await _broadcast_security_violation(tid, room, violations)
             return {
                 "status": TaskStatus.FAILED,
                 "error": "; ".join(violations),
@@ -553,7 +579,7 @@ class WorkflowEngine:
 
         return {
             "last_code": rc,
-            "artifacts": arts,
+            "artifacts": merged_artifacts,
             "review_rounds": s["review_rounds"],
             "revision_pending": False,
             "status": TaskStatus.REVIEWING,
@@ -561,12 +587,6 @@ class WorkflowEngine:
             "messages": [{"role": "executor", "content": f"修订后:\n{rc[:200]}..."}],
             "task_board_state": tb.get_state_dict(),
         }
-
-    def revise_router(self, s):
-        # FAILED 状态不继续修订
-        if s.get("status") == TaskStatus.FAILED:
-            return "fail"
-        return "execute" if s.get("status") == TaskStatus.EXECUTING else "review"
 
     async def deliver_node(self, s):
         # FAILED 状态不进入交付
@@ -578,7 +598,7 @@ class WorkflowEngine:
         tid = s["task_id"]
         await push_progress(tid, 0.9, "交付中...")
 
-        await self._checkpoint(s)
+        await _checkpoint(s)
 
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if not tb.state:
@@ -627,7 +647,7 @@ class WorkflowEngine:
     async def handle_error_node(self, s):
         tid = s["task_id"]
         await push_progress(tid, 0.0, "失败")
-        await self._checkpoint(s)
+        await _checkpoint(s)
         tb = await TaskBoard.from_state_dict(tid, s.get("task_board_state", {}))
         if tb.state:
             await tb.update(phase=TaskPhase.FAILED, notes="执行失败")

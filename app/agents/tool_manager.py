@@ -9,6 +9,81 @@ from app.tools.assembler import ToolAssembler
 from loguru import logger
 
 
+async def add_part(
+    name: str,
+    description: str,
+    language: str,
+    code: str,
+    input_schema: Dict,
+    output_schema: Dict,
+    tags: List[str],
+    created_by: str,
+) -> str:
+    import uuid
+
+    part_id = f"part-{uuid.uuid4().hex[:8]}"
+    await db.execute(
+        """
+        INSERT INTO tool_parts
+        (part_id, name, description, language, code, input_schema, output_schema, tags, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            part_id,
+            name,
+            description,
+            language,
+            code,
+            json.dumps(input_schema),
+            json.dumps(output_schema),
+            json.dumps(tags),
+            created_by,
+        ),
+    )
+    logger.info(f"零件入库: {name} ({part_id})")
+    return part_id
+
+
+async def assemble_tool_simple(requirement: str, parts: List[Dict]) -> Optional[str]:
+    if "如果" in requirement or "条件" in requirement or "分支" in requirement:
+        if len(parts) >= 3:
+            return ToolAssembler.assemble_condition(parts[0], parts[1], parts[2])
+    elif "循环" in requirement or "重复" in requirement or "500次" in requirement:
+        if len(parts) >= 1:
+            return ToolAssembler.assemble_loop(parts[0])
+    elif len(parts) >= 1:
+        return ToolAssembler.assemble_sequence(parts)
+    return None
+
+
+async def search_parts(query: str, tags: Optional[List[str]] = None) -> List[Dict]:
+    sql = "SELECT * FROM tool_parts WHERE 1=1"
+    params = []
+    if tags:
+        for tag in tags:
+            sql += " AND tags LIKE ?"
+            params.append(f"%{tag}%")
+    if query:
+        sql += " AND (name LIKE ? OR description LIKE ?)"
+        params.extend([f"%{query}%", f"%{query}%"])
+    rows = await db.fetch_all(sql, tuple(params))
+    parts = []
+    for row in rows:
+        parts.append(
+            {
+                "part_id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "language": row[3],
+                "code": row[4],
+                "input_schema": json.loads(row[5]) if row[5] else {},
+                "output_schema": json.loads(row[6]) if row[6] else {},
+                "tags": json.loads(row[7]) if row[7] else [],
+            }
+        )
+    return parts
+
+
 @register_role(
     "tool_manager",
     {
@@ -47,35 +122,6 @@ class ToolManagerAgent(BaseAgent):
             role="tool_manager", capability=capability, system_prompt=system_prompt
         )
 
-    async def search_parts(
-        self, query: str, tags: Optional[List[str]] = None
-    ) -> List[Dict]:
-        sql = "SELECT * FROM tool_parts WHERE 1=1"
-        params = []
-        if tags:
-            for tag in tags:
-                sql += " AND tags LIKE ?"
-                params.append(f"%{tag}%")
-        if query:
-            sql += " AND (name LIKE ? OR description LIKE ?)"
-            params.extend([f"%{query}%", f"%{query}%"])
-        rows = await db.fetch_all(sql, tuple(params))
-        parts = []
-        for row in rows:
-            parts.append(
-                {
-                    "part_id": row[0],
-                    "name": row[1],
-                    "description": row[2],
-                    "language": row[3],
-                    "code": row[4],
-                    "input_schema": json.loads(row[5]) if row[5] else {},
-                    "output_schema": json.loads(row[6]) if row[6] else {},
-                    "tags": json.loads(row[7]) if row[7] else [],
-                }
-            )
-        return parts
-
     async def assemble_tool(self, requirement: str, parts: List[Dict]) -> str:
         parts_desc = "\n".join([f"- {p['name']}: {p['description']}" for p in parts])
         prompt = f"""需求：
@@ -92,65 +138,15 @@ class ToolManagerAgent(BaseAgent):
 """
         return await self.think(prompt, temperature=0.2)
 
-    async def assemble_tool_simple(
-        self, requirement: str, parts: List[Dict]
-    ) -> Optional[str]:
-        if "如果" in requirement or "条件" in requirement or "分支" in requirement:
-            if len(parts) >= 3:
-                return ToolAssembler.assemble_condition(parts[0], parts[1], parts[2])
-        elif "循环" in requirement or "重复" in requirement or "500次" in requirement:
-            if len(parts) >= 1:
-                return ToolAssembler.assemble_loop(parts[0])
-        elif len(parts) >= 1:
-            return ToolAssembler.assemble_sequence(parts)
-        return None
-
-    async def add_part(
-        self,
-        name: str,
-        description: str,
-        language: str,
-        code: str,
-        input_schema: Dict,
-        output_schema: Dict,
-        tags: List[str],
-        created_by: str,
-    ) -> str:
-        import uuid
-
-        part_id = f"part-{uuid.uuid4().hex[:8]}"
-        await db.execute(
-            """
-            INSERT INTO tool_parts
-            (part_id, name, description, language, code, input_schema, output_schema, tags, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                part_id,
-                name,
-                description,
-                language,
-                code,
-                json.dumps(input_schema),
-                json.dumps(output_schema),
-                json.dumps(tags),
-                created_by,
-            ),
-        )
-        logger.info(f"零件入库: {name} ({part_id})")
-        return part_id
-
     async def execute(self, request: Dict[str, Any]) -> Dict[str, Any]:
         action = request.get("action", "search")
         if action == "search":
-            parts = await self.search_parts(
-                request.get("query", ""), request.get("tags")
-            )
+            parts = await search_parts(request.get("query", ""), request.get("tags"))
             return {"parts": parts}
         elif action == "assemble":
             parts = request.get("parts", [])
             requirement = request.get("requirement", "")
-            simple_code = await self.assemble_tool_simple(requirement, parts)
+            simple_code = await assemble_tool_simple(requirement, parts)
             if simple_code:
                 logger.info("使用确定性组装成功")
                 return {"code": simple_code, "method": "deterministic"}

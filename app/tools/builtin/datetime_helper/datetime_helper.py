@@ -25,10 +25,10 @@ def datetime_helper(operation: str, *args, **kwargs):
             parser.parse(dt_str) + timedelta(days=days)
         ).isoformat(),
         "add_months": lambda dt_str, months: (
-            parser.parse(dt_str) + relativedelta(months=months)
+            parser.parse(dt_str) + relativedelta
         ).isoformat(),
         "add_years": lambda dt_str, years: (
-            parser.parse(dt_str) + relativedelta(years=years)
+            parser.parse(dt_str) + relativedelta
         ).isoformat(),
         # 鏃跺尯杞崲
         "to_utc": lambda dt_str: (

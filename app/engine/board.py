@@ -12,6 +12,9 @@ import json
 from app.core.database import db
 from app.core.logger import logger
 
+# 模块级标志：唯一索引只尝试创建一次（避免每次 persist 重复 DDL）
+_board_index_ensured = False
+
 
 class TaskPhase(Enum):
     PLANNING = "planning"
@@ -75,7 +78,7 @@ class TaskBoard:
 
     async def initialize(
         self, plan: Dict[str, Any], team: Dict[str, List]
-    ) -> TaskBoardState:
+    ) -> TaskBoardState | None:
         self._phases = plan.get("phases", [])
         total_stages = len(self._phases)
         first_phase = (
@@ -176,14 +179,19 @@ class TaskBoard:
 
     async def _persist(self):
         """UPSERT 保存看板状态（每任务仅保留最新一行），避免表无界增长。"""
-        # 确保 task_id 唯一约束存在，支撑 ON CONFLICT 语义（旧库可能有重复行）
-        try:
-            await db.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_board_task_unique "
-                "ON task_board_states(task_id)"
-            )
-        except Exception as e:
-            logger.warning(f"[{self.task_id}] 创建看板唯一索引失败: {e}")
+        # 确保 task_id 唯一约束存在，支撑 ON CONFLICT 语义（旧库可能有重复行）；
+        # 模块级标志保证同一进程只尝试创建一次，避免每次更新都执行 DDL
+        global _board_index_ensured
+        if not _board_index_ensured:
+            try:
+                await db.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_board_task_unique "
+                    "ON task_board_states(task_id)"
+                )
+            except Exception as e:
+                logger.warning(f"[{self.task_id}] 创建看板唯一索引失败: {e}")
+            finally:
+                _board_index_ensured = True
         payload = json.dumps(self.state.to_dict(), ensure_ascii=False)
         try:
             await db.execute(

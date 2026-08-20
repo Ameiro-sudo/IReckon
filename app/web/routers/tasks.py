@@ -1,6 +1,7 @@
 """任务相关 API：创建/列表/详情/取消/恢复/消息/看板/产物/删除。"""
 
 import asyncio
+import json
 import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
@@ -11,6 +12,8 @@ from pydantic import BaseModel
 from loguru import logger
 
 from app.core.config import config_manager
+
+from app.core.config import get
 from app.core.database import db
 from app.core.state import StateManager
 from app.engine.board import TaskBoard
@@ -18,18 +21,6 @@ from app.engine.tasks import task_manager
 from app.engine.room import meeting_room_manager, MessageLayer
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
-
-_STATUS_MAP = {
-    "pending": "pending",
-    "planning": "planning",
-    "executing": "executing",
-    "reviewing": "reviewing",
-    "revising": "revising",
-    "delivering": "delivering",
-    "completed": "completed",
-    "failed": "failed",
-    "paused": "paused",
-}
 
 
 class CreateTaskRequest(BaseModel):
@@ -60,8 +51,21 @@ async def create_task(req: CreateTaskRequest):
     if not req.user_request or not req.user_request.strip():
         raise HTTPException(422, "任务描述不能为空")
     task_id = await task_manager.create_task(req.user_request.strip(), req.upload_id)
-    asyncio.create_task(task_manager.start_task(task_id, req.scheduler_cap_id))
-    row = await db.fetch_one("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+
+    def _log_launch_failure(t: asyncio.Task):
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            logger.error(f"任务{task_id}启动失败: {exc}")
+
+    launch = asyncio.create_task(task_manager.start_task(task_id, req.scheduler_cap_id))
+    launch.add_done_callback(_log_launch_failure)
+    row = await db.fetch_one(
+        "SELECT task_id, user_request, title, status, created_at, updated_at "
+        "FROM tasks WHERE task_id = ?",
+        (task_id,),
+    )
     return _row_to_task(row)
 
 
@@ -87,21 +91,21 @@ async def list_tasks(
 
 @router.get("/{task_id}")
 async def get_task(task_id: str):
-    row = await db.fetch_one("SELECT * FROM tasks WHERE task_id = ?", (task_id,))
+    row = await db.fetch_one(
+        "SELECT task_id, user_request, title, status, created_at, updated_at, "
+        "config_snapshot, output_dir, file_refs FROM tasks WHERE task_id = ?",
+        (task_id,),
+    )
     if not row:
         raise HTTPException(404, "Task not found")
     detail = _row_to_task(row)
     detail["output_dir"] = row[7] or None
-    if len(row) > 8 and row[8]:
-        import json as _json
-
+    if row[8]:
         try:
-            detail["file_refs"] = _json.loads(row[8])
-        except (_json.JSONDecodeError, TypeError):
+            detail["file_refs"] = json.loads(row[8])
+        except (json.JSONDecodeError, TypeError):
             detail["file_refs"] = None
     if row[6]:
-        import json
-
         try:
             detail["plan"] = json.loads(row[6])
         except (json.JSONDecodeError, TypeError):
@@ -169,7 +173,7 @@ async def get_messages(
     since: Optional[str] = None,
     limit: int = Query(100, ge=1, le=500),
 ):
-    q = "SELECT msg_id, task_id, layer, sender_role, sender_id, content, metadata, timestamp FROM conversation_messages WHERE task_id = ? AND layer = ?"
+    q = "SELECT msg_id, layer, sender_role, sender_id, content, metadata, msg_type, timestamp FROM conversation_messages WHERE task_id = ? AND layer = ?"
     params: List[Any] = [task_id, layer]
     if since:
         q += " AND timestamp > ?"
@@ -177,18 +181,27 @@ async def get_messages(
     q += " ORDER BY timestamp ASC LIMIT ?"
     params.append(limit)
     rows = await db.fetch_all(q, tuple(params))
-    return [
-        {
-            "msg_id": r[0],
-            "layer": r[2],
-            "sender_role": r[3],
-            "sender_id": r[4],
-            "content": r[5],
-            "metadata": r[6],
-            "timestamp": r[7],
-        }
-        for r in rows
-    ]
+    result = []
+    for r in rows:
+        meta = r[5] or "{}"
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        result.append(
+            {
+                "msg_id": r[0],
+                "layer": r[1],
+                "sender_role": r[2],
+                "sender_id": r[3],
+                "content": r[4],
+                "metadata": meta,
+                "msg_type": r[6] or "text",
+                "timestamp": r[7],
+            }
+        )
+    return result
 
 
 @router.post("/{task_id}/messages")
@@ -204,8 +217,8 @@ async def send_message(task_id: str, req: SendMessageRequest):
 
 
 def _output_dir(task_id: str) -> Optional[Path]:
-    data_dir = Path(config_manager.get("system.data_dir", "./data"))
-    out_dir = Path(config_manager.get("system.output_dir", str(data_dir / "outputs")))
+    data_dir = Path(get("system.data_dir", "./data"))
+    out_dir = Path(get("system.output_dir", str(data_dir / "outputs")))
     if not out_dir.is_absolute():
         out_dir = config_manager.base_dir / out_dir
     candidates = [
@@ -225,6 +238,9 @@ async def list_artifacts(task_id: str):
         return {"task_id": task_id, "files": []}
     files = []
     for p in sorted(out.rglob("*")):
+        # 跳过符号链接：防止指向产物目录外的链接泄露外部文件
+        if p.is_symlink():
+            continue
         if p.is_file():
             files.append(
                 {
@@ -275,6 +291,9 @@ async def download_artifacts(task_id: str):
     zip_path = out.parent / f"{task_id}.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for p in out.rglob("*"):
+            # 跳过符号链接，防止 zip 跟随链接打包目录外文件
+            if p.is_symlink():
+                continue
             if p.is_file():
                 zf.write(p, p.relative_to(out))
     return FileResponse(

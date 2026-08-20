@@ -1,8 +1,10 @@
 """安全模块测试:命令过滤、代码扫描、供应链防火墙、挖矿检测、工具组装。"""
 
+from types import SimpleNamespace
 
 from app.security.filter import CommandFilter, CommandLevel
 from app.security.mining import MiningDetector
+from app.security.scanner import CodeScanner
 from app.security.scanner import code_scanner
 from app.security.supply import SupplyChainFirewall
 from app.tools.assembler import ToolAssembler
@@ -90,7 +92,9 @@ def test_supply_firewall_blocklist():
 
 def test_mining_detector_patterns():
     md = MiningDetector()
-    assert md.scan_command_line("./xmrig -o stratum+tcp://pool.minexmr.com:4444") is True
+    assert (
+        md.scan_command_line("./xmrig -o stratum+tcp://pool.minexmr.com:4444") is True
+    )
     assert md.scan_command_line("python3 -u miner.py") is True
     assert md.scan_command_line("python3 print('hello')") is False
 
@@ -101,3 +105,46 @@ def test_mining_detector_patterns():
 async def test_scanner_no_tool_degrades():
     result = await code_scanner.scan("print(1)", language="python")
     assert isinstance(result, list)
+
+
+async def test_scanner_parses_bandit_json(monkeypatch):
+    """bandit JSON 输出必须被真正解析（回归: json.get 曾导致结果恒为空）。"""
+    import app.security.scanner as scanner_mod
+
+    proc = SimpleNamespace(returncode=1)
+
+    async def fake_comm():
+        return b'{"results": [{"issue_text": "B101 assert_used"}]}', b""
+
+    proc.communicate = fake_comm
+
+    async def fake_exec(*args, **kwargs):
+        return proc
+
+    monkeypatch.setattr(scanner_mod.asyncio, "create_subprocess_exec", fake_exec)
+    s = CodeScanner(tool="bandit")
+    s._available = True
+    results = await s.scan("assert True")
+    assert len(results) == 1
+    assert results[0]["issue_text"].startswith("B101")
+
+
+async def test_scanner_parses_semgrep_json(monkeypatch):
+    import app.security.scanner as scanner_mod
+
+    proc = SimpleNamespace(returncode=1)
+
+    async def fake_comm():
+        return b'{"results": [{"rule_id": "python.lang.security"}]}', b""
+
+    proc.communicate = fake_comm
+
+    async def fake_exec(*args, **kwargs):
+        return proc
+
+    monkeypatch.setattr(scanner_mod.asyncio, "create_subprocess_exec", fake_exec)
+    s = CodeScanner(tool="semgrep")
+    s._available = True
+    results = await s.scan("import pickle")
+    assert len(results) == 1
+    assert results[0]["rule_id"].startswith("python.lang")

@@ -8,11 +8,12 @@ from typing import List, Optional
 from fastapi import APIRouter, Query
 from loguru import logger
 
-from app.core.config import config_manager
+
+from app.core.config import get
 from app.core.database import db
 from app.core.logger import _log_queue
 from app.core.updater import updater
-from app.engine.cost import cost_tracker
+from app.engine.cost import get_summary
 from app.engine.self_improve import self_improver
 from app.engine.tasks import task_manager
 from app.llm.pool import capability_pool
@@ -57,7 +58,7 @@ async def health():
     latest = await _check_update_cached()
     return {
         "status": "ok",
-        "version": config_manager.get("system.version"),
+        "version": get("system.version"),
         "latest_version": latest,
         "update_available": latest is not None,
         "active_tasks": len(task_manager._running),
@@ -74,7 +75,7 @@ async def stats():
     by_status = {r[0]: r[1] for r in rows}
     total = sum(by_status.values())
     caps = await capability_pool.get_all(refresh=False)
-    usage = await cost_tracker.get_summary()
+    usage = await get_summary()
     return {
         "total_tasks": total,
         "by_status": by_status,
@@ -87,7 +88,7 @@ async def stats():
         "paused_tasks": by_status.get("paused", 0),
         "ai_instances": len(caps),
         "ai_enabled": sum(1 for c in caps if c.enabled),
-        "version": config_manager.get("system.version"),
+        "version": get("system.version"),
         "uptime_seconds": int(time.monotonic() - _boot_time),
         "usage": usage,
     }
@@ -95,7 +96,7 @@ async def stats():
 
 @router.get("/usage")
 async def usage():
-    return await cost_tracker.get_summary()
+    return await get_summary()
 
 
 @router.get("/logs")
@@ -104,7 +105,7 @@ async def logs(limit: int = Query(200, ge=1, le=2000), level: Optional[str] = No
     # 优先从当日日志文件读取（与 WebSocket 消费者无竞争）
     from datetime import datetime
 
-    data_dir = Path(config_manager.get("system.data_dir", "./data"))
+    data_dir = Path(get("system.data_dir", "./data"))
     log_file = data_dir / "logs" / f"app_{datetime.now().strftime('%Y-%m-%d')}.log"
     lines: List[str] = []
     try:
@@ -168,7 +169,7 @@ async def push_self_improve():
 @router.get("/update/check")
 async def check_update():
     version = await updater.check()
-    current = config_manager.get("system.version")
+    current = get("system.version")
     return {
         "current_version": current,
         "latest_version": version,

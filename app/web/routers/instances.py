@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from loguru import logger
 from pydantic import BaseModel
 
 from app.core.database import db
@@ -33,8 +34,7 @@ class AIInstanceRequest(BaseModel):
 
 def _mask_instance(inst: dict) -> dict:
     """列表接口不返回明文 API Key，只暴露是否已配置。"""
-    masked = {**inst}
-    masked["has_key"] = bool(inst.get("api_key"))
+    masked = {**inst, "has_key": bool(inst.get("api_key"))}
     masked.pop("api_key", None)
     return masked
 
@@ -52,7 +52,6 @@ async def create_ai_instance(inst: AIInstanceRequest):
         raise HTTPException(422, "endpoint 和 model 为必填项")
     if not data.get("id"):
         data["id"] = f"ai-{uuid.uuid4().hex[:12]}"
-    data.setdefault("api_key", "")
     cap = AICapability(**data)
     await capability_pool.add_instance(cap)
     return {"status": "ok", "id": data["id"]}
@@ -65,7 +64,7 @@ async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
         raise HTTPException(404, "Instance not found")
     # 以现有实例为基础做部分更新（exclude_unset 只覆盖传入字段）
     data = existing.to_dict()
-    patch = inst.model_dump(exclude_unset=True)
+    patch = inst.model_dump()
     patch.pop("id", None)
     # api_key 为空串时保留已有密钥（前端编辑不填视为不变更）
     if not patch.get("api_key"):
@@ -116,12 +115,18 @@ async def test_ai_instance(instance_id: str):
         # 禁止重定向（防止跟随跳转到内网地址），超时 5s
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
             start = time.monotonic()
-            await client.get(url, headers=headers)
+            resp = await client.get(url, headers=headers)
             latency_ms = int((time.monotonic() - start) * 1000)
             # 不回显远端响应内容，避免信息泄露
-            return {"status": "ok", "latency_ms": latency_ms}
+            return {
+                "status": "reachable",
+                "http_status": resp.status_code,
+                "latency_ms": latency_ms,
+            }
     except Exception as e:
-        return {"status": "unreachable", "error": str(e)}
+        # 不回显具体异常（避免泄露端点内部信息），只给通用分类
+        logger.info(f"AI 实例 {instance_id} 连通性测试失败: {e}")
+        return {"status": "unreachable", "error": "连接失败"}
 
 
 @router.get("/capabilities")

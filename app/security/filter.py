@@ -8,7 +8,8 @@ import re
 import shlex
 from enum import Enum
 from typing import List, Dict, Any, Optional, Tuple
-from app.core.config import config_manager
+
+from app.core.config import get
 
 
 class CommandLevel(Enum):
@@ -132,31 +133,26 @@ def _normalize(command: str) -> str:
     return re.sub(r"\s+", " ", cmd).strip()
 
 
+def _tokenize(command: str) -> List[str]:
+    """shlex 词法解析；解析失败（未闭合引号等）按不信任处理：返回原串分割。"""
+    try:
+        return shlex.split(command, posix=True)
+    except ValueError:
+        return command.split()
+
+
 class CommandFilter:
     def __init__(self):
-        self.l1_auto = config_manager.get(
-            "security.local_command_levels.L1_auto_exec", True
-        )
-        self.l2_threshold = config_manager.get(
-            "security.local_command_levels.L2_vote_threshold", 0.5
-        )
-        self.l3_block = config_manager.get(
-            "security.local_command_levels.L3_block", True
-        )
-
-    def _tokenize(self, command: str) -> List[str]:
-        """shlex 词法解析；解析失败（未闭合引号等）按不信任处理：返回原串分割。"""
-        try:
-            return shlex.split(command, posix=True)
-        except ValueError:
-            return command.split()
+        self.l1_auto = get("security.local_command_levels.L1_auto_exec", True)
+        self.l2_threshold = get("security.local_command_levels.L2_vote_threshold", 0.5)
+        self.l3_block = get("security.local_command_levels.L3_block", True)
 
     def _classify_detail(self, command: str) -> Tuple[CommandLevel, str]:
         cmd = _normalize(command)
         if not cmd:
             return CommandLevel.L1, "空命令"
 
-        tokens = self._tokenize(cmd)
+        tokens = _tokenize(cmd)
         if not tokens:
             return CommandLevel.L1, "无可执行 token"
 

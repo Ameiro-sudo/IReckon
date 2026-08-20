@@ -5,6 +5,24 @@ from app.engine.registry import register_role
 from app.utils.json_utils import extract_json
 
 
+def _parse_review_response(response: str) -> Dict[str, Any]:
+    parsed = extract_json(response)
+    if isinstance(parsed, dict):
+        return {
+            "passed": bool(parsed.get("passed", False)),
+            "feedback": parsed.get("feedback", response),
+            "reviewer_type": "efficiency",
+            "issues": parsed.get("issues", []),
+            "suggestions": parsed.get("suggestions", []),
+        }
+    passed = "通过" in response and "需修改" not in response
+    return {
+        "passed": passed,
+        "feedback": response,
+        "reviewer_type": "efficiency",
+    }
+
+
 @register_role(
     "reviewer_efficiency",
     {
@@ -72,25 +90,8 @@ class EfficiencyReviewerAgent(BaseAgent):
 请输出审查结论（JSON格式）。
 """
         response = await self.think(prompt, temperature=0.1)
-        result = self._parse_review_response(response)
+        result = _parse_review_response(response)
         return result
-
-    def _parse_review_response(self, response: str) -> Dict[str, Any]:
-        parsed = extract_json(response)
-        if isinstance(parsed, dict):
-            return {
-                "passed": bool(parsed.get("passed", False)),
-                "feedback": parsed.get("feedback", response),
-                "reviewer_type": "efficiency",
-                "issues": parsed.get("issues", []),
-                "suggestions": parsed.get("suggestions", []),
-            }
-        passed = "通过" in response and "需修改" not in response
-        return {
-            "passed": passed,
-            "feedback": response,
-            "reviewer_type": "efficiency",
-        }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         # 每次评审开始前清空历史（保留 system），避免上下文堆积
@@ -103,6 +104,24 @@ class EfficiencyReviewerAgent(BaseAgent):
             context = f"{task_context}\n\n{context}" if context else task_context
 
         return await self.review(code, context)
+
+
+def _parse_review_response(response: str) -> Dict[str, Any]:
+    parsed = extract_json(response)
+    if isinstance(parsed, dict):
+        return {
+            "passed": bool(parsed.get("passed", False)),
+            "feedback": parsed.get("feedback", response),
+            "reviewer_type": "correctness",
+            "issues": parsed.get("issues", []),
+            "suggestions": parsed.get("suggestions", []),
+        }
+    passed = "通过" in response and "需修改" not in response
+    return {
+        "passed": passed,
+        "feedback": response,
+        "reviewer_type": "correctness",
+    }
 
 
 @register_role(
@@ -172,25 +191,8 @@ class CorrectnessReviewerAgent(BaseAgent):
 请输出审查结论（JSON格式）。
 """
         response = await self.think(prompt, temperature=0.1)
-        result = self._parse_review_response(response)
+        result = _parse_review_response(response)
         return result
-
-    def _parse_review_response(self, response: str) -> Dict[str, Any]:
-        parsed = extract_json(response)
-        if isinstance(parsed, dict):
-            return {
-                "passed": bool(parsed.get("passed", False)),
-                "feedback": parsed.get("feedback", response),
-                "reviewer_type": "correctness",
-                "issues": parsed.get("issues", []),
-                "suggestions": parsed.get("suggestions", []),
-            }
-        passed = "通过" in response and "需修改" not in response
-        return {
-            "passed": passed,
-            "feedback": response,
-            "reviewer_type": "correctness",
-        }
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         # 每次评审开始前清空历史（保留 system），避免上下文堆积

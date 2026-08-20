@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 from typing import Dict, Any
 from dataclasses import dataclass, field
@@ -35,11 +36,6 @@ class MeetingRoom:
         self.room_id = f"room-{task_id}"
         self.members = {}
         self.history = {layer: [] for layer in MessageLayer}
-        self._private_queues = {}
-        self._broadcast_queues = {
-            MessageLayer.L1_PUBLIC: [],
-            MessageLayer.L2_MEETING: [],
-        }
         self._lock = asyncio.Lock()
 
     def add_member(self, role, agent_id):
@@ -74,8 +70,6 @@ class MeetingRoom:
             content=content,
             metadata={"task_id": self.task_id, "room_id": self.room_id, **msg.metadata},
         )
-        for q in self._broadcast_queues.get(layer, []):
-            await q.put(msg)
         await self._push_websocket(msg)
         return msg
 
@@ -173,7 +167,7 @@ class MeetingRoom:
 
     async def _persist(self, msg):
         await db.execute(
-            "INSERT INTO conversation_messages(msg_id,task_id,layer,sender_role,sender_id,content,metadata,timestamp) VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO conversation_messages(msg_id,task_id,layer,sender_role,sender_id,content,metadata,msg_type,timestamp) VALUES(?,?,?,?,?,?,?,?,?)",
             (
                 msg.msg_id,
                 self.task_id,
@@ -181,7 +175,8 @@ class MeetingRoom:
                 msg.sender_role,
                 msg.sender_id,
                 msg.content,
-                str(msg.metadata),
+                json.dumps(msg.metadata, ensure_ascii=False),
+                msg.msg_type,
                 msg.timestamp.isoformat(),
             ),
         )

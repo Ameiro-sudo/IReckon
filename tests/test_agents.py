@@ -4,9 +4,9 @@ import json
 
 
 from app.agents.deliverer import DelivererAgent
-from app.agents.executor import ExecutorAgent
-from app.agents.reviewer import CorrectnessReviewerAgent
-from app.agents.scheduler import SchedulerAgent
+from app.agents.executor import ExecutorAgent, _parse_patches, _syntax_errors, _apply_unified_diff
+from app.agents.reviewer import CorrectnessReviewerAgent, _parse_review_response
+from app.agents.scheduler import SchedulerAgent, recruit_team
 from conftest import FakeCapabilityPool, make_cap
 
 
@@ -84,7 +84,7 @@ async def test_scheduler_recruit_team_single_instance_reuse():
         "reviewer_correctness": {"count": 1, "required_tags": ["python"]},
         "deliverer": {"count": 1, "required_tags": ["python"]},
     }
-    team = await agent.recruit_team(plan)
+    team = await recruit_team(plan)
     assert len(team["executor"]) == 1
     assert len(team["reviewer_correctness"]) == 1
     assert len(team["deliverer"]) == 1
@@ -122,8 +122,8 @@ def test_executor_parse_cleans_filename_backticks():
 
 def test_executor_syntax_errors_detection():
     ex = make_executor()
-    assert ex._syntax_errors({"ok.py": "def f():\n    pass"}) == []
-    errs = ex._syntax_errors({"bad.py": "def f(:", "note.md": "## x"})
+    assert _syntax_errors({"ok.py": "def f():\n    pass"}) == []
+    errs = _syntax_errors({"bad.py": "def f(:", "note.md": "## x"})
     assert len(errs) == 1
     assert "bad.py" in errs[0]
 
@@ -140,7 +140,7 @@ def test_executor_parse_patches_multiple_files():
         "-x = 1\n"
         "+x = 2\n"
     )
-    patches = make_executor()._parse_patches(text)
+    patches = _parse_patches(text)
     assert set(patches.keys()) == {"a.py", "b.py"}
     assert "-print(2)" in patches["a.py"]
 
@@ -149,14 +149,14 @@ def test_executor_apply_unified_diff():
     ex = make_executor()
     original = "a\nb\nc\n"
     patch = "@@ -1,3 +1,3 @@\n a\n-b\n+c\n"
-    assert ex._apply_unified_diff(original, patch) == "a\nc\nc\n"
+    assert _apply_unified_diff(original, patch) == "a\nc\nc\n"
 
 
 def test_executor_apply_diff_add_line():
     ex = make_executor()
     original = "x = 1\n"
     patch = "@@ -1,1 +1,2 @@\n x = 1\n+y = 2\n"
-    assert ex._apply_unified_diff(original, patch) == "x = 1\ny = 2\n"
+    assert _apply_unified_diff(original, patch) == "x = 1\ny = 2\n"
 
 
 # ---------- reviewer:审查响应解析 ----------
@@ -164,20 +164,20 @@ def test_executor_apply_diff_add_line():
 
 def test_reviewer_parse_json():
     text = json.dumps({"passed": True, "issues": ["i1"], "suggestions": ["s1"]})
-    out = make_reviewer()._parse_review_response(text)
+    out = _parse_review_response(text)
     assert out["passed"] is True
     assert "i1" in out["issues"]
 
 
 def test_reviewer_parse_with_fence():
     text = '```json\n{"passed": false, "issues": ["x"]}\n```'
-    out = make_reviewer()._parse_review_response(text)
+    out = _parse_review_response(text)
     assert out["passed"] is False
     assert out["issues"] == ["x"]
 
 
 def test_reviewer_parse_invalid_fallback():
-    out = make_reviewer()._parse_review_response("随便说点什么")
+    out = _parse_review_response("随便说点什么")
     assert out["passed"] is False
 
 

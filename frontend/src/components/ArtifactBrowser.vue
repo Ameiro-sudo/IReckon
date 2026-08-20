@@ -89,11 +89,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore.js'
-import { taskAPI } from '../api/index.js'
-import { highlightCode } from '../utils/markdown.js'
-import { taskTitle } from '../utils/task.js'
+import {computed, onMounted, ref} from 'vue'
+import {useTaskStore} from '../stores/taskStore.js'
+import {taskAPI} from '../api/index.js'
+import {highlightCode} from '../utils/markdown.js'
+import {taskTitle} from '../utils/task.js'
 import StatusPill from './StatusPill.vue'
 
 const taskStore = useTaskStore()
@@ -162,7 +162,7 @@ function formatSize(bytes) {
 <style scoped>
 .artifact-browser {
   display: flex;
-  height: 100%;
+  flex: 1;
   min-height: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -316,7 +316,7 @@ function formatSize(bytes) {
   overflow: auto;
   padding: 16px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.7;
   color: var(--code-text);
   background: var(--code-bg);
@@ -333,5 +333,24 @@ function formatSize(bytes) {
 @media (max-width: 768px) {
   .ab-side { width: 220px; }
   .ab-files { width: 180px; }
+}
+
+@media (max-width: 480px) {
+  .artifact-browser { flex-direction: column; }
+  .ab-side {
+    width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .ab-body { flex-direction: column; }
+  .ab-files {
+    width: 100%;
+    max-height: 150px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .ab-head { flex-wrap: wrap; }
+  .ab-preview { min-height: 300px; }
 }
 </style>

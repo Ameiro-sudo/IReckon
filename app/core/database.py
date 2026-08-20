@@ -13,10 +13,19 @@ from typing import Dict, Optional
 import aiosqlite
 from cryptography.fernet import Fernet  # 数据加密小能手～
 from loguru import logger
-from .config import config_manager
+from app.core.config import get
 
-# 配置读取别名（配合全库 get(...) 重构；config_manager.get 的模块级快捷方式）
-get = config_manager.get
+
+def _open_connection(*args, **kwargs) -> aiosqlite.Connection:
+    """创建 aiosqlite 连接，并提前把后台工作线程标记为 daemon。
+
+    aiosqlite 0.21+ 的工作线程非 daemon，连接未关闭时解释器退出会卡在
+    线程回收阶段（先于 atexit 回调）；标记 daemon 后进程退出不再被阻塞。
+    必须在 await 启动线程之前设置，之后设置会抛 RuntimeError。
+    """
+    conn = aiosqlite.connect(*args, **kwargs)
+    conn._thread.daemon = True
+    return conn
 
 
 class Database:
@@ -45,7 +54,7 @@ class Database:
         self._cache_ttl = 30  # 缓存过期时间(秒)
 
         # 确定数据库文件位置～
-        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        data_dir = Path(get("system.data_dir", "./data"))
         db_dir = data_dir / "db"
         db_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = db_dir / "ireckon.db"
@@ -56,7 +65,7 @@ class Database:
         第一次会自动生成密钥，保存到 .key 文件里～
         """
         if self._fernet is None:
-            key_path = Path(config_manager.get("system.data_dir", "./data")) / ".key"
+            key_path = Path(get("system.data_dir", "./data")) / ".key"
             key_path.parent.mkdir(parents=True, exist_ok=True)
 
             # 读取现有密钥 or 生成新密钥～
@@ -84,10 +93,10 @@ class Database:
                 return
 
             # 配置数据库参数～
-            journal = config_manager.get("database.journal_mode", "wal")
-            timeout = config_manager.get("database.timeout", 5.0)
+            journal = get("database.journal_mode", "wal")
+            timeout = get("database.timeout", 5.0)
 
-            self._conn = await aiosqlite.connect(
+            self._conn = await _open_connection(
                 str(self.db_path), timeout=timeout, isolation_level=None
             )
             await self._conn.execute(f"PRAGMA journal_mode={journal}")
@@ -100,11 +109,11 @@ class Database:
     async def _create_tables(self):
         """创建所有需要的表～"""
         await self._conn.executescript("""
-            CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, user_request TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, config_snapshot TEXT, output_dir TEXT);
+            CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, user_request TEXT, status TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, config_snapshot TEXT, output_dir TEXT, budget_limit_usd REAL);
             CREATE TABLE IF NOT EXISTS ai_instances (instance_id TEXT PRIMARY KEY, name TEXT, endpoint TEXT, model TEXT, api_key_encrypted TEXT, parameters TEXT, tags TEXT, cost_per_1k REAL, max_context INTEGER, enabled INTEGER);
             CREATE TABLE IF NOT EXISTS tool_parts (part_id TEXT PRIMARY KEY, name TEXT, description TEXT, language TEXT, code TEXT, input_schema TEXT, output_schema TEXT, tags TEXT, created_by TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS knowledge_entries (entry_id TEXT PRIMARY KEY, type TEXT, title TEXT, content TEXT, source TEXT, vector_id TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
-            CREATE TABLE IF NOT EXISTS conversation_messages (msg_id TEXT PRIMARY KEY, task_id TEXT, layer TEXT, sender_role TEXT, sender_id TEXT, content TEXT, metadata TEXT, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (task_id) REFERENCES tasks(task_id));
+            CREATE TABLE IF NOT EXISTS conversation_messages (msg_id TEXT PRIMARY KEY, task_id TEXT, layer TEXT, sender_role TEXT, sender_id TEXT, content TEXT, metadata TEXT, msg_type TEXT DEFAULT 'text', timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (task_id) REFERENCES tasks(task_id));
             CREATE TABLE IF NOT EXISTS task_board_states (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL, state_json TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE IF NOT EXISTS usage_log (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT, tokens INTEGER, cost REAL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
             CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
@@ -122,6 +131,22 @@ class Database:
         try:
             await self._conn.execute("ALTER TABLE tasks ADD COLUMN file_refs TEXT")
             logger.info("tasks 表已新增 file_refs 列")
+        except Exception:
+            pass
+        # 兼容旧库：tasks 表新增 budget_limit_usd 列（任务级美元预算）
+        try:
+            await self._conn.execute(
+                "ALTER TABLE tasks ADD COLUMN budget_limit_usd REAL"
+            )
+            logger.info("tasks 表已新增 budget_limit_usd 列")
+        except Exception:
+            pass
+        # 兼容旧库：conversation_messages 表新增 msg_type 列（消息类型标记）
+        try:
+            await self._conn.execute(
+                "ALTER TABLE conversation_messages ADD COLUMN msg_type TEXT DEFAULT 'text'"
+            )
+            logger.info("conversation_messages 表已新增 msg_type 列")
         except Exception:
             pass
         await self._conn.commit()
@@ -210,7 +235,8 @@ class Database:
         try:
             cipher = await self._get_cipher()
             key = cipher.decrypt(row[4].encode()).decode() if row[4] else ""
-        except Exception:
+        except Exception as e:
+            logger.warning(f"AI 实例 {iid} API Key 解密失败，已置空: {e}")
             key = ""
         return {
             "id": row[0],

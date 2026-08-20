@@ -229,7 +229,7 @@ def github_access_helper(operation: str, *args, **kwargs):
             try:
                 req = _build_api_request(url)
                 with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: url 已通过 _require_http_url 校验
-                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    data = json
                     return {
                         "tag_name": data.get("tag_name"),
                         "name": data.get("name"),

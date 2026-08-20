@@ -131,11 +131,11 @@ def setup_logging():
             return
         _setup_done = True
 
-        from .config import config_manager
+        from .config import get
 
-        log_level = config_manager.get("system.log_level", "INFO")
+        log_level = get("system.log_level", "INFO")
 
-        data_dir = Path(config_manager.get("system.data_dir", "./data"))
+        data_dir = Path(get("system.data_dir", "./data"))
         log_dir = data_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
 

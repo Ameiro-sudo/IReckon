@@ -8,7 +8,8 @@ import asyncio
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.core.config import config_manager
+
+from app.core.config import get
 from app.harness import dsh_client
 
 
@@ -16,9 +17,7 @@ def _validate_workspace(workspace: Optional[str]) -> Optional[str]:
     """校验 workspace 必须位于 harness.workspace_root 之下。"""
     if not workspace:
         return None
-    root = Path(
-        config_manager.get("harness.workspace_root", "./data/harness/workspaces")
-    ).resolve()
+    root = Path(get("harness.workspace_root", "./data/harness/workspaces")).resolve()
     ws = Path(workspace).resolve()
     try:
         ws.relative_to(root)

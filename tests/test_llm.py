@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.llm.client as client_mod
-from app.llm.client import LLMClient, LLMCallError, StopReason
+from app.llm.client import LLMClient, LLMCallError, StopReason, _ensure_model_prefix
 from conftest import make_cap
 
 
@@ -45,8 +45,8 @@ def _api_error():
 def test_ensure_model_prefix():
     c = LLMClient()
     cap = make_cap()
-    assert c._ensure_model_prefix(cap, "auto") == "openai/auto"
-    assert c._ensure_model_prefix(cap, "openai/auto") == "openai/auto"
+    assert _ensure_model_prefix(cap, "auto") == "openai/auto"
+    assert _ensure_model_prefix(cap, "openai/auto") == "openai/auto"
 
 
 async def test_call_success_non_stream(client, monkeypatch):

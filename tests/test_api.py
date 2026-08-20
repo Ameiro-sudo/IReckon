@@ -196,6 +196,7 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
         text = '{"data":[{"id":"auto"}]}'
 
     class FakeClient:
+
         async def get(self, url, headers=None):
             assert url.endswith("/models")
             return FakeResponse()
@@ -219,7 +220,8 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
     r = await client.post(f"/api/ai-instances/{iid}/test")
     assert r.status_code == 200
     body = r.json()
-    assert body["status"] == "ok"
+    assert body["status"] == "reachable"
+    assert body["http_status"] == 200
     assert isinstance(body["latency_ms"], int)
     await client.delete(f"/api/ai-instances/{iid}")
 

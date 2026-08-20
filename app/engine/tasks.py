@@ -5,14 +5,13 @@ from enum import Enum
 from loguru import logger
 from app.core.state import StateManager
 from app.core.database import db
-from app.core.config import config_manager
 from app.agents.scheduler import SchedulerAgent
 from app.llm.pool import capability_pool, AICapability
 from .room import meeting_room_manager
 from .board import TaskBoard
 from .learner import idle_loop
 
-get = config_manager.get
+from app.core.config import get
 
 # 上传批次 ID 白名单：服务端生成 up-<hex> 格式，仅允许小写字母/数字/连字符，防路径穿越
 _UPLOAD_ID_RE = re.compile(r"^[a-z0-9-]{8,}$")
@@ -50,6 +49,51 @@ class TaskState(TypedDict):
     task_board_state: Dict[str, Any]
 
 
+async def _mark_status(tid: str, status: TaskStatus):
+    try:
+        await db.execute(
+            "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
+            (status.value, tid),
+        )
+    except Exception as e:
+        logger.warning(f"任务{tid}状态更新失败: {e}")
+
+
+async def _ingest_uploads(tid: str, upload_id: str) -> List[Dict]:
+    """把上传的参考文件拷入任务 input 目录，返回引用列表。"""
+    data_dir = Path(get("system.data_dir", "./data"))
+    uploads_root = (data_dir / "uploads").resolve()
+    src = data_dir / "uploads" / upload_id
+    # 路径穿越防护：解析后的路径必须仍位于 uploads 目录内
+    try:
+        src.resolve().relative_to(uploads_root)
+    except (OSError, ValueError):
+        logger.warning(f"非法的上传批次路径: {upload_id}")
+        return []
+    if not src.is_dir():
+        logger.warning(f"上传批次不存在: {upload_id}")
+        return []
+    out = data_dir / "outputs" / tid / "input"
+    out.mkdir(parents=True, exist_ok=True)
+    refs = []
+    for p in sorted(src.iterdir()):
+        if not p.is_file():
+            continue
+        target = out / p.name
+        try:
+            shutil.copy2(p, target)
+            refs.append(
+                {
+                    "name": p.name,
+                    "size": p.stat().st_size,
+                    "path": f"outputs/{tid}/input/{p.name}",
+                }
+            )
+        except OSError as e:
+            logger.warning(f"拷贝上传文件失败 {p.name}: {e}")
+    return refs
+
+
 class TaskManager:
     _instance: Optional["TaskManager"] = None
 
@@ -72,7 +116,7 @@ class TaskManager:
         from app.utils import make_task_title
 
         title = make_task_title(req)
-        file_refs = await self._ingest_uploads(tid, upload_id) if upload_id else []
+        file_refs = await _ingest_uploads(tid, upload_id) if upload_id else []
         await db.execute(
             "INSERT INTO tasks(task_id,user_request,title,status,file_refs) VALUES(?,?,?,?,?)",
             (
@@ -84,40 +128,6 @@ class TaskManager:
             ),
         )
         return tid
-
-    async def _ingest_uploads(self, tid: str, upload_id: str) -> List[Dict]:
-        """把上传的参考文件拷入任务 input 目录，返回引用列表。"""
-        data_dir = Path(get("system.data_dir", "./data"))
-        uploads_root = (data_dir / "uploads").resolve()
-        src = data_dir / "uploads" / upload_id
-        # 路径穿越防护：解析后的路径必须仍位于 uploads 目录内
-        try:
-            src.resolve().relative_to(uploads_root)
-        except (OSError, ValueError):
-            logger.warning(f"非法的上传批次路径: {upload_id}")
-            return []
-        if not src.is_dir():
-            logger.warning(f"上传批次不存在: {upload_id}")
-            return []
-        out = data_dir / "outputs" / tid / "input"
-        out.mkdir(parents=True, exist_ok=True)
-        refs = []
-        for p in sorted(src.iterdir()):
-            if not p.is_file():
-                continue
-            target = out / p.name
-            try:
-                shutil.copy2(p, target)
-                refs.append(
-                    {
-                        "name": p.name,
-                        "size": p.stat().st_size,
-                        "path": f"outputs/{tid}/input/{p.name}",
-                    }
-                )
-            except OSError as e:
-                logger.warning(f"拷贝上传文件失败 {p.name}: {e}")
-        return refs
 
     @staticmethod
     def _build_requirement_with_files(req: str, refs: List[Dict]) -> str:
@@ -157,30 +167,21 @@ class TaskManager:
                 await asyncio.wait_for(body(), timeout=md)
             except asyncio.TimeoutError:
                 logger.error(f"任务{tid}超时")
-                await self._mark_status(tid, TaskStatus.FAILED)
+                await _mark_status(tid, TaskStatus.FAILED)
             except asyncio.CancelledError:
                 # 用户取消 -> 暂停，保留快照以便恢复
                 status = TaskStatus.PAUSED if ce.is_set() else TaskStatus.FAILED
                 logger.info(f"任务{tid}被取消，状态: {status.value}")
-                await self._mark_status(tid, status)
+                await _mark_status(tid, status)
             except Exception as e:
                 logger.exception(f"任务{tid}异常: {e}")
-                await self._mark_status(tid, TaskStatus.FAILED)
+                await _mark_status(tid, TaskStatus.FAILED)
             finally:
                 self._running.pop(tid, None)
                 self._cancel_events.pop(tid, None)
                 await meeting_room_manager.close_room(tid)
 
         self._running[tid] = asyncio.create_task(_run())
-
-    async def _mark_status(self, tid: str, status: TaskStatus):
-        try:
-            await db.execute(
-                "UPDATE tasks SET status=?, updated_at=CURRENT_TIMESTAMP WHERE task_id=?",
-                (status.value, tid),
-            )
-        except Exception as e:
-            logger.warning(f"任务{tid}状态更新失败: {e}")
 
     async def start_task(self, tid: str, scid: Optional[str] = None):
         if tid in self._running:
@@ -342,13 +343,13 @@ class TaskManager:
                 )
             except asyncio.TimeoutError:
                 logger.error(f"任务{tid}恢复后超时")
-                await self._mark_status(tid, TaskStatus.FAILED)
+                await _mark_status(tid, TaskStatus.FAILED)
             except asyncio.CancelledError:
                 status = TaskStatus.PAUSED if ce.is_set() else TaskStatus.FAILED
-                await self._mark_status(tid, status)
+                await _mark_status(tid, status)
             except Exception as e:
                 logger.exception(f"恢复失败: {e}")
-                await self._mark_status(tid, TaskStatus.FAILED)
+                await _mark_status(tid, TaskStatus.FAILED)
             finally:
                 self._running.pop(tid, None)
                 self._cancel_events.pop(tid, None)

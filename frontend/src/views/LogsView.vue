@@ -16,8 +16,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore.js'
+import {onMounted, onUnmounted, ref} from 'vue'
+import {useTaskStore} from '../stores/taskStore.js'
 import PageHeader from '../components/PageHeader.vue'
 import LogViewer from '../components/LogViewer.vue'
 

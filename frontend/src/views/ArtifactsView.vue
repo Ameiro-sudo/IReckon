@@ -10,8 +10,8 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
-import { useTaskStore } from '../stores/taskStore.js'
+import {onMounted, onUnmounted} from 'vue'
+import {useTaskStore} from '../stores/taskStore.js'
 import PageHeader from '../components/PageHeader.vue'
 import ArtifactBrowser from '../components/ArtifactBrowser.vue'
 

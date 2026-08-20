@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
 from typing import Dict, Optional
+
 from loguru import logger
-from app.core.config import config_manager
+
+from app.core.config import get
 
 
 class StyleEngine:
@@ -43,20 +45,20 @@ class StyleEngine:
 
     def get_theme(self, name=None):
         self._ensure_themes()
-        name = name or config_manager.get("ui.theme", "catgirl")
+        name = name or get("ui.theme", "catgirl")
         return self._themes.get(name, self._themes.get("catgirl", {}))
 
     def render_role_name(self, role, theme=None):
         t = theme or self.get_theme()
-        return t.get("role_mapping", {}).get(role, {}).get("name", role)
+        return t.get("name", role)
 
     def render_avatar(self, role, theme=None):
         t = theme or self.get_theme()
-        return t.get("role_mapping", {}).get(role, {}).get("avatar", "")
+        return t.get("avatar", "")
 
     def render_style(self, role, theme=None):
         t = theme or self.get_theme()
-        return t.get("role_mapping", {}).get(role, {}).get("style", "")
+        return t.get("style", "")
 
     def generate_agent_prompt_injection(self, role, theme_name=None):
         style = self.render_style(role, self.get_theme(theme_name))

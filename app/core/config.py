@@ -28,14 +28,14 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
     logger.warning("watchdog 未安装，配置文件热加载不可用，将使用手动重载")
 
-_ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
+_ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)}")
 
 
 class ConfigManager:
     _instance: Optional["ConfigManager"] = None
     _instance_lock = threading.Lock()
 
-    def __new__(cls) -> "ConfigManager":
+    def __new__(cls) -> Optional["ConfigManager"]:
         with cls._instance_lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
@@ -94,7 +94,7 @@ class ConfigManager:
             return [self._expand_env_vars(item) for item in value]
         if isinstance(value, str):
 
-            def replacer(match: re.Match) -> str:
+            def replacer(match: re.Match) -> str | None:
                 expr = match.group(1)
                 if ":-" in expr:
                     var_name, default = expr.split(":-", 1)
@@ -111,7 +111,7 @@ class ConfigManager:
 
         try:
             handler = ConfigChangeHandler(self)
-            self._observer = Observer()
+            self._observer = Observer
             self._observer.schedule(
                 handler, path=str(self.config_path.parent), recursive=False
             )
@@ -182,7 +182,7 @@ class ConfigChangeHandler(FileSystemEventHandler):
 _config_manager: Optional[ConfigManager] = None
 
 
-def _get_config_manager() -> ConfigManager:
+def _get_config_manager() -> ConfigManager | None:
     global _config_manager
     if _config_manager is None:
         _config_manager = ConfigManager()
@@ -198,3 +198,8 @@ class _ConfigManagerProxy:
 
 
 config_manager = _ConfigManagerProxy()
+
+
+def get(key: str, default: Any = None) -> Any:
+    """模块级配置读取快捷方式：读不到返回默认值（默认值全部内置于代码）。"""
+    return config_manager.get(key, default)

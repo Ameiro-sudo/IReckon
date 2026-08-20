@@ -27,9 +27,7 @@ class ConnectionManager:
         self._send_locks: Dict[str, asyncio.Lock] = {}
         self._last_recv: Dict[WebSocket, float] = {}  # 连接最近一次收包时间
         self._mutex = asyncio.Lock()  # 连接集合/心跳表修改与广播迭代共用一把全局锁
-        self._batch_queues: Dict[str, List[dict]] = {}
-        self._batch_timers: Dict[str, asyncio.Task] = {}
-        self._batch_interval = 0.05  # 50ms 批量发送间隔
+        self._global_send_lock = asyncio.Lock()  # 全局连接广播串行化
 
     async def connect(self, websocket: WebSocket, task_id: Optional[str] = None):
         await websocket.accept()
@@ -57,12 +55,8 @@ class ConnectionManager:
                 self.task_connections[task_id].discard(websocket)
                 if not self.task_connections[task_id]:
                     del self.task_connections[task_id]
-                    # 连接数为 0 时清理不再使用的锁与批量队列
+                    # 连接数为 0 时清理不再使用的锁
                     self._send_locks.pop(task_id, None)
-                    self._batch_queues.pop(task_id, None)
-                    if task_id in self._batch_timers:
-                        self._batch_timers[task_id].cancel()
-                        del self._batch_timers[task_id]
             self.global_connections.discard(websocket)
 
     async def broadcast_to_task(self, task_id: str, message: dict):
@@ -104,28 +98,32 @@ class ConnectionManager:
             targets = list(self.global_connections)
         if not targets:
             return
-        dead = []
-        for ws in targets:
-            try:
-                await asyncio.wait_for(ws.send_json(message), timeout=_SEND_TIMEOUT)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            await self.disconnect(ws)
+        async with self._global_send_lock:
+            dead = []
+            for ws in targets:
+                try:
+                    await asyncio.wait_for(ws.send_json(message), timeout=_SEND_TIMEOUT)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                await self.disconnect(ws)
 
     async def broadcast_global_batch(self, messages: List[dict]):
         async with self._mutex:
             targets = list(self.global_connections)
         if not targets:
             return
-        dead = []
-        for ws in targets:
-            try:
-                await asyncio.wait_for(_send_batch(ws, messages), timeout=_SEND_TIMEOUT)
-            except Exception:
-                dead.append(ws)
-        for ws in dead:
-            await self.disconnect(ws)
+        async with self._global_send_lock:
+            dead = []
+            for ws in targets:
+                try:
+                    await asyncio.wait_for(
+                        _send_batch(ws, messages), timeout=_SEND_TIMEOUT
+                    )
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                await self.disconnect(ws)
 
 
 manager = ConnectionManager()

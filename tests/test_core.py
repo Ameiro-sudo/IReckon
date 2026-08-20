@@ -4,8 +4,10 @@ import os
 
 import pytest
 
-from app.core.config import ConfigManager
+from app.core.config import ConfigManager, config_manager
 from app.utils.json_utils import extract_json
+
+from app.core.config import get
 
 
 @pytest.fixture(autouse=True)
@@ -30,14 +32,14 @@ def test_config_env_var_expansion():
     os.environ["FREELMAPI_KEY"] = "test-key-123"
     cm = ConfigManager()
     cm.reload()
-    assert cm.get("ai_pool.instances")[0]["api_key"] == "test-key-123"
+    assert get("ai_pool.instances")[0]["api_key"] == "test-key-123"
 
 
 def test_config_env_var_expansion_missing_is_empty():
     os.environ.pop("FREELMAPI_KEY", None)
     cm = ConfigManager()
     cm.reload()
-    assert cm.get("ai_pool.instances")[0]["api_key"] == ""
+    assert get("ai_pool.instances")[0]["api_key"] == ""
 
 
 def test_config_path_resolution():

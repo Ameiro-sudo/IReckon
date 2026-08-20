@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import secrets
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,7 +17,8 @@ from loguru import logger
 
 from .push import heartbeat_loop, log_consumer, websocket_endpoint
 from .routers import tasks, instances, config as config_router, system, uploads
-from app.core.config import config_manager
+
+from app.core.config import get
 
 # 鉴权豁免路径：未配置 token 的前端场景也需要加载主题与健康检查
 _AUTH_EXEMPT_PATHS = {"/api/health", "/api/themes"}
@@ -24,9 +26,7 @@ _AUTH_EXEMPT_PATHS = {"/api/health", "/api/themes"}
 
 def _configured_token() -> str:
     """读取鉴权 token：环境变量优先，其次 config.yaml 的 security.api_token。"""
-    return os.environ.get("IRECKON_API_TOKEN", "") or config_manager.get(
-        "security.api_token", ""
-    )
+    return os.environ.get("IRECKON_API_TOKEN", "") or get("security.api_token", "")
 
 
 async def require_api_token(
@@ -38,7 +38,7 @@ async def require_api_token(
     token = _configured_token()
     if not token:
         return
-    if not x_api_token or x_api_token != token:
+    if not x_api_token or not secrets.compare_digest(x_api_token, token):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="IReckon AI Factory",
-    version=config_manager.get("system.version", "0.1.0"),
+    version=get("system.version", "0.1.0"),
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -104,7 +104,7 @@ if not _frontend_available:
 
 
 def _dev_url() -> str:
-    return config_manager.get("server.frontend_dev_url", "http://127.0.0.1:3000")
+    return get("server.frontend_dev_url", "http://127.0.0.1:3000")
 
 
 @app.exception_handler(RequestValidationError)
@@ -129,7 +129,8 @@ def _ws_authorized(websocket: WebSocket) -> bool:
     token = _configured_token()
     if not token:
         return True
-    return websocket.query_params.get("token", "") == token
+    supplied = websocket.query_params.get("token", "")
+    return bool(supplied) and secrets.compare_digest(supplied, token)
 
 
 @app.websocket("/ws/{task_id}")

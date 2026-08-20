@@ -1,14 +1,15 @@
 import re
 from pathlib import Path
 from loguru import logger
-from app.core.config import config_manager
+
+from app.core.config import get
 
 
 class SupplyChainFirewall:
     """供应链防火墙：解析 pip/npm/yarn/pnpm/uv/poetry/conda 安装命令并匹配包黑名单。"""
 
     _PIP_INSTALL_RE = re.compile(
-        r"(?:^|\s)(?:python(?:3|2)?\s+-m\s+pip|pip3?|pipx|uv\s+pip|poetry|conda)\s+"
+        r"(?:^|\s)(?:python[32]?\s+-m\s+pip|pip3?|pipx|uv\s+pip|poetry|conda)\s+"
         r"(?:install|add|i)\b",
         re.IGNORECASE,
     )
@@ -27,13 +28,9 @@ class SupplyChainFirewall:
             "requests-fake",
         ]
         self._npm_blacklist = ["evil-package", "node-stealer", "fake-react"]
-        custom_blacklist = config_manager.get("security.supply_chain_blacklist", {})
-        self._pip_blacklist.extend(
-            str(p).lower() for p in custom_blacklist.get("pip", [])
-        )
-        self._npm_blacklist.extend(
-            str(p).lower() for p in custom_blacklist.get("npm", [])
-        )
+        custom = get("security.supply_chain_blacklist", {}) or {}
+        self._pip_blacklist.extend(str(p).lower() for p in custom.get("pip", []))
+        self._npm_blacklist.extend(str(p).lower() for p in custom.get("npm", []))
         self._pip_blacklist = list(dict.fromkeys(self._pip_blacklist))
         self._npm_blacklist = list(dict.fromkeys(self._npm_blacklist))
 

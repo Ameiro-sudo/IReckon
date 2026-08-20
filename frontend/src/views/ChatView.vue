@@ -24,7 +24,7 @@
           <input v-model="searchText" class="input" placeholder="搜索任务..." />
         </div>
 
-        <div class="chat-side-list">
+        <div class="chat-side-list" role="listbox" aria-label="任务列表">
           <div
             v-for="task in filteredTasks"
             :key="task.task_id"
@@ -32,6 +32,9 @@
             :class="{ active: currentTask?.task_id === task.task_id }"
             @click="selectTask(task)"
             :title="task.user_request"
+            role="option"
+            :aria-selected="currentTask?.task_id === task.task_id"
+            :aria-label="taskTitle(task)"
           >
             <div class="chat-task-top">
               <span class="chat-task-name overflow-ellipsis">{{ taskTitle(task) }}</span>
@@ -87,13 +90,19 @@
             </div>
 
             <div v-else class="msg-list">
+              <div v-if="!messages.length && !loading" class="empty-state" style="padding: 60px 20px;">
+                <div class="empty-icon">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <p class="text-sm text-muted">暂无消息，输入内容开始对话</p>
+              </div>
               <div
                 v-for="(msg, i) in messages"
                 :key="msg.msg_id || i"
                 class="msg"
                 :class="{ own: msg.role === 'user', sys: msg.role === 'system' }"
               >
-                <div class="msg-avatar" :style="{ background: roleColor(msg.role) }">{{ avatarText(msg.role) }}</div>
+                <div class="msg-avatar" :style="msg.role !== 'user' ? { background: roleColor(msg.role) } : null">{{ avatarText(msg.role) }}</div>
                 <div class="msg-body">
                   <div class="msg-meta">
                     <span class="msg-role" :style="{ color: roleColor(msg.role) }">{{ roleLabel(msg.role) }}</span>
@@ -111,7 +120,7 @@
             </div>
           </div>
 
-          <aside class="chat-board" v-if="currentTask">
+          <aside class="chat-board" v-if="taskStore.board">
             <TaskBoardPanel :board="taskStore.board" />
           </aside>
         </div>
@@ -119,13 +128,15 @@
         <div class="chat-input-bar">
           <textarea
             v-model="inputText"
-            class="input"
+            class="input chat-input"
             placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
             rows="1"
+            aria-label="消息输入框"
             :disabled="!currentTask"
             @keydown="handleKeydown"
+            @input="autoGrow"
           ></textarea>
-          <button class="btn btn-primary" :disabled="!inputText.trim() || !currentTask" @click="sendMsg">
+          <button class="btn btn-primary" :disabled="!inputText.trim() || !currentTask" @click="sendMsg" aria-label="发送消息">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             发送
           </button>
@@ -138,12 +149,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useTaskStore } from '../stores/taskStore.js'
-import { taskAPI, createWebSocket } from '../api/index.js'
-import { renderMarkdown, highlightDom, roleLabel, roleColor } from '../utils/markdown.js'
-import { taskTitle } from '../utils/task.js'
-import { useToast } from '../composables/useToast.js'
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
+import {useTaskStore} from '../stores/taskStore.js'
+import {createWebSocket, taskAPI} from '../api/index.js'
+import {highlightDom, renderMarkdown, roleColor, roleLabel} from '../utils/markdown.js'
+import {taskTitle} from '../utils/task.js'
+import {useToast} from '../composables/useToast.js'
 import NewTaskModal from '../components/NewTaskModal.vue'
 import TaskBoardPanel from '../components/TaskBoardPanel.vue'
 import StatusPill from '../components/StatusPill.vue'
@@ -292,7 +303,7 @@ async function sendMsg() {
   try {
     await taskStore.sendMessage(currentTask.value.task_id, text, selectedLayer.value)
     await nextTick()
-    scrollDown()
+    scrollDown(true)
   } catch (e) {
     toast.error('发送失败: ' + e.message)
     inputText.value = text
@@ -310,8 +321,18 @@ function onLayerChange() {
   if (currentTask.value) taskStore.fetchMessages(currentTask.value.task_id, selectedLayer.value)
 }
 
-function scrollDown() {
-  if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+function scrollDown(force = false) {
+  const el = messagesRef.value
+  if (!el) return
+  if (force || el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+    el.scrollTop = el.scrollHeight
+  }
+}
+
+function autoGrow(e) {
+  const el = e.target
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px'
 }
 
 function avatarText(role) {
@@ -340,6 +361,8 @@ function renderContent(msg) {
 .chat-page {
   padding: 30px 34px 26px;
   max-width: 1440px;
+  width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -533,7 +556,7 @@ function renderContent(msg) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
@@ -541,7 +564,7 @@ function renderContent(msg) {
 }
 
 .msg.own .msg-avatar {
-  background: var(--accent) !important;
+  background: var(--accent);
 }
 
 .msg-body {
@@ -602,11 +625,12 @@ function renderContent(msg) {
 .msg.own .msg-content :deep(:not(pre) > code) {
   background: rgba(255, 255, 255, 0.18);
   border-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 .msg.own .msg-content :deep(a) {
-  color: #e0e7ff;
+  color: var(--accent-contrast);
+  text-decoration: underline;
 }
 
 .msg.sys .msg-content {
@@ -665,6 +689,7 @@ function renderContent(msg) {
   min-height: 38px;
   max-height: 120px;
   resize: none;
+  overflow-y: auto;
   padding: 9px 13px;
   border-radius: var(--radius-lg);
   background: var(--bg-subtle);
@@ -690,11 +715,37 @@ function renderContent(msg) {
 
   .chat-side {
     width: 100%;
-    max-height: 30%;
+    max-height: none;
+    flex-shrink: 1;
   }
 
-  .chat-side-search { display: none; }
+  .chat-side-head { display: none; }
+
+  .chat-side-list {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .chat-task {
+    min-width: 170px;
+    border: 1px solid var(--border);
+    margin: 0;
+    background: var(--bg-surface);
+  }
+
+  .chat-task.active {
+    border-color: var(--accent-border);
+  }
 
   .msg { max-width: 94%; }
+
+  .chat-headbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chat-headbar .btn { font-size: 12px; padding: 5px 10px; }
 }
 </style>

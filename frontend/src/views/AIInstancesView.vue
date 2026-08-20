@@ -46,12 +46,12 @@
       <div v-if="testResults[inst.id]" class="test-result" :class="testResults[inst.id].status === 'reachable' ? 'ok' : 'bad'">
         <span class="test-dot"></span>
         <span class="text-sm" v-if="testResults[inst.id].status === 'reachable'">
-          可达 (HTTP {{ testResults[inst.id].http_status }})
+          可达 (HTTP {{ testResults[inst.id].http_status }}<template v-if="testResults[inst.id].latency_ms"> · {{ testResults[inst.id].latency_ms }}ms</template>)
         </span>
         <span class="text-sm overflow-ellipsis" v-else :title="testResults[inst.id].error">
           不可达: {{ testResults[inst.id].error }}
         </span>
-        <button class="btn btn-ghost btn-icon" style="margin-left: auto;" @click="clearTest(inst.id)">×</button>
+        <button class="btn btn-ghost btn-icon clear-test-btn" @click="clearTest(inst.id)" aria-label="清除测试结果">×</button>
       </div>
 
       <div class="inst-actions">
@@ -74,8 +74,8 @@
 
   <Teleport to="body">
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <h2 class="modal-title">{{ editingInstance ? '编辑实例' : '添加实例' }}</h2>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ai-instance-modal-title">
+        <h2 class="modal-title" id="ai-instance-modal-title">{{ editingInstance ? '编辑实例' : '添加实例' }}</h2>
         <p class="modal-desc">OpenAI 兼容端点可直接接入，API Key 将加密存储。</p>
         <form @submit.prevent="saveInstance">
           <div class="form-group">
@@ -93,7 +93,7 @@
           <div class="form-group">
             <label class="form-label">API Key</label>
             <input v-model="form.api_key" class="input" type="password" placeholder="sk-..." autocomplete="new-password" />
-            <div v-if="editingInstance?.has_key" class="text-xs text-muted" style="margin-top: 4px;">留空表示保持不变，已配置密钥</div>
+            <div v-if="editingInstance?.has_key" class="text-xs text-muted key-hint">留空表示保持不变，已配置密钥</div>
           </div>
           <div class="flex gap-12">
             <div class="form-group" style="flex: 1;">
@@ -128,9 +128,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { aiInstanceAPI } from '../api/index.js'
-import { useToast } from '../composables/useToast.js'
+import {onMounted, reactive, ref} from 'vue'
+import {aiInstanceAPI} from '../api/index.js'
+import {useToast} from '../composables/useToast.js'
 import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()
@@ -364,4 +364,12 @@ function formatContext(n) {
 }
 
 .inst-actions .btn { flex: 1; }
+
+.clear-test-btn {
+  margin-left: auto;
+}
+
+.key-hint {
+  margin-top: 4px;
+}
 </style>

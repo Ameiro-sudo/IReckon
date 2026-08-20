@@ -2,7 +2,7 @@
   <div class="app-shell">
     <div v-if="mobileSidebarOpen" class="mobile-overlay" @click="mobileSidebarOpen = false"></div>
 
-    <aside class="sidebar" :class="{ open: mobileSidebarOpen }">
+    <aside class="sidebar" :class="{ open: mobileSidebarOpen }" aria-label="主导航侧边栏">
       <div class="sidebar-brand">
         <div class="brand-mark">I</div>
         <div>
@@ -24,7 +24,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
           </span>
           任务
-          <span v-if="activeCount > 0" class="nav-count">{{ activeCount }}</span>
+          <span v-if="taskStore.activeCount > 0" class="nav-count">{{ taskStore.activeCount }}</span>
         </router-link>
         <router-link to="/dashboard" class="nav-item" @click="mobileSidebarOpen = false">
           <span class="nav-icon">
@@ -74,9 +74,9 @@
           <span class="text-sm" style="flex: 1;">{{ backendOnline ? '后端在线' : '后端离线' }}</span>
           <span class="footer-version">v{{ version }}</span>
         </div>
-        <button class="btn btn-secondary btn-block" @click="toggleTheme">
-          <svg v-if="isDark" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <button class="btn btn-secondary btn-block" @click="toggleTheme" :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'">
+          <svg v-if="isDark" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           {{ isDark ? '浅色模式' : '深色模式' }}
         </button>
       </div>
@@ -84,8 +84,8 @@
 
     <main class="app-main">
       <div class="mobile-topbar">
-        <button class="btn btn-ghost btn-icon" @click="mobileSidebarOpen = true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        <button class="btn btn-ghost btn-icon" @click="mobileSidebarOpen = true" aria-label="打开导航菜单">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <span class="mobile-title">IReckon</span>
       </div>
@@ -98,17 +98,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useTaskStore } from './stores/taskStore.js'
-import { healthAPI } from './api/index.js'
+import {onMounted, onUnmounted, ref} from 'vue'
+import {useTaskStore} from './stores/taskStore.js'
+import {healthAPI} from './api/index.js'
 import ToastContainer from './components/ToastContainer.vue'
 
 const taskStore = useTaskStore()
-const activeCount = ref(0)
 const isDark = ref(false)
 const version = ref('—')
 const backendOnline = ref(true)
 const mobileSidebarOpen = ref(false)
+let healthTimer = null
 let pollTimer = null
 
 const toggleTheme = () => {
@@ -117,28 +117,26 @@ const toggleTheme = () => {
   localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
 }
 
-onMounted(async () => {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    isDark.value = true
-    document.documentElement.setAttribute('data-theme', 'dark')
-  }
+async function checkHealth() {
   try {
     const res = await healthAPI.check()
-    version.value = res.data?.version || '—'
+    version.value = res.data?.version || version.value
     backendOnline.value = true
   } catch {
     backendOnline.value = false
   }
-  const refresh = async () => {
-    await taskStore.fetchTasks()
-    activeCount.value = taskStore.activeCount
-  }
-  await refresh()
-  pollTimer = setInterval(refresh, 10000)
+}
+
+onMounted(async () => {
+  isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
+  await checkHealth()
+  healthTimer = setInterval(checkHealth, 15000)
+  await taskStore.fetchTasks()
+  pollTimer = setInterval(() => taskStore.fetchTasks(), 10000)
 })
 
 onUnmounted(() => {
+  if (healthTimer) clearInterval(healthTimer)
   if (pollTimer) clearInterval(pollTimer)
 })
 </script>

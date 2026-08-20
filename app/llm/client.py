@@ -5,20 +5,18 @@ LLM 客户端模块
 
 import asyncio, atexit, random, re, time
 from collections import deque
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from enum import Enum
 from dataclasses import dataclass
 import httpx
 from loguru import logger
-from app.core.config import config_manager
 
 
-def get(key: str, default: Any = None) -> Any:
-    """配置读取快捷方式：读不到返回默认值（默认值全部内置于代码）。"""
-    return config_manager.get(key, default)
+from app.core.config import get
 
 
 _llm = None
+_retryable_exceptions_cache = None
 
 
 def _get_litellm():
@@ -60,18 +58,22 @@ def _get_acompletion():
 
 
 def _retryable_exceptions():
-    lm = _get_litellm()
-    return (
-        lm.exceptions.APIConnectionError,
-        lm.exceptions.APIError,
-        lm.exceptions.Timeout,
-        lm.exceptions.RateLimitError,
-        lm.exceptions.ServiceUnavailableError,
-        lm.exceptions.BadGatewayError,
-        lm.exceptions.InternalServerError,
-        ConnectionError,
-        TimeoutError,
-    )
+    """返回可重试异常类型元组（缓存结果，避免每次调用都重新构建）。"""
+    global _retryable_exceptions_cache
+    if _retryable_exceptions_cache is None:
+        lm = _get_litellm()
+        _retryable_exceptions_cache = (
+            lm.exceptions.APIConnectionError,
+            lm.exceptions.APIError,
+            lm.exceptions.Timeout,
+            lm.exceptions.RateLimitError,
+            lm.exceptions.ServiceUnavailableError,
+            lm.exceptions.BadGatewayError,
+            lm.exceptions.InternalServerError,
+            ConnectionError,
+            TimeoutError,
+        )
+    return _retryable_exceptions_cache
 
 
 class LLMCallError(Exception):
@@ -183,6 +185,34 @@ class _RateLimiter:
             await asyncio.sleep(min(wait, 0.5))
 
 
+async def _interruptible_sleep(duration, cancel_event):
+    """
+    可中断的睡眠
+    如果取消事件触发，会提前结束睡眠。
+    """
+    if not cancel_event:
+        await asyncio.sleep(duration)
+        return
+    try:
+        await asyncio.wait_for(cancel_event.wait(), timeout=duration)
+        raise LLMCallError("用户取消")
+    except asyncio.TimeoutError:
+        pass
+
+
+def _ensure_model_prefix(cap, model: str) -> str:
+    """确保模型名称有前缀（比如 openai/xxx, deepseek/xxx）"""
+    if "/" not in model:
+        # 自定义端点（OpenAI 兼容代理）走 openai 前缀最稳妥
+        if cap and cap.endpoint:
+            return f"openai/{model}"
+        # 官方 DeepSeek 端点识别 DeepSeek 系列模型（含 V4）
+        if re.match(r"^deepseek[-/]", model):
+            return f"deepseek/{model}"
+        return f"openai/{model}"
+    return model
+
+
 class LLMClient:
     """
     LLM 客户端核心类
@@ -224,9 +254,9 @@ class LLMClient:
         self._http_configured = False
         self._client_lock = asyncio.Lock()
         self._global_cancel_event = None  # 全局取消事件
-        self._pending_stream_usage = (
-            None  # 最近一次流式调用的 token 用量（异常/取消清空）
-        )
+        self._stream_usages: Dict[str, dict] = {}  # 按 usage_key 隔离的流式用量
+        self._last_stream_usage_key: Optional[str] = None
+        self._max_stream_usages = 100
 
     async def _ensure_http_client(self):
         """首次真实调用时再配置 litellm 的 httpx 客户端（避免导入期加载 litellm）。"""
@@ -286,6 +316,7 @@ class LLMClient:
         infinite_retry=False,
         stream=False,
         fallback_capabilities=None,
+        usage_key: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -304,6 +335,7 @@ class LLMClient:
                 max_retries,
                 infinite_retry,
                 fallback_capabilities,
+                usage_key=usage_key,
                 **kwargs,
             )
             return self._stream_guard(gen, capability)
@@ -322,81 +354,6 @@ class LLMClient:
                     **kwargs,
                 )
 
-    def _ensure_model_prefix(self, cap, model: str) -> str:
-        """确保模型名称有前缀（比如 openai/xxx, deepseek/xxx）"""
-        if "/" not in model:
-            # 自定义端点（OpenAI 兼容代理）走 openai 前缀最稳妥
-            if cap and cap.endpoint:
-                return f"openai/{model}"
-            # 官方 DeepSeek 端点识别 DeepSeek 系列模型（含 V4）
-            if re.match(r"^deepseek[-/]", model):
-                return f"deepseek/{model}"
-            return f"openai/{model}"
-        return model
-
-    def _is_retryable_error(self, e) -> bool:
-        """错误类别判断：优先对 litellm 异常类型做 isinstance，消息子串作 fallback。"""
-        orig = getattr(e, "original_error", None) or e
-        lm = _get_litellm()
-        try:
-            # 可重试类别
-            if isinstance(
-                orig,
-                (
-                    lm.exceptions.RateLimitError,
-                    lm.exceptions.Timeout,
-                    lm.exceptions.APIConnectionError,
-                    lm.exceptions.ServiceUnavailableError,
-                    lm.exceptions.InternalServerError,
-                    lm.exceptions.APIError,
-                    lm.exceptions.BadGatewayError,
-                    ConnectionError,
-                    TimeoutError,
-                ),
-            ):
-                return True
-            # 不可重试类别
-            if isinstance(
-                orig,
-                (
-                    lm.exceptions.AuthenticationError,
-                    lm.exceptions.BadRequestError,
-                    lm.exceptions.NotFoundError,
-                    lm.exceptions.ContextWindowExceededError,
-                ),
-            ):
-                return False
-        except Exception:
-            pass  # litellm 异常类型缺失时降级到消息子串判断
-        msg = str(e).lower()
-        if any(
-            k in msg
-            for k in (
-                "不可重试",
-                "invalid api key",
-                "authentication",
-                "unauthorized",
-                "not found",
-                "bad request",
-                "context window",
-                "insufficient_quota",
-            )
-        ):
-            return False
-        return any(
-            k in msg
-            for k in (
-                "retry",
-                "timeout",
-                "rate limit",
-                "connection",
-                "overloaded",
-                "server error",
-                "503",
-                "500",
-            )
-        )
-
     async def _try_call(
         self,
         cap,
@@ -412,13 +369,13 @@ class LLMClient:
         尝试调用单个端点，包含重试逻辑
         使用指数退避策略，不会一开始就放弃治疗。
         """
-        model = self._ensure_model_prefix(cap, cap.model)
+        model = _ensure_model_prefix(cap, cap.model)
         params = {
             "model": model,
             "messages": messages,
             "api_base": cap.endpoint or None,
             "api_key": cap.api_key or None,
-            **(cap.parameters),
+            **cap.parameters,
         }
         if temp is not None:
             params["temperature"] = temp
@@ -519,7 +476,7 @@ class LLMClient:
                 )
 
                 try:
-                    await self._interruptible_sleep(delay, cancel_evt)
+                    await _interruptible_sleep(delay, cancel_evt)
                 except LLMCallError:
                     raise
 
@@ -588,6 +545,7 @@ class LLMClient:
         max_retries,
         infinite_retry,
         fallback_caps,
+        usage_key: Optional[str] = None,
         **kwargs,
     ):
         """
@@ -600,14 +558,14 @@ class LLMClient:
             # 流式无限重试：以配置 max_retries 的大值（50）兜底，避免固定 10 次限制
             max_retries = max(self.default_retry["max_retries"], 50)
 
-        model = self._ensure_model_prefix(cap, cap.model)
+        model = _ensure_model_prefix(cap, cap.model)
         params = {
             "model": model,
             "messages": messages,
             "api_base": cap.endpoint or None,
             "api_key": cap.api_key or None,
             "stream": True,
-            **(cap.parameters),
+            **cap.parameters,
         }
         if temp is not None:
             params["temperature"] = temp
@@ -621,7 +579,7 @@ class LLMClient:
 
         while True:
             if cancel_evt and cancel_evt.is_set():
-                self._pending_stream_usage = None
+                self._clear_stream_usage(usage_key)
                 return
 
             resp = None
@@ -629,10 +587,10 @@ class LLMClient:
                 resp = await _get_acompletion()(**params)
                 async for chunk in resp:
                     if cancel_evt and cancel_evt.is_set():
-                        self._pending_stream_usage = None
+                        self._clear_stream_usage(usage_key)
                         return
                     # 每次 yield 前记录用量（最终 chunk 常为 usage-only）
-                    self._record_stream_usage(chunk)
+                    self._record_stream_usage(chunk, usage_key)
                     if not chunk.choices:
                         continue
                     piece = getattr(chunk.choices[0].delta, "content", None) or ""
@@ -643,13 +601,13 @@ class LLMClient:
                 return
             except LLMCallError:
                 # 用户取消等业务异常：不重试
-                self._pending_stream_usage = None
+                self._clear_stream_usage(usage_key)
                 raise
             except Exception as e:
                 attempt += 1
                 if yielded:
                     # 已产出内容：不重试不降级，避免内容重复
-                    self._pending_stream_usage = None
+                    self._clear_stream_usage(usage_key)
                     raise LLMCallError(f"流式输出中断: {e}", e)
                 # 未产出任何内容 → 可重试或降级
                 if not isinstance(e, _retryable_exceptions()) or attempt > retry_limit:
@@ -667,16 +625,16 @@ class LLMClient:
                             **kwargs,
                         )
                         nr.stop_reason = StopReason.STREAM_FALLBACK
-                        self._pending_stream_usage = None
+                        self._clear_stream_usage(usage_key)
                         yield nr.content
                         return
                     except Exception as fe:
-                        self._pending_stream_usage = None
+                        self._clear_stream_usage(usage_key)
                         raise LLMCallError(f"流式及回退均失败: {fe}", e)
 
                 delay = min(1.0 * (2 ** (attempt - 1)), 10)
                 logger.warning(f"流式中断，{delay:.2f}s后重试({attempt}/{retry_limit})")
-                await self._interruptible_sleep(delay, cancel_evt)
+                await _interruptible_sleep(delay, cancel_evt)
             finally:
                 if resp:
                     try:
@@ -684,8 +642,16 @@ class LLMClient:
                     except Exception:
                         pass
 
-    def _record_stream_usage(self, chunk):
-        """记录流式 chunk 的 token 用量（litellm 通常在最终 chunk 的 usage 字段给出）。"""
+    def _clear_stream_usage(self, usage_key: Optional[str]) -> None:
+        """清除指定 usage_key 的流式用量（异常/取消路径）。"""
+        if usage_key is not None:
+            self._stream_usages.pop(usage_key, None)
+
+    def _record_stream_usage(self, chunk, usage_key: Optional[str]) -> None:
+        """记录流式 chunk 的 token 用量（litellm 通常在最终 chunk 的 usage 字段给出）。
+
+        usage_key 用于并发流式调用间的用量隔离，避免互相覆盖。
+        """
         usage = getattr(chunk, "usage", None)
         if usage is None:
             return
@@ -693,28 +659,28 @@ class LLMClient:
         completion = getattr(usage, "completion_tokens", None)
         if prompt is None and completion is None:
             return
-        self._pending_stream_usage = {
-            "prompt_tokens": prompt if prompt is not None else 0,
-            "completion_tokens": completion if completion is not None else 0,
-        }
+        total = (prompt or 0) + (completion or 0)
+        if total > 0 and usage_key is not None:
+            self._stream_usages[usage_key] = {
+                "prompt_tokens": prompt or 0,
+                "completion_tokens": completion or 0,
+                "total_tokens": total,
+            }
+            self._last_stream_usage_key = usage_key
+            if len(self._stream_usages) > self._max_stream_usages:
+                # 修剪最老的 key，防止长驻进程内存无界增长
+                self._stream_usages.pop(next(iter(self._stream_usages)))
 
-    def last_stream_usage(self) -> dict:
-        """返回最近一次流式调用最终 chunk 的 token 用量；异常/取消后为空。"""
-        return dict(self._pending_stream_usage) if self._pending_stream_usage else {}
-
-    async def _interruptible_sleep(self, duration, cancel_event):
-        """
-        可中断的睡眠
-        如果取消事件触发，会提前结束睡眠。
-        """
-        if not cancel_event:
-            await asyncio.sleep(duration)
-            return
-        try:
-            await asyncio.wait_for(cancel_event.wait(), timeout=duration)
-            raise LLMCallError("用户取消")
-        except asyncio.TimeoutError:
-            pass
+    def last_stream_usage(self, usage_key: Optional[str] = None) -> dict:
+        """返回指定 usage_key（默认最近一次）流式调用的 token 用量；异常/取消后为空。"""
+        if usage_key is not None:
+            d = self._stream_usages.get(usage_key)
+            return dict(d) if d else {}
+        key = self._last_stream_usage_key
+        if key is None:
+            return {}
+        d = self._stream_usages.get(key)
+        return dict(d) if d else {}
 
 
 def _close_llm_http_client() -> None:

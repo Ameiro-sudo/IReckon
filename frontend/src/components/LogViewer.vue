@@ -7,7 +7,7 @@
         <span class="log-count text-xs text-muted">{{ filtered.length }} 条</span>
       </div>
       <div class="flex-center">
-        <select v-model="levelFilter" class="input log-filter">
+        <select v-model="levelFilter" class="input log-filter" aria-label="日志级别筛选">
           <option value="">全部级别</option>
           <option value="DEBUG">DEBUG</option>
           <option value="INFO">INFO</option>
@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <div class="log-body" ref="bodyRef">
+    <div class="log-body" ref="bodyRef" role="log" aria-live="polite" aria-label="系统日志">
       <div v-for="(l, i) in filtered" :key="i" class="log-line" :class="`lv-${l.level.toLowerCase()}`">
         <span class="log-level">{{ l.level }}</span>
         <span class="log-msg">{{ l.message }}</span>
@@ -32,8 +32,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { statsAPI, createWebSocket } from '../api/index.js'
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
+import {createWebSocket, statsAPI} from '../api/index.js'
 
 const logs = ref([])
 const levelFilter = ref('')
@@ -58,7 +58,7 @@ onMounted(async () => {
     /* ignore */
   }
   connectWs()
-  nextTick(() => scrollBottom())
+  await nextTick(() => scrollBottom())
 })
 
 onUnmounted(() => disconnectWs())
@@ -114,7 +114,7 @@ async function reload() {
   try {
     const res = await statsAPI.logs(300)
     logs.value = res.data.slice(-MAX_LOGS)
-    nextTick(() => scrollBottom())
+    await nextTick(() => scrollBottom())
   } catch {
     /* ignore */
   }
@@ -198,7 +198,7 @@ defineExpose({ reload })
 .log-line {
   display: flex;
   gap: 12px;
-  padding: 1.5px 16px;
+  padding: 2px 16px;
   white-space: pre-wrap;
   word-break: break-all;
   border-left: 2px solid transparent;
@@ -208,17 +208,12 @@ defineExpose({ reload })
   background: var(--bg-hover);
 }
 
-.log-line.lv-error {
-  border-left-color: var(--error);
-  background: var(--error-soft);
-}
-
 .log-level {
   flex-shrink: 0;
   width: 62px;
   font-weight: 600;
   user-select: none;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.03em;
 }
 

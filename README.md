@@ -1,30 +1,29 @@
 <p style="text-align:center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-0.109%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/FastAPI-0.110%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Vue_3-4.21%2B-4FC08D?style=for-the-badge&logo=vue.js" alt="Vue 3">
   <img src="https://img.shields.io/badge/LangGraph-%E2%9C%94-6C5CE7?style=for-the-badge" alt="LangGraph">
   <img src="https://img.shields.io/badge/ChromaDB-%E2%9C%94-FF6B6B?style=for-the-badge" alt="ChromaDB">
   <br>
   <img src="https://img.shields.io/github/license/Ameiro-sudo/IReckon?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/github/last-commit/Ameiro-sudo/IReckon?style=for-the-badge" alt="Last Commit">
-  <img src="https://img.shields.io/github/repo-size/Ameiro-sudo/IReckon?style=for-the-badge" alt="Repo Size">
   <img src="https://img.shields.io/badge/%E7%8A%B6%E6%80%81-Beta-yellow?style=for-the-badge" alt="Status">
 </p>
 
-<h1 style="text-align:center">IReckon — Multi-Agent Autonomous Programming System</h1>
+<h1 style="text-align:center">IReckon — 多智能体自主编程系统</h1>
 <p style="text-align:center"><em>I think it can work</em></p>
 
 <p style="text-align:center">
-  <a href="docs/README_EN.md">English</a>
+  <a href="docs/README_EN.md">English</a> · <a href="docs/BUILD_APK.md">构建 APK</a>
 </p>
 
 ---
 
 ## 概述
 
-**IReckon** 是一个生产级的**多智能体 AI 系统**，能够自主地将自然语言需求转化为完整的、经过审查的、可交付的软件产物。系统编排了一支专业 AI 智能体团队，通过标准化的软件开发生命周期（规划、编码、审查、修订、交付）完成全流程，执行过程无需人工干预。
+**IReckon** 是一个生产级的多智能体 AI 系统，能够将自然语言需求自主转化为完整、经过审查、可交付的软件产物。系统编排一支专业 AI 智能体团队，覆盖标准软件开发生命周期（规划 → 编码 → 审查 → 修订 → 交付），执行过程无需人工干预。
 
-系统基于 **LangGraph 状态机**构建，支持条件路由、循环检测和自动模型升级，能够在安全的沙箱环境中处理完整的软件开发流水线。
+系统基于 **LangGraph 状态机**构建，支持条件路由、循环检测与自动模型升级，在安全沙箱环境中处理完整的软件开发流水线。
 
 ---
 
@@ -67,7 +66,8 @@ graph TB
     end
 
     subgraph Infrastructure["基础设施层"]
-        LLM[LLM 能力池<br/>litellm + 100+ 模型]
+        LLM[LLM 能力池<br/>litellm + DeepSeek V4]
+        HARN[DeepSeek Harness<br/>dsh 执行引擎]
         VDB[(ChromaDB<br/>向量数据库)]
         SDB[(SQLite<br/>关系数据库)]
         SEC[安全套件<br/>Bandit + semgrep + udocker]
@@ -86,6 +86,7 @@ graph TB
     CRE -->|设计| EXE
     LRN -->|趋势学习| KB
     TLM -->|工具| EXE
+    EXE -->|委托| HARN
     Agents -->|LLM 调用| LLM
     Engine --> VDB
     Engine --> SDB
@@ -122,15 +123,16 @@ planning ──▶ execute ──▶ review ──┐
 ## 功能特性
 
 ### 核心引擎
-- **多智能体编排** — 7 个专业智能体，带有角色特定提示词和工具访问权限
+- **多智能体编排** — 7 个专业智能体，带角色特定提示词和工具访问权限
 - **LangGraph 状态机** — 带条件路由、子图和并行执行的正式 DAG
 - **双流水线审查** — 正确性（功能）+ 效率（架构）两道关卡
-- **自适应模型升级** — 修订失败自动提升 LLM 等级
+- **自适应模型升级** — 修订失败自动提升 LLM 等级（flash → pro）
+- **循环检测** — 相似度阈值 + 最大轮次限制，防止死循环
 - **任务快照与恢复** — 完整状态持久化，支持暂停/恢复/崩溃恢复
 
-### DeepSeek dsh 集成
+### DeepSeek 集成
 - **DeepSeek V4 原生支持** — 内置 `deepseek-v4-flash` / `deepseek-v4-pro` 实例，自动启用 thinking mode 与 reasoning_effort
-- **DeepSeek Harness (dsh) 执行引擎** — 双通道：Python SDK（`deepseek-harness-sdk`）+ headless CLI（`npx @deepseek-ai/dsh`）自动降级
+- **DeepSeek Harness (dsh) 执行引擎** — 双通道：Python SDK + headless CLI（`npx @deepseek-ai/dsh`）自动降级
 - **独立工作区隔离** — 每个任务在 `data/harness/workspaces/<session_id>` 独立沙箱运行，复用 session_id 可延续持久 Bash 会话
 - **dsh_task 内置工具** — 任一智能体可委托复杂重构/调试任务给 DeepSeek Harness
 - **Executor 可选路径** — 任务带 `use_harness: true` 时走 dsh 执行，产物自动汇回流水线
@@ -152,7 +154,7 @@ planning ──▶ execute ──▶ review ──┐
 - **极简 SaaS 设计系统** — 克制的边框/阴影、Indigo 强调色、深浅双主题，Linear/Notion 质感
 - **实时 WebSocket 流** — 任务进度、日志和消息实时推送（心跳保活 + 自动重连）
 - **Markdown 消息渲染** — marked + DOMPurify（XSS 过滤）+ highlight.js 代码高亮
-- **8 个页面** — 聊天（含任务看板面板）/ 任务表格（筛选/进度/删除）/ 仪表盘（KPI + 分布图 + 用量）/ 系统日志（全页实时流）/ 交付产物（文件浏览 + 内容预览 + ZIP 下载）/ AI 实例 / 自我进化 / 设置
+- **8 个页面** — 聊天 / 任务表格 / 仪表盘 / 系统日志 / 交付产物 / AI 实例 / 自我进化 / 设置
 - **多视觉主题** — catgirl / programmer 主题，深浅色模式
 - **响应式布局** — 桌面/平板/移动端自适应
 
@@ -161,6 +163,7 @@ planning ──▶ execute ──▶ review ──┐
 - **空闲自学习** — 无任务时自动爬取 GitHub Trending
 - **自更新系统** — 分析 → 修改 → PR 推送自动化循环
 - **Docker 部署** — 支持容器化一键部署
+- **Windows 打包** — PyInstaller 构建 exe（见 `scripts/build_exe.bat`）
 
 ---
 
@@ -168,8 +171,8 @@ planning ──▶ execute ──▶ review ──┐
 
 ### 环境要求
 - Python 3.10+
-- LLM 端点（默认: `http://localhost:11434` — Ollama + `qwen2.5:7b`）
-- Node.js 18+（前端开发用）
+- LLM 端点（默认: `http://localhost:3003/v1` — FreeLLM API，可自行配置）
+- Node.js 18+（前端开发/构建用）
 
 ### 安装
 
@@ -179,29 +182,28 @@ cd IReckon
 pip install -r requirements.txt
 ```
 
-### 配置 DeepSeek（可选）
+### 配置 LLM
 
 ```bash
-# DeepSeek V4 官方 API（ai_pool 内置 deepseek-v4-flash / deepseek-v4-pro 实例）
+# DeepSeek V4 官方 API（能力池内置 deepseek-v4-flash / deepseek-v4-pro 实例）
 export DEEPSEEK_API_KEY=sk-xxx
 
-# dsh (DeepSeek Harness) 执行引擎：SDK 通道
-pip install deepseek-harness-sdk
+# 可选：FreeLLM API（config.yaml 默认实例）
+export FREELMAPI_KEY=xxx
 
-# 或 CLI 通道（需 Node.js 18+）
-npx @deepseek-ai/dsh --help
+# 或自定义：在 config/config.yaml 的 ai_pool.instances 中增改端点
 ```
 
-dsh 相关配置见 `config/config.yaml` 的 `harness` 段（mode: auto 优先 SDK、缺失时降级 CLI）。
+能力池配置说明见 `config/config.yaml` 的 `ai_pool` 段；dsh 执行引擎见 `harness` 段（mode: auto 优先 SDK、缺失时降级 CLI）。
 
 ### 启动
 
 ```bash
-# 一键启动（生产模式：FastAPI 托管构建后的前端，端口 8000）
-./scripts/run.sh
+# 一键启动（自动构建/托管前端，端口 8000）
+python main.py
 
-# 开发模式（前端 Vite dev server :3000 + 后端 :8000）
-./scripts/run.sh --dev
+# 生产模式（FastAPI 托管构建后的前端）
+./scripts/run.sh
 
 # 手动启动
 python -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000
@@ -211,23 +213,27 @@ cd frontend && npm run dev
 cd deploy && docker compose up -d --build
 ```
 
+> 提示：`python main.py` 会检测 `frontend/dist`，不存在时自动启动 Vite dev server（:3000）并安装前端依赖；也可设置 `IRECKON_DEV_FRONTEND=1` 强制开发模式。
+
 ### 访问地址
 
 | 服务 | 地址 |
 |------|------|
-| 后端 API | `http://localhost:8000` |
-| 交互式文档 | `http://localhost:8000/docs` |
-| 前端 UI | `http://localhost:3000` |
-| 健康检查 | `http://localhost:8000/api/health` |
+| 后端 API | `http://127.0.0.1:8000` |
+| 交互式文档 | `http://127.0.0.1:8000/docs` |
+| 前端 UI（开发模式） | `http://127.0.0.1:3000` |
+| 健康检查 | `http://127.0.0.1:8000/api/health` |
 
 ---
 
 ## API 参考
 
+### 任务
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/tasks` | 创建新任务 |
-| GET | `/api/tasks` | 获取任务列表（支持 `?limit&offset&status` 分页筛选） |
+| GET | `/api/tasks` | 获取任务列表（`?limit&offset&status` 分页筛选） |
 | GET | `/api/tasks/{id}` | 获取任务详情（含计划、看板、Token 用量） |
 | GET | `/api/tasks/{id}/board` | 获取任务看板状态 |
 | GET | `/api/tasks/{id}/artifacts` | 列出交付产物 |
@@ -238,6 +244,11 @@ cd deploy && docker compose up -d --build
 | DELETE | `/api/tasks/{id}` | 删除任务（级联清理消息/看板/快照） |
 | GET | `/api/tasks/{id}/messages` | 获取任务消息 |
 | POST | `/api/tasks/{id}/messages` | 发送消息到任务 |
+
+### AI 实例与配置
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | GET | `/api/ai-instances` | 列出 AI 端点 |
 | POST | `/api/ai-instances` | 注册新 AI 端点 |
 | PUT | `/api/ai-instances/{id}` | 更新 AI 端点 |
@@ -247,10 +258,16 @@ cd deploy && docker compose up -d --build
 | GET | `/api/config` | 获取当前配置 |
 | POST | `/api/config/update` | 运行时更新配置（原子写入） |
 | GET | `/api/themes` | 获取 UI 主题列表 |
+
+### 系统
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
 | GET | `/api/health` | 健康检查（含版本/更新/连接数/运行时长） |
 | GET | `/api/stats` | 仪表盘统计（任务状态分布/AI 实例/用量） |
 | GET | `/api/usage` | Token/成本用量汇总 |
 | GET | `/api/logs` | 最近系统日志 |
+| POST | `/api/uploads` | 上传文件（任务附件） |
 | POST | `/api/self-improve` | 触发自我进化分析 |
 | POST | `/api/self-improve/push` | 推送自我进化分支 |
 | GET | `/api/update/check` | 检查新版本 |
@@ -287,38 +304,38 @@ cd deploy && docker compose up -d --build
 
 ```
 IReckon/
-├── main.py                       # 应用入口（生产模式直接托管前端 dist）
+├── main.py                       # 应用入口（后端 + 前端自动托管）
 ├── requirements.txt              # Python 依赖
 ├── .env.example                  # 环境变量示例（API Keys）
-├── .dockerignore
 │
 ├── app/                          # 后端包
-│   ├── agents/                   # AI 智能体实现
+│   ├── agents/                   # AI 智能体（scheduler/executor/reviewer/deliverer/creative/learner/tool_manager）
 │   ├── core/                     # 基础设施（配置/数据库/日志/更新）
-│   ├── engine/                   # 工作流引擎（LangGraph 状态机/看板/会议室）
+│   ├── engine/                   # 工作流引擎（LangGraph 状态机/看板/会议室/自我进化）
 │   ├── harness/                  # DeepSeek Harness (dsh) 集成
 │   ├── llm/                      # LLM 基础设施（能力池/客户端）
 │   ├── knowledge/                # 知识管理
-│   ├── security/                 # 安全子系统
+│   ├── security/                 # 安全子系统（命令过滤/扫描/沙箱）
 │   ├── tools/                    # 工具系统
+│   ├── utils/                    # 通用工具
 │   └── web/                      # Web 层
 │       ├── api.py                # FastAPI 应用工厂（路由挂载 + SPA 托管）
 │       ├── push.py               # WebSocket 推送（心跳保活）
-│       └── routers/              # 按领域拆分的路由（tasks/instances/config/system）
+│       └── routers/              # 按领域拆分的路由（tasks/instances/config/system/uploads）
 │
 ├── frontend/                     # Vue 3 前端（Vite + Pinia + marked/highlight.js）
 │   ├── src/
-│   │   ├── views/                # 页面（聊天/任务/仪表盘/日志/产物/AI实例/自我进化/设置）
-│   │   ├── components/           # 组件（NewTaskModal/ArtifactBrowser/LogViewer/TaskBoardPanel/StatusPill/PageHeader/Toast）
+│   │   ├── views/                # 8 个页面（聊天/任务/仪表盘/日志/产物/AI实例/自我进化/设置）
+│   │   ├── components/           # 组件（NewTaskModal/ArtifactBrowser/LogViewer/TaskBoardPanel/...）
 │   │   ├── stores/               # Pinia 状态（任务/看板/实时消息/轮询）
-│   │   ├── composables/          # useToast
 │   │   └── utils/markdown.js     # Markdown 渲染 + XSS 过滤 + 代码高亮
 │   └── dist/                     # 构建产物（FastAPI 托管）
 │
-├── config/                       # 配置
-├── scripts/                      # 工具脚本（run.sh 启动器）
+├── config/                       # 配置（config.yaml / prompts / themes / harness）
+├── scripts/                      # 工具脚本（run.sh 启动器 / build_exe 打包 / 测试）
 ├── docs/                         # 文档
-└── data/                         # 运行时数据（db/logs/states/output）
+├── deploy/                       # Docker 部署
+└── data/                         # 运行时数据（db/logs/states/output/harness）
 ```
 
 ---
@@ -341,7 +358,9 @@ semgrep --config=auto app/
 # 格式化
 ruff format app/
 
-# 功能测试
+# 测试
+pytest
+python scripts/smoke_test.py
 python scripts/test_run.py
 ```
 
@@ -350,258 +369,6 @@ python scripts/test_run.py
 ## 开源许可
 
 基于 **MIT License** 分发。详见 `LICENSE` 文件。
-
----
-
-<details>
-<summary>English README</summary>
-
-<p style="text-align:center">
-  <sub>IReckon Team 用心打造</sub>
-</p>
-
-It orchestrates a team of specialized AI agents through a formalized software development lifecycle — planning, coding, reviewing, revising, and delivery — with zero human intervention during execution.
-
-Built on a **LangGraph-driven state machine** with conditional routing, loop detection, and automatic model escalation, IReckon handles the full software development pipeline within a secure, sandboxed environment.
-
----
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph Frontend["Vue 3 Frontend (Port 3000)"]
-        UI[Glassmorphism UI]
-        WS[WebSocket Client]
-        RT[Real-time Dashboard]
-    end
-
-    subgraph Backend["FastAPI Backend (Port 8000)"]
-        API[REST API Layer]
-        WSS[WebSocket Server]
-        CFG[Config Manager<br/>YAML + Hot Reload]
-    end
-
-    subgraph Engine["Workflow Engine — LangGraph State Machine"]
-        direction TB
-        PL[Planning] --> EX[Execute]
-        EX --> RV[Review]
-        RV -->|pass| DV[Deliver]
-        RV -->|revise| RS[Revise]
-        RS --> EX
-        RV -->|fail| EH[Error Handler]
-        EH --> END[END]
-        DV --> END
-    end
-
-    subgraph Agents["AI Agent Team"]
-        SCH[Scheduler]
-        EXE[Executor]
-        REV[Reviewer<br/>Correctness + Efficiency]
-        DEL[Deliverer]
-        CRE[Creative]
-        LRN[Learner]
-        TLM[Tool Manager]
-    end
-
-    subgraph Infrastructure["Infrastructure Layer"]
-        LLM[LLM Pool<br/>litellm + 100+ Models]
-        VDB[(ChromaDB<br/>Vector Store)]
-        SDB[(SQLite<br/>Relational DB)]
-        SEC[Security Suite<br/>Bandit + semgrep + udocker]
-        KB[Knowledge Base<br/>File Store]
-    end
-
-    UI -->|HTTP/WS| API
-    UI -->|WS| WSS
-    WSS --> RT
-    API --> CFG
-    API --> Engine
-    Engine -->|Task Router| SCH
-    SCH --> EXE
-    EXE -->|Code| REV
-    REV --> DEL
-    CRE -->|Design| EXE
-    LRN -->|Trending| KB
-    TLM -->|Tools| EXE
-    Agents -->|LLM Calls| LLM
-    Engine --> VDB
-    Engine --> SDB
-    Engine --> SEC
-    Engine --> KB
-```
-
-### Agent Roles
-
-| Role | Responsibility |
-|---|---|
-| **Scheduler** | Decomposes requirements into tasks, selects optimal agents for each phase |
-| **Executor** | Writes, patches, debugs, and refactors code |
-| **Reviewer** | Dual-review: correctness + architecture/efficiency |
-| **Deliverer** | Packages artifacts, generates READY.txt, archives output |
-| **Creative** | Brainstorms solutions, produces technical design proposals |
-| **Learner** | Idle-time learning: crawls GitHub Trending, extracts patterns |
-| **Tool Manager** | Manages tool registry, assembles custom tool pipelines |
-
-### Workflow States
-
-```
-planning ──▶ execute ──▶ review ──┐
-                ▲            │     │
-                │      ┌─────┘     │
-                │      ▼           ▼
-                └── revise     deliver ──▶ END
-```
-
----
-
-## Features
-
-### Core Engine
-- **Multi-agent orchestration** — 7 specialized agents with role-based prompting and tool access
-- **LangGraph state machine** — Formalized DAG with conditional routing, subgraphs, and parallel execution
-- **Dual-review pipeline** — Correctness (functional) + Efficiency (architectural) gates
-- **Adaptive model escalation** — Automatically upgrades LLM tier after repeated revision failures
-- **Task snapshot & restore** — Full state persistence for pause/resume/crash recovery
-
-### LLM & AI Infrastructure
-- **Provider-agnostic** — 100+ model support via litellm (OpenAI, Anthropic, Google, Azure, Ollama, vLLM, etc.)
-- **Intelligent capability pool** — Multi-endpoint management, health checks, circuit breakers, cooldown, automatic failover
-- **Streaming + fallback** — Automatic streaming degradation, exponential backoff, per-endpoint rate limiting
-- **Cost tracking** — Per-task token accounting, budget enforcement, monthly quota warnings
-
-### Security
-- **Multi-layer command filtering** — L1 auto-execute / L2 consensus vote / L3 strict block
-- **Static code scanning** — Bandit + semgrep integration for vulnerability detection
-- **Sandboxed execution** — udocker container isolation with resource limits
-- **Supply chain firewall** — pip/npm package blacklist, dependency origin validation
-- **Crypto mining detection** — Process command-line pattern matching
-
-### Frontend
-- **Glassmorphism design system** — `backdrop-filter: blur(12px) saturate(180%)` with dynamic gradient backgrounds
-- **Real-time WebSocket streaming** — Live task progress, log feed, and message updates
-- **Multiple visual themes** — catgirl / programmer themes with customizable color schemes
-- **Responsive dashboard** — System metrics, task kanban, resource monitoring
-
-### DevOps
-- **Configuration hot-reload** — YAML changes applied at runtime via watchdog
-- **Idle-time self-learning** — Automatic GitHub Trending crawl during inactivity
-- **Self-update system** — `self-improve` cycle: analyze → modify → PR push
-- **Docker support** — Containerized deployment via docker-compose
-
----
-
-## Quick Start
-
-### Prerequisites
-- Python 3.10+
-- LLM endpoint (default: `http://localhost:11434` — Ollama + `qwen2.5:7b`)
-- Node.js 18+
-
-### Installation
-
-```bash
-git clone https://github.com/Ameiro-sudo/IReckon.git
-cd IReckon
-pip install -r requirements.txt
-```
-
-### Launch
-
-```bash
-# One-command start
-python main.py
-
-# Manual start
-python -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000
-cd frontend && npm run dev
-
-# Docker
-docker-compose up -d
-```
-
-### Access
-
-| Service | URL |
-|---------|-----|
-| Backend API | `http://localhost:8000` |
-| Interactive Docs | `http://localhost:8000/docs` |
-| Frontend UI | `http://localhost:3000` |
-| Health Check | `http://localhost:8000/api/health` |
-
----
-
-## API Reference
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/tasks` | Create a new task |
-| GET | `/api/tasks` | List all tasks |
-| GET | `/api/tasks/{id}` | Get task details |
-| POST | `/api/tasks/{id}/cancel` | Cancel a running task |
-| POST | `/api/tasks/{id}/resume` | Resume a paused/failed task |
-| GET | `/api/tasks/{id}/messages` | Retrieve task messages |
-| POST | `/api/tasks/{id}/messages` | Send a message to a task |
-| GET | `/api/ai-instances` | List AI endpoints |
-| POST | `/api/ai-instances` | Register a new AI endpoint |
-| PUT | `/api/ai-instances/{id}` | Update an AI endpoint |
-| DELETE | `/api/ai-instances/{id}` | Remove an AI endpoint |
-| POST | `/api/ai-instances/{id}/test` | Test endpoint connectivity |
-| GET | `/api/config` | Retrieve configuration |
-| POST | `/api/config/update` | Update configuration at runtime |
-| GET | `/api/themes` | List available UI themes |
-| GET | `/api/health` | Health check endpoint |
-| WS | `/ws/{task_id}` | Per-task real-time event stream |
-| WS | `/ws` | Global event stream |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Language | Python 3.10+ (asyncio) |
-| LLM Interface | litellm (100+ models) |
-| Workflow Engine | LangGraph |
-| Vector Store | ChromaDB |
-| Relational DB | SQLite (aiosqlite) |
-| Backend Framework | FastAPI + WebSocket |
-| Frontend Framework | Vue 3 + Vite + Pinia |
-| Config Management | YAML + environment variables + watchdog |
-| Logging | loguru |
-| Security Scanning | Bandit, semgrep |
-| Container Sandbox | udocker |
-| Encryption | cryptography (Fernet) |
-| Template Engine | Jinja2 |
-| CI/CD | GitHub Actions |
-| Packaging | PyInstaller, Buildozer |
-
----
-
-## Development
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-cd frontend && npm install
-
-# Code quality
-ruff check app/
-mypy app/
-bandit -r app/
-
-# Format
-ruff format app/
-
-# Test
-python scripts/test_run.py
-```
-
-## License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
-</details>
 
 ---
 

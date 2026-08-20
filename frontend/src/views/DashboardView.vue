@@ -119,7 +119,7 @@
       </div>
 
       <div v-if="usage?.by_task?.length" style="margin-top: 16px;">
-        <div class="panel-title" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted);">TOP 任务消耗</div>
+        <div class="panel-title usage-sub-title">TOP 任务消耗</div>
         <div v-for="t in usage.by_task.slice(0, 5)" :key="t.task_id" class="top-task">
           <span class="mono top-task-id overflow-ellipsis">{{ t.task_id }}</span>
           <div class="progress-track" style="flex: 1;">
@@ -185,11 +185,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useTaskStore } from '../stores/taskStore.js'
-import { healthAPI, statsAPI } from '../api/index.js'
-import { taskTitle } from '../utils/task.js'
+import {computed, onMounted, onUnmounted, ref} from 'vue'
+import {useRouter} from 'vue-router'
+import {useTaskStore} from '../stores/taskStore.js'
+import {healthAPI, statsAPI} from '../api/index.js'
+import {taskTitle} from '../utils/task.js'
 import PageHeader from '../components/PageHeader.vue'
 import StatusPill from '../components/StatusPill.vue'
 
@@ -479,7 +479,18 @@ const uptime = computed(() => {
   .dash-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 400px) {
+  .kpi-grid { grid-template-columns: 1fr; }
+}
+
+.usage-sub-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
 }
 </style>

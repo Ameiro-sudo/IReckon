@@ -10,6 +10,8 @@ from pathlib import Path
 
 import main as main_mod  # noqa: E402 — 依赖 conftest 注入的 sys.path
 
+from app.core.config import get
+
 from conftest import LogRecorder
 from helpers import ProcStub, fake_server_factory, hang_forever, prepare_main_app
 
@@ -17,7 +19,17 @@ ROOT = Path(__file__).parent.parent.resolve()
 
 
 def _cfg(key, default=None):
-    return main_mod.config_manager.get(key, default)
+    return get(key, default)
+
+
+def _install_fake_uvicorn(monkeypatch, serve_impl):
+    fake_uvicorn = fake_server_factory(serve_impl)
+    monkeypatch.setitem(sys.modules, "uvicorn", fake_uvicorn)
+    return fake_uvicorn.Server
+
+
+def getsockname():
+    return "192.168.1.5", 0
 
 
 class TestMainFeatures:
@@ -39,7 +51,7 @@ class TestMainFeatures:
                 pass
 
             def getsockname(self):
-                return ("192.168.1.5", 0)
+                return "192.168.1.5", 0
 
             def close(self):
                 pass
@@ -285,11 +297,6 @@ class TestMainFeatures:
     async def _serve_ok(self, _server):
         pass
 
-    def _install_fake_uvicorn(self, monkeypatch, serve_impl):
-        fake_uvicorn = fake_server_factory(serve_impl)
-        monkeypatch.setitem(sys.modules, "uvicorn", fake_uvicorn)
-        return fake_uvicorn.Server
-
     async def test_start_backend_normal(self, monkeypatch):
         rec = LogRecorder()
         monkeypatch.setattr(main_mod, "logger", rec)
@@ -298,7 +305,7 @@ class TestMainFeatures:
             "log_banner",
             lambda title, lines, level="INFO": rec.info(f"{title} | {lines}"),
         )
-        FakeServer = self._install_fake_uvicorn(monkeypatch, self._serve_ok)
+        FakeServer = _install_fake_uvicorn(monkeypatch, self._serve_ok)
 
         app = main_mod.IReckonApp()
         await main_mod.start_backend(app)
@@ -320,7 +327,7 @@ class TestMainFeatures:
         async def _exit(_server):
             raise SystemExit(3)
 
-        self._install_fake_uvicorn(monkeypatch, _exit)
+        _install_fake_uvicorn(monkeypatch, _exit)
 
         app = main_mod.IReckonApp()
         await main_mod.start_backend(app)
@@ -335,7 +342,7 @@ class TestMainFeatures:
         async def _boom(_server):
             raise RuntimeError("port in use")
 
-        self._install_fake_uvicorn(monkeypatch, _boom)
+        _install_fake_uvicorn(monkeypatch, _boom)
 
         app = main_mod.IReckonApp()
         await main_mod.start_backend(app)
@@ -346,7 +353,7 @@ class TestMainFeatures:
     async def test_start_backend_open_browser(self, monkeypatch):
         rec = LogRecorder()
         monkeypatch.setattr(main_mod, "logger", rec)
-        self._install_fake_uvicorn(monkeypatch, self._serve_ok)
+        _install_fake_uvicorn(monkeypatch, self._serve_ok)
         orig_get = main_mod.config_manager.get
 
         def _get(key, default=None):

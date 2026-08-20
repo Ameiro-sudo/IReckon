@@ -1,9 +1,7 @@
 from difflib import SequenceMatcher
 from typing import List, Union, Dict
 from loguru import logger
-from app.core.config import config_manager
-
-get = config_manager.get
+from app.core.config import get
 
 
 class LoopDetector:

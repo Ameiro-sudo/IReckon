@@ -1,4 +1,4 @@
-import { marked } from 'marked'
+import {marked} from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/common'
 import 'highlight.js/styles/github.css'
@@ -15,13 +15,20 @@ marked.setOptions({
   breaks: true
 })
 
+marked.use({
+  renderer: {
+    link({ href, title, tokens }) {
+      const text = this.parser.parseInline(tokens)
+      const attrs = `href="${href}"${title ? ` title="${title}"` : ''} target="_blank" rel="noopener noreferrer"`
+      return `<a ${attrs}>${text}</a>`
+    }
+  }
+})
+
 export function renderMarkdown(text) {
   if (!text) return ''
   const raw = marked.parse(String(text))
-  return DOMPurify.sanitize(raw, {
-    ADD_ATTR: ['target'],
-    ADD_TAGS: ['br']
-  })
+  return DOMPurify.sanitize(raw)
 }
 
 export function highlightDom(root) {

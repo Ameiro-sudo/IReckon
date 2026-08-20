@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { taskAPI, statsAPI } from '../api/index.js'
+import {defineStore} from 'pinia'
+import {computed, ref} from 'vue'
+import {statsAPI, taskAPI} from '../api/index.js'
 
 function normalizeWsMessage(raw) {
   const role = raw.sender_role || raw.role || 'system'
@@ -8,6 +8,14 @@ function normalizeWsMessage(raw) {
   let msgType = raw.msg_type || 'text'
   if (raw.type === 'progress') msgType = 'progress'
   if (raw.type === 'log') msgType = 'log'
+  let metadata = raw.metadata || {}
+  if (typeof metadata === 'string') {
+    try {
+      metadata = metadata ? JSON.parse(metadata) : {}
+    } catch {
+      metadata = {}
+    }
+  }
   return {
     msg_id: raw.msg_id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     role,
@@ -18,9 +26,11 @@ function normalizeWsMessage(raw) {
     progress: raw.progress,
     status: raw.status,
     level: raw.level,
-    metadata: raw.metadata || {}
+    metadata
   }
 }
+
+const KNOWN_STATUS = ['pending', 'planning', 'executing', 'reviewing', 'revising', 'delivering', 'completed', 'failed', 'paused']
 
 export const useTaskStore = defineStore('tasks', () => {
   const tasks = ref([])
@@ -185,7 +195,7 @@ export const useTaskStore = defineStore('tasks', () => {
     const msg = normalizeWsMessage(raw)
     if (msg.msg_type === 'log') return
     if (msg.msg_type === 'progress') {
-      if (msg.status) {
+      if (msg.status && KNOWN_STATUS.includes(msg.status)) {
         const task = tasks.value.find(t => t.task_id === raw.task_id)
         if (task) task.status = msg.status
       }

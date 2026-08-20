@@ -53,9 +53,9 @@
   </div>
 </template>
 <script setup>
-import { ref } from 'vue'
-import { selfImproveAPI } from '../api/index.js'
-import { useToast } from '../composables/useToast.js'
+import {ref} from 'vue'
+import {selfImproveAPI} from '../api/index.js'
+import {useToast} from '../composables/useToast.js'
 import PageHeader from '../components/PageHeader.vue'
 
 const toast = useToast()

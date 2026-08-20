@@ -63,6 +63,7 @@ class BaseAgent(ABC):
 
     def add_message(self, role: str, content: str) -> None:
         self.messages.append({"role": role, "content": content})
+        self._trim_history_if_needed()
         if self.context:
             # 只截断日志内容，不截断消息本身，避免记录敏感/超长内容
             log_content = content[:2000] if content else content
@@ -87,31 +88,6 @@ class BaseAgent(ABC):
         logger.debug(
             f"Agent {self.role} 历史过长({total}字符)，已裁剪为 system+最近{len(tail)}条"
         )
-
-    async def _enforce_limits(self) -> None:
-        """入口预算检查：超限抛 LLMCallError；task_id 为空或接口缺失时跳过。"""
-        if not self.context or not self.context.task_id:
-            return
-        try:
-            from app.engine.cost import cost_tracker
-        except Exception as e:
-            logger.warning(f"cost_tracker 不可用，跳过预算检查: {e}")
-            return
-        enforce = getattr(cost_tracker, "enforce_limits", None)
-        if not callable(enforce):
-            return
-        try:
-            over = await enforce(self.context.task_id)
-        except Exception as e:
-            logger.warning(f"预算检查失败，按未超限处理: {e}")
-            return
-        if over:
-            msg = (
-                over
-                if isinstance(over, str)
-                else (f"任务 {self.context.task_id} 超出 Token 预算，执行已中止")
-            )
-            raise LLMCallError(msg)
 
     async def _check_limits_or_raise(self) -> None:
         """任务入口预算检查：超限直接抛错中止，不再发起 LLM 调用。"""
@@ -199,6 +175,7 @@ class BaseAgent(ABC):
                 if self.context
                 else None,
                 stream=True,
+                usage_key=self.context.task_id if self.context else None,
             )
             async for chunk in stream:
                 full_response += chunk
@@ -210,7 +187,7 @@ class BaseAgent(ABC):
             last_usage = getattr(self.llm, "last_stream_usage", None)
             if callable(last_usage):
                 try:
-                    usage = last_usage()
+                    usage = last_usage
                     if asyncio.iscoroutine(usage):
                         usage = await usage
                     if (

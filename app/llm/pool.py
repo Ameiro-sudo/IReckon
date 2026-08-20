@@ -1,14 +1,12 @@
 import asyncio, threading, time
+import copy
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from loguru import logger
 from app.core.database import db
-from app.core.config import config_manager
 
 
-def get(key: str, default: Any = None) -> Any:
-    """配置读取快捷方式：读不到返回默认值（默认值全部内置于代码）。"""
-    return config_manager.get(key, default)
+from app.core.config import get
 
 
 @dataclass
@@ -39,6 +37,27 @@ class AICapability:
         }
 
 
+async def _init_from_config_if_empty():
+    rows = await db.fetch_all("SELECT COUNT(*) FROM ai_instances")
+    if rows and rows[0][0] > 0:
+        return
+    for inst in get("ai_pool.instances", []):
+        cap = AICapability(
+            id=inst["id"],
+            name=inst["name"],
+            endpoint=inst["endpoint"],
+            model=inst["model"],
+            api_key=inst.get("api_key", ""),
+            parameters=inst.get("parameters", {}),
+            tags=inst.get("tags", []),
+            cost_per_1k_tokens=inst.get("cost_per_1k_tokens", 0.0),
+            max_context=inst.get("max_context", get("task_defaults.max_context", 4096)),
+            enabled=inst.get("enabled", True),
+        )
+        await db.save_ai_instance(cap.to_dict())
+    logger.info("从配置文件初始化 AI 实例到数据库")
+
+
 class CapabilityPool:
     _instance = None
     _lock = threading.Lock()
@@ -62,34 +81,12 @@ class CapabilityPool:
         self._cache_timestamps: Dict[str, float] = {}
         self._cache_ttl = get("ai_pool.cache_ttl", 30)  # 内存缓存过期时间(秒)
 
-    async def _init_from_config_if_empty(self):
-        rows = await db.fetch_all("SELECT COUNT(*) FROM ai_instances")
-        if rows and rows[0][0] > 0:
-            return
-        for inst in get("ai_pool.instances", []):
-            cap = AICapability(
-                id=inst["id"],
-                name=inst["name"],
-                endpoint=inst["endpoint"],
-                model=inst["model"],
-                api_key=inst.get("api_key", ""),
-                parameters=inst.get("parameters", {}),
-                tags=inst.get("tags", []),
-                cost_per_1k_tokens=inst.get("cost_per_1k_tokens", 0.0),
-                max_context=inst.get(
-                    "max_context", get("task_defaults.max_context", 4096)
-                ),
-                enabled=inst.get("enabled", True),
-            )
-            await db.save_ai_instance(cap.to_dict())
-        logger.info("从配置文件初始化 AI 实例到数据库")
-
     async def refresh(self, force=False):
         async with self._refresh_lock:
             now = time.monotonic()
             if not force and now - self._last_refresh < self.refresh_interval:
                 return
-            await self._init_from_config_if_empty()
+            await _init_from_config_if_empty()
             instances = await db.get_all_ai_instances(enabled_only=True)
             self.capabilities = {i["id"]: AICapability(**i) for i in instances}
             self._last_refresh = now
@@ -108,7 +105,8 @@ class CapabilityPool:
         if iid in self._memory_cache:
             cached_time = self._cache_timestamps.get(iid, 0)
             if now - cached_time < self._cache_ttl:
-                return self._memory_cache[iid]
+                # 返回副本，避免调用方修改共享缓存对象（如意外改动 enabled）
+                return copy.copy(self._memory_cache[iid])
 
         if not self.capabilities:
             await self.refresh()
@@ -117,6 +115,7 @@ class CapabilityPool:
         if result:
             self._memory_cache[iid] = result
             self._cache_timestamps[iid] = now
+            return copy.copy(result)
         return result
 
     async def find_best_match(

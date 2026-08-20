@@ -1,13 +1,14 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="modal-overlay" @click.self="close">
-      <div class="modal">
-        <h2 class="modal-title">创建新任务</h2>
-        <p class="modal-desc">输入自然语言需求，可附加上传参考文件，AI 智能体团队将自主完成规划、编码、审查与交付。</p>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-task-title" aria-describedby="new-task-desc">
+        <h2 class="modal-title" id="new-task-title">创建新任务</h2>
+        <p class="modal-desc" id="new-task-desc">输入自然语言需求，可附加上传参考文件，AI 智能体团队将自主完成规划、编码、审查与交付。</p>
 
         <div class="form-group">
-          <label class="form-label">任务描述</label>
+          <label class="form-label" for="task-request">任务描述</label>
           <textarea
+            id="task-request"
             v-model="request"
             class="input"
             placeholder="例如：用 Python 写一个命令行待办事项管理工具，支持增删改查和持久化存储…"
@@ -20,16 +21,21 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">参考文件（可选）</label>
+          <label class="form-label" id="file-upload-label">参考文件（可选）</label>
           <div
             class="dropzone"
             :class="{ over: dragging }"
+            role="button"
+            tabindex="0"
+            aria-labelledby="file-upload-label"
             @click="fileInput?.click()"
+            @keydown.enter.prevent="fileInput?.click()"
+            @keydown.space.prevent="fileInput?.click()"
             @dragover.prevent="dragging = true"
             @dragleave="dragging = false"
             @drop.prevent="onDrop"
           >
-            <input ref="fileInput" type="file" multiple class="hidden-input" @change="onPick" />
+            <input ref="fileInput" type="file" multiple class="hidden-input" tabindex="-1" aria-hidden="true" @change="onPick" />
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span class="text-sm text-secondary">点击选择或拖拽文件到此处</span>
             <span class="text-xs text-muted">每个文件 ≤ 10MB，最多 20 个</span>
@@ -68,8 +74,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { aiInstanceAPI, uploadAPI } from '../api/index.js'
+import {onMounted, ref} from 'vue'
+import {aiInstanceAPI, uploadAPI} from '../api/index.js'
+import {useToast} from '../composables/useToast.js'
+
+const toast = useToast()
 
 const visible = ref(false)
 const request = ref('')
@@ -142,6 +151,8 @@ async function submit() {
     }
     emit('created', request.value.trim(), schedulerCapId.value || null, uploadId)
     visible.value = false
+  } catch (e) {
+    toast.error('创建失败: ' + (e.response?.data?.detail || e.message))
   } finally {
     uploading.value = false
     submitting.value = false
@@ -186,7 +197,7 @@ defineExpose({ open })
   justify-content: center;
   gap: 5px;
   padding: 24px 16px;
-  border: 1.5px dashed var(--border-strong);
+  border: 2px dashed var(--border-strong);
   border-radius: var(--radius-lg);
   cursor: pointer;
   color: var(--text-muted);

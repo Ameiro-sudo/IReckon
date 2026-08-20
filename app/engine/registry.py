@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class RoleRegistry:
     _instance: Optional["RoleRegistry"] = None
 
-    def __new__(cls) -> "RoleRegistry":
+    def __new__(cls) -> RoleRegistry | None:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -56,7 +56,7 @@ class RoleRegistry:
             logger.error(f"未注册的角色: {role_name}")
             return None
         try:
-            return agent_class(capability=capability, **kwargs)
+            return agent_class(capability, **kwargs)
         except Exception as e:
             logger.error(f"创建 Agent 失败 ({role_name}): {e}")
             return None

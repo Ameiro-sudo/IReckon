@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="toast-container">
+    <div class="toast-container" role="status" aria-live="polite">
       <TransitionGroup name="toast">
         <div v-for="t in toasts" :key="t.id" class="toast" :class="`toast-${t.type}`" @click="dismiss(t.id)">
           <span class="toast-icon">
@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-import { useToast } from '../composables/useToast.js'
+import {useToast} from '../composables/useToast.js'
 
 const { toasts, dismiss } = useToast()
 </script>

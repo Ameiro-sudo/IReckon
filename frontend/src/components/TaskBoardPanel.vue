@@ -51,17 +51,13 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import {computed} from 'vue'
+import {phaseBonus} from '../utils/task.js'
 import StatusPill from './StatusPill.vue'
 
 const props = defineProps({
   board: { type: Object, default: null }
 })
-
-const phaseBonus = {
-  planning: 0.05, executing: 0.35, reviewing: 0.55, revising: 0.55,
-  delivering: 0.8, completed: 1, failed: 1
-}
 
 const KNOWN_PHASES = ['planning', 'executing', 'reviewing', 'revising', 'delivering', 'completed', 'failed', 'pending']
 

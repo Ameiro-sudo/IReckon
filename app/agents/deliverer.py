@@ -6,8 +6,31 @@ import asyncio
 from .base import BaseAgent
 from app.llm.pool import AICapability
 from app.engine.registry import register_role
-from app.core.config import config_manager
 from loguru import logger
+
+from app.core.config import get
+
+
+def _generate_ready_txt(project_info: Dict[str, Any], files: List[str]) -> str:
+    lines = [
+        f"项目：{project_info.get('task_name', '未命名')}",
+        f"交付时间：{datetime.now().isoformat()}",
+        "",
+        "文件列表：",
+    ]
+    for f in files:
+        lines.append(f"  - {f}")
+    lines.extend(
+        [
+            "",
+            "使用方法：",
+            project_info.get("usage", "请参考各文件"),
+            "",
+            "注意事项：",
+            project_info.get("notes", "无"),
+        ]
+    )
+    return "\n".join(lines)
 
 
 @register_role(
@@ -57,7 +80,7 @@ class DelivererAgent(BaseAgent):
     async def package(
         self, task_id: str, artifacts: Dict[str, str], project_info: Dict[str, Any]
     ) -> str:
-        output_dir = Path(config_manager.get("system.output_dir", "./data/outputs"))
+        output_dir = Path(get("system.output_dir", "./data/outputs"))
         task_output_dir = output_dir / task_id
         await asyncio.to_thread(task_output_dir.mkdir, parents=True, exist_ok=True)
 
@@ -68,35 +91,12 @@ class DelivererAgent(BaseAgent):
             await asyncio.to_thread(file_path.parent.mkdir, parents=True, exist_ok=True)
             await asyncio.to_thread(file_path.write_text, content, encoding="utf-8")
 
-        ready_content = self._generate_ready_txt(project_info, list(artifacts.keys()))
+        ready_content = _generate_ready_txt(project_info, list(artifacts.keys()))
         ready_path = task_output_dir / "READY.txt"
         await asyncio.to_thread(ready_path.write_text, ready_content, encoding="utf-8")
 
         logger.info(f"交付物已打包到: {task_output_dir}")
         return str(task_output_dir)
-
-    def _generate_ready_txt(
-        self, project_info: Dict[str, Any], files: List[str]
-    ) -> str:
-        lines = [
-            f"项目：{project_info.get('task_name', '未命名')}",
-            f"交付时间：{datetime.now().isoformat()}",
-            "",
-            "文件列表：",
-        ]
-        for f in files:
-            lines.append(f"  - {f}")
-        lines.extend(
-            [
-                "",
-                "使用方法：",
-                project_info.get("usage", "请参考各文件"),
-                "",
-                "注意事项：",
-                project_info.get("notes", "无"),
-            ]
-        )
-        return "\n".join(lines)
 
     async def execute(self, delivery_data: Dict[str, Any]) -> Dict[str, Any]:
         output_path = await self.package(
