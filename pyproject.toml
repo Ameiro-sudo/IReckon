@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ireckon"
+version = "0.1.0"
+description = "Multi-Agent Autonomous Programming System — AI Factory"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "IReckon Team" },
+]
+keywords = ["ai", "agent", "code-generation", "llm", "autonomous", "langgraph"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[project.urls]
+Homepage = "https://github.com/Ameiro-sudo/IReckon"
+Repository = "https://github.com/Ameiro-sudo/IReckon.git"
+Documentation = "https://github.com/Ameiro-sudo/IReckon#readme"
+IssueTracker = "https://github.com/Ameiro-sudo/IReckon/issues"
+
+[project.scripts]
+ireckon = "main:main"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+strict_optional = true
+no_implicit_optional = true
+show_error_codes = true
+
+[tool.ruff]
+target-version = "py310"
+# 聚焦真正的缺陷类规则，风格类规则暂不启用
+# 用法：ruff check app/ main.py
+exclude = ["build", "dist", ".git", "__pycache__", "node_modules"]
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["E402"]
+"__init__.py" = ["F401"]
+"app/tools/builtin/**" = ["F401"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.bandit]
+exclude_dirs = ["build", "dist", "tests", ".git"]
+skips = ["B101", "B311", "B403", "B404", "B603"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = ["*/tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]

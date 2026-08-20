@@ -1,9 +1,0 @@
-# ruff 配置：聚焦真正的缺陷类规则，风格类规则暂不启用
-# 用法：ruff check app/ main.py
-[lint]
-select = ["F", "E9"]
-ignore = []
-
-# 允许行内例外（如日志里的长字符串）
-[lint.per-file-ignores]
-"main.py" = ["E402"]

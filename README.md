@@ -180,6 +180,8 @@ planning ──▶ execute ──▶ review ──┐
 git clone https://github.com/Ameiro-sudo/IReckon.git
 cd IReckon
 pip install -r requirements.txt
+# 开发/测试额外依赖：
+pip install -r requirements-dev.txt
 ```
 
 ### 配置 LLM
@@ -305,10 +307,15 @@ cd deploy && docker compose up -d --build
 ```
 IReckon/
 ├── main.py                       # 应用入口（后端 + 前端自动托管）
-├── requirements.txt              # Python 依赖
+├── pyproject.toml                # 项目元数据 + 工具链配置（ruff/mypy/bandit/coverage）
+├── requirements.txt              # 运行依赖
+├── requirements-dev.txt          # 开发依赖（pytest/ruff/mypy 等）
+├── buildozer.spec                # Buildozer (Android/Kivy) 打包配置
+├── .editorconfig                 # 跨编辑器编码规范
 ├── .env.example                  # 环境变量示例（API Keys）
 │
 ├── app/                          # 后端包
+│   ├── py.typed                  # PEP 561 类型标注标记
 │   ├── agents/                   # AI 智能体（scheduler/executor/reviewer/deliverer/creative/learner/tool_manager）
 │   ├── core/                     # 基础设施（配置/数据库/日志/更新）
 │   ├── engine/                   # 工作流引擎（LangGraph 状态机/看板/会议室/自我进化）
@@ -334,7 +341,7 @@ IReckon/
 ├── config/                       # 配置（config.yaml / prompts / themes / harness）
 ├── scripts/                      # 工具脚本（run.sh 启动器 / build_exe 打包 / 测试）
 ├── docs/                         # 文档
-├── deploy/                       # Docker 部署
+├── deploy/                       # Docker / Inno Setup 部署
 └── data/                         # 运行时数据（db/logs/states/output/harness）
 ```
 
@@ -344,7 +351,7 @@ IReckon/
 
 ```bash
 # 安装依赖
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cd frontend && npm install
 
 # 代码检查

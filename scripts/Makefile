@@ -6,7 +6,7 @@ install: ## Install all Python dependencies
 	pip install -r requirements.txt
 
 install-dev: ## Install development dependencies
-	pip install -r requirements.txt ruff mypy pre-commit
+	pip install -r requirements-dev.txt pre-commit
 
 install-frontend: ## Install frontend dependencies
 	cd frontend && npm install

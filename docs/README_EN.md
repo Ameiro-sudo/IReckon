@@ -164,6 +164,8 @@ planning ──▶ execute ──▶ review ──┐
 git clone https://github.com/Ameiro-sudo/IReckon.git
 cd IReckon
 pip install -r requirements.txt
+# Extra dev/test dependencies:
+pip install -r requirements-dev.txt
 ```
 
 ### Launch
@@ -242,7 +244,7 @@ docker-compose up -d
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cd frontend && npm install
 
 # Code quality

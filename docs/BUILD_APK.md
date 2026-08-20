@@ -53,7 +53,7 @@ pip install buildozer
 ```
 
 **配置:**
-编辑 `buildozer.spec` 文件，设置正确的requirements。
+编辑项目根目录的 `buildozer.spec` 文件，设置正确的requirements。
 
 **构建:**
 ```bash
