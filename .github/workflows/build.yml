@@ -1,4 +1,4 @@
-name: Build EXE
+name: Build Windows Installer
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
           cd frontend
           npm run build
 
-      - name: Build single EXE
+      - name: Build EXE (onedir)
         run: |
           python -m PyInstaller `
             --name IReckon --distpath dist/IReckon --workpath build `
@@ -83,7 +83,10 @@ jobs:
             --hidden-import "aiosqlite" `
             --hidden-import "jinja2" `
             --collect-submodules "chromadb" `
+            --collect-data "litellm" `
             --collect-all "app" `
+            --collect-all "webview" `
+            --hidden-import "clr" `
             --noconfirm --onedir --console main.py
 
       - name: Create launcher
@@ -91,31 +94,43 @@ jobs:
           @"
           @echo off
           title IReckon AI Factory
+          echo ============================================
+          echo   IReckon AI Factory
+          echo ============================================
           echo.
-          start "" "%~dp0IReckon.exe"
-          timeout /t 5 /nobreak >nul
-          start http://localhost:8000
+          start "" ""%~dp0IReckon.exe""
+          echo   Web UI: http://localhost:8000
+          echo.
           echo 关闭此窗口即可停止服务
+          echo.
           pause >nul
-          "@ | Out-File -Encoding Default dist/IReckon/启动IReckon.bat
+          "@ | Out-File -Encoding Default dist/IReckon/IReckon/启动IReckon.bat
 
-      - name: Zip package
-        id: zip
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+
+      - name: Build installer (Setup.exe)
+        id: installer
         run: |
           $tag = "${{ github.ref_name }}"
           if ("${{ github.ref }}" -notlike "refs/tags/*") { $tag = "dev-build" }
-          Compress-Archive -Path dist/IReckon/* -DestinationPath "IReckon-${tag}-win64.zip" -Force
-          echo "zip_name=IReckon-${tag}-win64.zip" >> $env:GITHUB_OUTPUT
+          $ver = $tag.TrimStart("v")
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc /DMyAppVersion=$ver "deploy\installer.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item dist/IReckon-Setup.exe "IReckon-Setup-${tag}-win64.exe" -Force
+          echo "installer_name=IReckon-Setup-${tag}-win64.exe" >> $env:GITHUB_OUTPUT
 
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.zip.outputs.zip_name }}
+          files: ${{ steps.installer.outputs.installer_name }}
 
       - name: Upload Artifact (manual trigger)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
-          name: IReckon-build
-          path: dist/IReckon/
+          name: IReckon-Setup
+          path: ${{ steps.installer.outputs.installer_name }}

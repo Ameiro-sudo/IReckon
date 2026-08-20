@@ -7,6 +7,7 @@ import atexit
 import hashlib
 import os
 import re
+import sys
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -41,6 +42,17 @@ class ConfigManager:
                 cls._instance = super().__new__(cls)
         return cls._instance
 
+    @staticmethod
+    def _resolve_base_dir() -> Path:
+        """定位运行时根目录：IRECKON_HOME 环境变量 > PyInstaller 打包目录 > 当前工作目录。"""
+        env_home = os.environ.get("IRECKON_HOME")
+        if env_home:
+            return Path(env_home).resolve()
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass).resolve()
+        return Path.cwd().resolve()
+
     def __init__(self) -> None:
         if getattr(self, "_initialized", False):
             return
@@ -49,7 +61,7 @@ class ConfigManager:
         self._observer: Optional[Any] = None
         self._config_hash: Optional[str] = None
 
-        self.base_dir = Path(os.environ.get("IRECKON_HOME", ".")).resolve()
+        self.base_dir = self._resolve_base_dir()
         self.config_path = (self.base_dir / "config" / "config.yaml").resolve()
         if not self.config_path.exists():
             self.config_path = (Path.cwd() / "config" / "config.yaml").resolve()

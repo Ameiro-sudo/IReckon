@@ -9,6 +9,8 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
+import time
 import webbrowser
 
 from app.core.database import db
@@ -240,6 +242,51 @@ async def start_backend(app: "IReckonApp"):
         app._shutdown_event.set()
 
 
+async def start_backend_embedded(
+    app: "IReckonApp", ready: threading.Event, port_holder: dict, closing: threading.Event
+):
+    """嵌入式模式后端：uvicorn 绑定 127.0.0.1 随机端口，窗口关闭时优雅退出。"""
+    import uvicorn
+
+    config = uvicorn.Config(
+        "app.web.api:app",
+        host="127.0.0.1",
+        port=0,
+        log_level="warning",
+        loop="asyncio",
+        access_log=False,
+        log_config=None,
+    )
+    server = uvicorn.Server(config)
+    app._server = server
+
+    async def _watch_close() -> None:
+        while not closing.is_set():
+            await asyncio.sleep(0.2)
+        server.should_exit = True
+
+    watcher = asyncio.create_task(_watch_close())
+    serve_task = asyncio.create_task(server.serve())
+    try:
+        while not serve_task.done() and not getattr(server, "servers", None):
+            await asyncio.sleep(0.05)
+        if serve_task.done():
+            serve_task.result()
+        port = server.servers[0].sockets[0].getsockname()[1]
+        port_holder["port"] = port
+        log_banner(
+            f"IReckon v{ get('system.version')} 已启动(嵌入式)",
+            [f"Web UI   http://127.0.0.1:{port}", "关闭窗口即退出"],
+        )
+        ready.set()
+        await serve_task
+    except Exception:
+        logger.exception("启动后端服务时发生异常")
+    finally:
+        watcher.cancel()
+        app._shutdown_event.set()
+
+
 async def main():
     app = IReckonApp()
     await app.initialize()
@@ -280,8 +327,97 @@ async def main():
         await app.shutdown()
 
 
+async def _serve_once(
+    ready: threading.Event, port_holder: dict, closing: threading.Event
+) -> None:
+    """嵌入式(打包 exe)模式的服务协程：初始化 + uvicorn 随机端口 + 优雅退出。"""
+    app_obj = IReckonApp()
+    await app_obj.initialize()
+    try:
+        await start_backend_embedded(app_obj, ready, port_holder, closing)
+    finally:
+        await app_obj.shutdown()
+
+
+def run_embedded() -> None:
+    """打包(exe)入口：嵌入式 WebView 窗口 + 随机端口自通信，不打开外部浏览器。"""
+    import webview
+
+    ready = threading.Event()
+    port_holder: dict = {}
+    closing = threading.Event()
+    thread = threading.Thread(
+        target=lambda: asyncio.run(_serve_once(ready, port_holder, closing)),
+        daemon=True,
+    )
+    thread.start()
+    if not ready.wait(timeout=60):
+        logger.error("后端服务 60 秒内未就绪，退出")
+        closing.set()
+        thread.join(timeout=5)
+        return
+
+    port = port_holder.get("port")
+    if not port:
+        logger.error("未获取到服务端口，退出")
+        closing.set()
+        thread.join(timeout=5)
+        return
+
+    try:
+        window = webview.create_window(
+            "IReckon AI Factory",
+            url=f"http://127.0.0.1:{port}",
+            width=1280,
+            height=820,
+            min_size=(960, 600),
+        )
+        if window is None:
+            raise RuntimeError("无法创建嵌入式窗口")
+        window.events.closed += closing.set
+        webview.start()
+    except Exception:
+        logger.exception("嵌入式界面启动失败，回退到控制台模式")
+        closing.set()
+        thread.join(timeout=15)
+        log_banner(
+            "IReckon 控制台模式",
+            [
+                f"Web UI   http://127.0.0.1:{port}",
+                "关闭此窗口或 Ctrl+C 即可退出",
+            ],
+        )
+        closing2 = threading.Event()
+        thread2 = threading.Thread(
+            target=lambda: asyncio.run(_serve_once2(closing2)), daemon=True
+        )
+        thread2.start()
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            closing2.set()
+            thread2.join(timeout=15)
+        return
+    closing.set()
+    thread.join(timeout=15)
+
+
+async def _serve_once2(closing: threading.Event) -> None:
+    """控制台回退模式：固定默认端口 8000，等待 Ctrl+C。"""
+    app_obj = IReckonApp()
+    await app_obj.initialize()
+    try:
+        await start_backend(app_obj)
+    finally:
+        await app_obj.shutdown()
+
+
 def run_cli():
-    """命令行入口：等价于直接执行 `python main.py`。"""
+    """命令行入口：打包版走嵌入式窗口(随机端口)，源码版走常规服务。"""
+    if getattr(sys, "frozen", False):
+        run_embedded()
+        return
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

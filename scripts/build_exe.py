@@ -32,6 +32,8 @@ def build():
         str(DIST),
         "--workpath",
         str(BUILD),
+        "--specpath",
+        str(BUILD),
         "--add-data",
         f"config{os.pathsep}config",
         "--add-data",
@@ -124,8 +126,14 @@ def build():
         "jinja2",
         "--collect-submodules",
         "chromadb",
+        "--collect-data",
+        "litellm",
         "--collect-all",
         "app",
+        "--collect-all",
+        "webview",
+        "--hidden-import",
+        "clr",
         "--noconfirm",
         "--onedir",
         "--console",
@@ -144,17 +152,13 @@ echo   IReckon AI Factory
 echo ============================================
 echo.
 start "" "%~dp0IReckon.exe"
+echo   Web UI: http://localhost:8000
 echo.
-echo   Backend: http://localhost:8000/docs
-echo   Frontend: http://localhost:8000
-echo.
-timeout /t 5 /nobreak >nul
-start http://localhost:8000
 echo 关闭此窗口即可停止服务
 echo.
 pause >nul
 """
-    (DIST / "启动IReckon.bat").write_text(content, encoding="gbk")
+    (DIST / "IReckon" / "启动IReckon.bat").write_text(content, encoding="gbk")
     print("启动脚本已创建")
 
 
@@ -165,7 +169,7 @@ def main():
     size = sum(f.stat().st_size for f in DIST.rglob("*") if f.is_file())
     print(f"\n打包完成! 输出: {DIST}")
     print(f"   总大小: {size / 1024 / 1024:.0f} MB")
-    print(f"   运行 {DIST / '启动IReckon.bat'} 即可启动")
+    print(f"   运行 {DIST / 'IReckon' / '启动IReckon.bat'} 即可启动")
 
 
 if __name__ == "__main__":
