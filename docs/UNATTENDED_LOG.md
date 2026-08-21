@@ -138,3 +138,47 @@
 
 > 接管记录（2026-08-21 23:30 用户指定）：PR#9 mtime 竞态断言放宽✅、PR#12 坐标系统一+/login
 > TypeError(useModalA11y 契约归一化 getter)✅ 均五项 CI 绿合并；撞车教训与验证方法学见根目录黑板。
+
+## 夜班（2026-08-22 03:0x~04:2x，用户就寝前指令"你来继续推 irec"，goal-f4c6e0f8）
+
+三连 PR 全合并，测试基线 485→501，全程 分支+PR+四件套+CI 绿：
+
+### ✅ PR#17（f90ad06）fix(security)：WS 鉴权子协议化
+- token 从 URL `?token=` 迁至 Sec-WebSocket-Protocol 二元组 `['ireckon.v1', <token>]`——反代 access_log/
+  浏览器历史/Referer 泄漏面归零（安全审计"上反代前必须改"项闭环）；服务端只回显常量名不回写 token
+- 查询参数兼容保留+一次性弃用告警；无 token 配置沿用回环信任边界；凭据位严格取服务名后第一位
+- 前端 createWebSocket 同步切换（空 token 剔除避免 DOMException）；README 三处文档同步
+- +16 测试（端到端握手矩阵/解析细节桩测/accept 回显）；**真实 uvicorn+websockets 客户端三态实测**
+  （协商成功+pong / 错凭据拒 / 匿名拒）。附带清主干 F841 盲区(bf12115 的 a_cap)
+
+### ✅ PR#18（cd6d33b）feat(security)：沙箱激活（用户 03:3x 醒来拍板"沙箱可以去推"）
+- sandbox.py 审计三修复重写：enabled 总闸默认关(零子进程副作用)/env 白名单/docker --network=none/
+  psutil 超时先杀子进程树再杀主进程
+- **修正 udocker 潜伏必失败缺陷**：proot 引擎无 cgroup/netns，原实现传 --memory/--cpus 属无效参数；
+  现按引擎能力如实组装（udocker 仅 user/volume/env/rm），默认引擎改 docker
+- scanner.py 接线：总闸开启时 bandit/semgrep 容器内优先执行（目标目录只读挂载 /scan），沙箱不可用/
+  失败自动回退宿主机——门禁 fail-closed 语义分毫不变；本机无 docker/udocker/WSL → 行为零变化
+- config.example.yaml 补 enabled/network/env_whitelist 三键说明；+16 测试
+
+### ✅ PR#19（146c96d）fix(llm)：真 bug——流式降级自上线从未工作过
+- `_call_stream` 降级分支传 `fallback_capabilities=` 而形参名是 `fallback_caps`——每次流式失败转非流式
+  都 TypeError 被宽 except 吞成"流式及回退均失败"；修正后降级路径实测复活
+- _call_stream 全分支+用量记账补测 +16：usage_key 隔离/副本语义/封顶淘汰、中断不重试、重试恢复、
+  降级回归断言、infinite_retry 上限抬升（桩睡眠计数验证 51+1 次尝试）、半开探测、truncate、可中断睡眠、
+  http client 幂等与构造失败容错
+
+### 夜班踩坑补录
+- `import app.security.sandbox as m` 拿到的是**单例实例不是模块**——包 __init__ 里 `from .sandbox import
+  sandbox` 把实例名遮盖在包子空间上；测试要 patch 模块成员必须 `importlib.import_module()` 取真模块
+- 测试桩同步函数误写成 async def 会因协程对象恒真值而**假绿**（本夜 engine/image 探测桩中招），
+  断言必须落在行为差异上而非仅 returncode
+- pytest-timeout thread 模式对卡死的事件循环只能 dump 无法恢复：一个永久 pending 的 await = 整个会话僵死；
+  本夜 infinite_retry 用例曾因真实指数退避(上限抬到 50 次≈8分钟)触发，改桩睡眠后秒过
+- 陈旧 .coverage 文件会严重误导模块优先级判断（部分运行的数据混存），摸底前先 `coverage run -m pytest`
+  重新生成
+
+### 待办池（下轮候选）
+- [ ] instances SSRF DNS-rebinding 完整 pin-IP（需自定义 transport，评估工作量后再动）
+- [ ] 覆盖率继续：engine/registry 58% / core/config 64% / engine/cost 66% / mcp_server 63%
+- [ ] 创意笔记 IR-01「我看行」品牌激活（💡未认领，文案层小改动）
+- [ ] 需用户决策留档：自更新签名基建（勿催）
