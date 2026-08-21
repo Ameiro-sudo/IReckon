@@ -12,6 +12,30 @@
     </template>
   </PageHeader>
 
+  <!-- 生产线总览：传送带流水线 -->
+  <div class="line-hero panel">
+    <div class="line-head">
+      <span class="line-eyebrow">Production Line</span>
+      <span class="line-meta mono">ACTIVE {{ stats?.active_tasks ?? 0 }} · TOTAL {{ stats?.total_tasks ?? 0 }}</span>
+    </div>
+    <div class="conveyor" role="img" aria-label="生产线各工序任务数量">
+      <div
+        v-for="s in lineStages"
+        :key="s.code"
+        class="conv-stage"
+        :class="{ live: s.count > 0 && s.active, done: s.status === 'completed' && s.count > 0, bad: s.bad && s.count > 0, has: s.count > 0 && !s.active && s.status !== 'completed' && !s.bad }"
+        :style="{ '--lamp': s.color }"
+        :title="`${s.label}: ${s.count}`"
+      >
+        <span class="conv-lamp"></span>
+        <span class="conv-code">{{ s.code }}</span>
+        <span class="conv-count" :class="{ zero: s.count === 0 }">{{ s.count }}</span>
+        <span class="conv-label">{{ s.label }}</span>
+      </div>
+    </div>
+    <div class="belt"><div class="belt-ticks"></div></div>
+  </div>
+
   <!-- KPI -->
   <div class="kpi-grid">
     <div class="panel kpi card-hover">
@@ -215,6 +239,33 @@ const COLORS = {
 
 const hasStatusData = computed(() => Object.keys(stats.value?.by_status || {}).length > 0)
 
+// 生产线工序：真实流水线顺序（QUE→PLN→EXE→REV→RVS→DLV→DONE），FAIL/HOLD 为旁路
+const LINE_FLOW = [
+  { status: 'pending', code: 'QUE', label: '排队' },
+  { status: 'planning', code: 'PLN', label: '规划' },
+  { status: 'executing', code: 'EXE', label: '执行' },
+  { status: 'reviewing', code: 'REV', label: '审查' },
+  { status: 'revising', code: 'RVS', label: '修订' },
+  { status: 'delivering', code: 'DLV', label: '交付' },
+  { status: 'completed', code: 'DONE', label: '完成' }
+]
+const LINE_BYPASS = [
+  { status: 'failed', code: 'FAIL', label: '失败' },
+  { status: 'paused', code: 'HOLD', label: '暂停' }
+]
+const ACTIVE_SET = ['planning', 'executing', 'reviewing', 'revising', 'delivering']
+
+const lineStages = computed(() => {
+  const by = stats.value?.by_status || {}
+  return [...LINE_FLOW, ...LINE_BYPASS].map(s => ({
+    ...s,
+    count: by[s.status] || 0,
+    active: ACTIVE_SET.includes(s.status),
+    bad: s.status === 'failed',
+    color: `var(--st-${s.status})`
+  }))
+})
+
 const statusSegments = computed(() => {
   const by = stats.value?.by_status || {}
   const total = stats.value?.total_tasks || 1
@@ -287,6 +338,148 @@ const uptime = computed(() => {
 </script>
 
 <style scoped>
+/* ===== 生产线英雄区 ===== */
+.line-hero {
+  flex-shrink: 0;
+  padding: 16px 20px 0;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.line-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.line-eyebrow {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.line-meta {
+  color: var(--accent);
+}
+
+.conveyor {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.conv-stage {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px 12px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--bg-subtle);
+  position: relative;
+}
+
+.conv-stage + .conv-stage::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 6px;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--border-strong);
+}
+
+.conv-lamp {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--lamp);
+  background: transparent;
+  margin-bottom: 2px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.conv-stage.live .conv-lamp,
+.conv-stage.done .conv-lamp,
+.conv-stage.bad .conv-lamp,
+.conv-stage.has .conv-lamp {
+  background: var(--lamp);
+  box-shadow: 0 0 8px var(--lamp);
+}
+
+.conv-stage.live .conv-lamp {
+  animation: lampPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lampPulse {
+  0%, 100% { box-shadow: 0 0 4px var(--lamp); }
+  50% { box-shadow: 0 0 11px var(--lamp); }
+}
+
+.conv-code {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.conv-stage.live .conv-code { color: var(--text); }
+
+.conv-count {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.conv-stage .conv-count.zero {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.conv-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* 传送带 */
+.belt {
+  height: 7px;
+  margin: 0 -20px;
+  background: var(--bg-housing);
+  border-top: 1px solid var(--border-strong);
+  overflow: hidden;
+}
+
+.belt-ticks {
+  height: 100%;
+  background-image: repeating-linear-gradient(
+    -60deg,
+    transparent 0 9px,
+    var(--border-strong) 9px 12px
+  );
+  animation: beltMove 1.1s linear infinite;
+  opacity: 0.75;
+}
+
+@keyframes beltMove {
+  to { background-position: 24px 0; }
+}
+
+/* ===== KPI ===== */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -314,7 +507,7 @@ const uptime = computed(() => {
 .kpi-icon {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -325,12 +518,13 @@ const uptime = computed(() => {
 .kpi-active { background: var(--warning-soft); color: var(--st-executing); }
 .kpi-done { background: var(--success-soft); color: var(--success); }
 .kpi-fail { background: var(--error-soft); color: var(--error); }
-.kpi-ai { background: rgba(124, 58, 237, 0.1); color: var(--st-planning); }
+.kpi-ai { background: rgba(79, 163, 216, 0.12); color: var(--st-planning); }
 
 .kpi-value {
   font-size: 27px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
   margin: 9px 0 3px;
   font-variant-numeric: tabular-nums;
 }

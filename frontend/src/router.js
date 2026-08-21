@@ -2,6 +2,12 @@ import {createRouter, createWebHistory} from 'vue-router'
 
 const routes = [
   {
+    path: '/login',
+    name: 'Login',
+    meta: { title: '登录', bare: true },
+    component: () => import('./views/LoginView.vue')
+  },
+  {
     path: '/',
     name: 'Chat',
     meta: { title: '聊天' },
@@ -48,6 +54,12 @@ const routes = [
     name: 'Settings',
     meta: { title: '设置' },
     component: () => import('./views/SettingsView.vue')
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    meta: { title: '页面不存在' },
+    redirect: '/'
   }
 ]
 
@@ -57,6 +69,17 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 }
   }
+})
+
+const PUBLIC_PATHS = ['/login']
+
+router.beforeEach((to) => {
+  if (PUBLIC_PATHS.includes(to.path)) return true
+  const token = localStorage.getItem('ireckon_api_token')
+  if (!token) {
+    return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
+  }
+  return true
 })
 
 router.afterEach((to) => {

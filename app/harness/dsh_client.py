@@ -9,6 +9,8 @@ import importlib.util
 import os
 import shlex
 import shutil
+import signal
+import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -18,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from app.core.config import config_manager
+from app.security.filter import CommandLevel, command_filter
 
 # 内置的 minimal cordis 组合配置模板（对应官方 jsonrpc-agent 示例）
 DEFAULT_CORDIS_TEMPLATE = """\
@@ -186,6 +189,42 @@ async def _drain_cli(proc, stdout_sink, stderr_tail):
     )
 
 
+def _kill_tree(proc) -> None:
+    """终止整个进程树，防止超时后 node/npx 孙进程残留。
+
+    - Windows：taskkill /F /T 按 PID 杀树；
+    - POSIX：对进程组发 SIGKILL（子进程以 start_new_session 启动）；
+    - 任一步失败退回 proc.kill() 兜底。
+    """
+    pid = getattr(proc, "pid", None)
+    if pid:
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=10,
+                )
+                return
+            except Exception:
+                pass
+        else:
+            # getattr 防御：非 POSIX 平台无 killpg/getpgid/SIGKILL
+            killpg = getattr(os, "killpg", None)
+            getpgid = getattr(os, "getpgid", None)
+            sigkill = getattr(signal, "SIGKILL", None)
+            if killpg is not None and getpgid is not None and sigkill is not None:
+                try:
+                    killpg(getpgid(pid), sigkill)
+                    return
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 class DSHClient:
     """
     DeepSeek Harness 客户端核心类～
@@ -254,7 +293,11 @@ class DSHClient:
         return lock
 
     def _cordis_config(self) -> Optional[Path]:
-        """解析 cordis 组合配置，缺失时用内置模板生成～"""
+        """解析 cordis 组合配置，缺失时用内置模板生成～
+
+        生成时策略模式取 harness.policy_mode（默认 danger-full-access，
+        需配合 harness.allow_full_access: true 才能实际运行，见 _policy_check）。
+        """
         raw = self._get("cordis_config", "config/harness/minimal.cordis.yml")
         if not raw:
             return None
@@ -264,13 +307,61 @@ class DSHClient:
             p = base / p
         if not p.exists():
             try:
+                policy_mode = str(
+                    self._get("policy_mode", "danger-full-access")
+                ).strip()
+                template = DEFAULT_CORDIS_TEMPLATE.replace(
+                    "mode: danger-full-access", f"mode: {policy_mode}", 1
+                )
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(DEFAULT_CORDIS_TEMPLATE, encoding="utf-8")
+                p.write_text(template, encoding="utf-8")
                 logger.info(f"已生成 dsh cordis 配置模板: {p}")
             except OSError as e:
                 logger.warning(f"无法生成 cordis 配置: {e}")
                 return None
         return p
+
+    def _policy_check(self) -> Optional[str]:
+        """安全门（fail-closed）：cordis 策略为 danger-full-access 时必须显式允许。
+
+        dsh 在宿主机以完全访问模式执行 LLM 生成的命令，属于高危操作；
+        未配置 harness.allow_full_access: true 时拒绝运行，防止默认部署裸奔。
+        """
+        if bool(self._get("allow_full_access", False)):
+            return None
+        cordis = self._cordis_config()
+        if cordis is None:
+            return None
+        try:
+            text = cordis.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        if "danger-full-access" in text:
+            return (
+                "dsh sandbox-policy 为 danger-full-access（宿主机完全访问），"
+                "已被安全门拦截；如确认信任当前环境，请在配置中设置 "
+                "harness.allow_full_access: true，或改用受限策略的 cordis 配置"
+                "（harness.policy_mode / cordis_config）"
+            )
+        return None
+
+    def _task_filter_check(self, task: str) -> Optional[str]:
+        """命令过滤接入点：任务文本内嵌危险 shell 构造时拒绝执行。
+
+        过滤器此前从未接入任何执行链路（死代码）；dsh 是唯一在宿主机
+        执行 LLM 生成命令的通道，此处对任务文本做 L3 拦截作为纵深防御。
+        可通过 harness.command_filter_enabled: false 关闭。
+        """
+        if not bool(self._get("command_filter_enabled", True)):
+            return None
+        try:
+            level = command_filter.classify(task)
+        except Exception:
+            return None
+        if level == CommandLevel.L3:
+            _lvl, reason = command_filter._classify_detail(task)
+            return f"任务文本命中命令过滤高危规则，已拒绝执行：{reason}"
+        return None
 
     def _resolve_workspace(self, workspace: Optional[str], session_id: str) -> Path:
         """工作区：显式传入优先，否则按 session_id 隔离。
@@ -394,6 +485,16 @@ class DSHClient:
             return DSHResult(ok=False, error="任务描述为空")
 
         sid = session_id or f"session-{uuid.uuid4().hex[:12]}"
+
+        # 安全门 1：danger-full-access 策略必须显式开启
+        policy_error = self._policy_check()
+        if policy_error:
+            return DSHResult(ok=False, session_id=sid, error=policy_error)
+        # 安全门 2：任务文本内嵌危险 shell 构造时拒绝（命令过滤接入点）
+        filter_error = self._task_filter_check(task)
+        if filter_error:
+            logger.warning(f"dsh 任务被命令过滤拦截: {task[:200]}")
+            return DSHResult(ok=False, session_id=sid, error=filter_error)
         try:
             ws = self._resolve_workspace(workspace, sid)
         except ValueError as e:
@@ -542,12 +643,20 @@ class DSHClient:
         env = self._build_cli_env(session_root, model, max_tokens)
 
         logger.info(f"dsh CLI 运行任务 {session_id} 于 {workspace}: {cmd}")
+        spawn_kwargs: Dict[str, Any] = {}
+        if os.name == "nt":
+            # 独立进程组：超时后 taskkill /T 可整树清理
+            spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            # 独立会话：超时后 killpg 可整组清理
+            spawn_kwargs["start_new_session"] = True
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(workspace),
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **spawn_kwargs,
         )
 
         stdout_sink = _StdoutSink(max_bytes=200 * 1024)  # stdout 上限 200KB
@@ -557,10 +666,10 @@ class DSHClient:
                 _drain_cli(proc, stdout_sink, stderr_tail), timeout=timeout
             )
         except asyncio.TimeoutError:
-            # 超时路径必须 kill + wait 回收子进程，防止僵尸进程
-            proc.kill()
+            # 超时路径必须整树终止 + wait 回收子进程，防止僵尸/孤儿进程
+            _kill_tree(proc)
             await proc.wait()
-            logger.warning(f"dsh CLI 执行超时({timeout}s)，已 kill 子进程")
+            logger.warning(f"dsh CLI 执行超时({timeout}s)，已终止子进程树")
             return DSHResult(
                 session_id=session_id,
                 workspace=str(workspace),
@@ -571,7 +680,7 @@ class DSHClient:
         except BaseException:
             # 外部取消等：同样回收子进程后继续抛出
             if proc.returncode is None:
-                proc.kill()
+                _kill_tree(proc)
                 await proc.wait()
             raise
 

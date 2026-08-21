@@ -7,6 +7,7 @@ import uuid
 from typing import List, Dict, Any, Optional
 from app.core.database import db
 from app.core.logger import logger
+from app.core.config import get
 
 
 async def delete_part(part_id: str) -> bool:
@@ -84,19 +85,33 @@ async def add_part(
     try:
         from app.security.scanner import code_scanner
 
-        findings = await code_scanner.scan(code, language or "python")
-        high_risks = [
-            f
-            for f in findings
-            if f.get("issue_severity") in ("HIGH", "CRITICAL")
-            or f.get("severity") in ("HIGH", "CRITICAL")
-        ]
-        if high_risks:
-            logger.warning(
-                f"零件 {name} 静态扫描发现高危问题，拒绝入库: "
-                f"{[f.get('issue_text') or f.get('title') for f in high_risks][:3]}"
-            )
-            raise ValueError("零件代码存在高危安全风险，拒绝入库")
+        available = await code_scanner.ensure_available()
+        if not available:
+            # fail-closed：扫描工具缺失时拒绝入库，防止门禁静默失效；
+            # 可配置 security.scan_fail_open=true 临时降级放行
+            if bool(get("security.scan_fail_open", False)):
+                logger.warning(
+                    "静态扫描工具不可用，按 security.scan_fail_open=true 放行入库"
+                )
+            else:
+                raise ValueError(
+                    "静态扫描工具不可用，已拒绝入库（fail-closed）；"
+                    "如需临时放行请配置 security.scan_fail_open=true"
+                )
+        else:
+            findings = await code_scanner.scan(code, language or "python")
+            high_risks = [
+                f
+                for f in findings
+                if f.get("issue_severity") in ("HIGH", "CRITICAL")
+                or f.get("severity") in ("HIGH", "CRITICAL")
+            ]
+            if high_risks:
+                logger.warning(
+                    f"零件 {name} 静态扫描发现高危问题，拒绝入库: "
+                    f"{[f.get('issue_text') or f.get('title') for f in high_risks][:3]}"
+                )
+                raise ValueError("零件代码存在高危安全风险，拒绝入库")
     except ValueError:
         raise
     except Exception as e:

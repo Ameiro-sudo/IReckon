@@ -18,6 +18,7 @@ from app.core.logger import setup_logging, log_banner, logger
 from app.core.updater import updater
 from app.llm.pool import capability_pool
 from app.engine.learner import idle_loop
+from app.web.auth import ensure_token, warn_if_insecure
 from app.web.push import log_consumer
 from app.tools.registry import register_builtin_tools
 
@@ -88,6 +89,21 @@ class IReckonApp:
     async def initialize(self):
         setup_logging()
         logger.info(f"启动 { get('system.name')} v{ get('system.version')}")
+
+        # 确保存在 API token（首次启动自动生成并持久化），控制台明示
+        api_token = ensure_token()
+        if os.environ.get("IRECKON_API_TOKEN", "").strip():
+            logger.info("API 鉴权已启用（token 来自环境变量 IRECKON_API_TOKEN）")
+        else:
+            log_banner(
+                "API 访问令牌",
+                [
+                    f"{api_token}",
+                    "打开前端后在登录页粘贴此令牌；也可在 config.yaml 的",
+                    "security.api_token 中固定，或设置环境变量 IRECKON_API_TOKEN。",
+                ],
+            )
+        warn_if_insecure()
 
         await _check_update()
         await db.connect()
@@ -199,7 +215,7 @@ async def start_backend(app: "IReckonApp"):
     """启动 FastAPI 后端服务。"""
     import uvicorn
 
-    host = get("server.host", "0.0.0.0")
+    host = get("server.host", "127.0.0.1")
     port = get("server.port", 8000)
 
     config = uvicorn.Config(
@@ -213,20 +229,22 @@ async def start_backend(app: "IReckonApp"):
     )
 
     lan_ip = _get_lan_ip()
-    frontend_line = (
-        f"前端界面   { get('server.frontend_dev_url', 'http://127.0.0.1:3000')} (开发模式)"
-        if app._frontend_proc
-        else f"前端界面   http://{host}:{port}"
-    )
+    # 仅输出实际可访问的地址：绑定 127.0.0.1 时局域网不可达
+    lan_exposed = host not in ("127.0.0.1", "localhost", "::1")
+    if app._frontend_proc:
+        banner_lines = [
+            f"后端 API   http://{host}:{port}",
+            f"前端界面   { get('server.frontend_dev_url', 'http://127.0.0.1:3000')} (开发模式)",
+        ]
+    else:
+        # 生产模式：FastAPI 同端口托管前端，前后端合一
+        banner_lines = [f"Web 服务   http://{host}:{port} (前端 + API)"]
+    if lan_exposed and lan_ip:
+        banner_lines.append(f"局域网访问 http://{lan_ip}:{port}")
+    banner_lines.append(f"健康检查   http://{host}:{port}/api/health")
     log_banner(
         f"IReckon v{ get('system.version')} 已启动",
-        [
-            f"后端 API   http://{host}:{port}",
-            f"交互文档   http://{host}:{port}/docs",
-            frontend_line,
-            f"局域网访问 http://{lan_ip}:{port}" if lan_ip else "",
-            f"健康检查   http://{host}:{port}/api/health",
-        ],
+        banner_lines,
     )
 
     if get("server.open_browser", False):

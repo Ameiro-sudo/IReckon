@@ -7,6 +7,7 @@
 import asyncio
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Dict, Optional
@@ -35,11 +36,13 @@ class Database:
     """
 
     _instance: Optional["Database"] = None
+    _instance_lock = threading.Lock()
 
     def __new__(cls):
-        """单例模式，全局只有一个数据库实例～"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
+        """单例模式，全局只有一个数据库实例～（线程安全：to_thread 路径也可能触碰）"""
+        with cls._instance_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -51,7 +54,7 @@ class Database:
         self._write_lock = asyncio.Lock()  # 写操作锁
         self._connect_lock = asyncio.Lock()  # 连接锁
         self._query_cache: Dict[str, tuple] = {}  # 查询缓存
-        self._cache_ttl = 30  # 缓存过期时间(秒)
+        self._cache_ttl = 1  # 缓存过期时间(秒)：过长会导致"改了没生效"的脏读
 
         # 确定数据库文件位置～
         data_dir = Path(get("system.data_dir", "./data"))
@@ -263,6 +266,16 @@ class Database:
             if inst:
                 instances.append(inst)
         return instances
+
+    async def delete_ai_instance(self, iid: str) -> bool:
+        """物理删除 AI 实例，返回是否确实删除了记录。"""
+        row = await self.fetch_one(
+            "SELECT instance_id FROM ai_instances WHERE instance_id=?", (iid,)
+        )
+        if not row:
+            return False
+        await self.execute("DELETE FROM ai_instances WHERE instance_id=?", (iid,))
+        return True
 
     async def delete_task(self, task_id: str) -> None:
         """删除任务及其关联数据（消息、看板、用量记录），单事务保证原子性。"""

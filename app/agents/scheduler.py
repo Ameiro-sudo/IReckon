@@ -37,6 +37,14 @@ def _generate_announcement(plan: Dict[str, Any], team: Dict[str, List]) -> str:
 async def recruit_team(
     recruitment_plan: Dict[str, Any],
 ) -> Dict[str, List[AICapability]]:
+    """按招募计划组建团队，并强制计费通道纪律。
+
+    - executor/deliverer 等高频角色 → 执行通道（tier=light，烧多少次不心疼）；
+    - reviewer 等判断点角色 → 主通道（tier=heavy，只花刀刃上的调用）。
+    标签不匹配时先放宽标签、再跨通道兜底（打警告），保证任务不停摆。
+    """
+    from app.llm.router import ROLE_TIERS, acquire
+
     team = {}
     global_assigned_ids: Set[str] = set()
 
@@ -53,32 +61,40 @@ async def recruit_team(
             continue
         count = spec.get("count", 1)
         required_tags = spec.get("required_tags", [])
-        prefer_cheap = spec.get("prefer_cheap", False)
+        tier = ROLE_TIERS.get(role, "light")
 
         candidates = []
         for _ in range(count):
-            cap = await capability_pool.find_best_match(
+            # 1) 通道内 + 标签匹配
+            cap = await acquire(
+                tier=tier,
                 required_tags=required_tags,
                 exclude_ids=global_assigned_ids,
-                prefer_cheapest=prefer_cheap,
             )
-            if cap:
-                candidates.append(cap)
-                global_assigned_ids.add(cap.id)
-            else:
+            # 2) 通道内放宽标签
+            if cap is None:
+                cap = await acquire(tier=tier, exclude_ids=global_assigned_ids)
+                if cap:
+                    logger.warning(
+                        f"角色 {role} 标签不匹配({required_tags})，"
+                        f"通道内复用实例 {cap.id}"
+                    )
+            # 3) 跨通道兜底（宁可跨通道也不停摆）
+            if cap is None:
                 cap = await capability_pool.find_best_match(
-                    prefer_cheapest=prefer_cheap,
+                    required_tags=required_tags,
+                    exclude_ids=global_assigned_ids,
+                    prefer_cheapest=True,
                 )
                 if cap:
                     logger.warning(
-                        f"角色 {role} 标签不匹配({required_tags})，复用能力实例 {cap.id}"
+                        f"角色 {role} 在目标通道无可用实例，"
+                        f"跨通道复用 {cap.id}（可能消耗按次计费调用）"
                     )
-                    candidates.append(cap)
-                    global_assigned_ids.add(cap.id)
-                else:
-                    raise RuntimeError(
-                        "能力池为空或无匹配实例，请先在设置页添加 AI 实例"
-                    )
+            if cap is None:
+                raise RuntimeError("能力池为空或无匹配实例，请先在设置页添加 AI 实例")
+            candidates.append(cap)
+            global_assigned_ids.add(cap.id)
         team[role] = candidates
     return team
 

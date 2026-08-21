@@ -177,6 +177,9 @@ const modalRef = ref(null)
 let ws = null
 let reconnectTimer = null
 let retries = 0
+// 连接代数：每次 connectWs/disconnectWs 递增，旧连接的异步回调据此自弃，
+// 防止组件卸载/切换任务后幽灵重连与旧 socket 继续写全局状态
+let wsGeneration = 0
 
 const ACTIVE = ['pending', 'planning', 'executing', 'reviewing', 'revising', 'delivering']
 const isActive = computed(() => currentTask.value && ACTIVE.includes(currentTask.value.status))
@@ -188,6 +191,8 @@ const filteredTasks = computed(() => {
 })
 
 const downloadUrl = computed(() => currentTask.value ? taskAPI.downloadUrl(currentTask.value.task_id) : '#')
+// 消息数量：仅监听长度变化触发高亮/滚动，避免对 800+ 条消息做深度遍历
+const messagesLength = computed(() => messages.value.length)
 
 onMounted(async () => {
   await taskStore.fetchTasks()
@@ -204,11 +209,11 @@ watch(selectedLayer, () => {
   if (currentTask.value) taskStore.fetchMessages(currentTask.value.task_id, selectedLayer.value)
 })
 
-watch(messages, async () => {
+watch(messagesLength, async () => {
   await nextTick()
   highlightDom(messagesRef.value)
   scrollDown()
-}, { deep: true })
+})
 
 function selectTask(task) {
   taskStore.setCurrentTask(task)
@@ -220,12 +225,19 @@ function selectTask(task) {
 
 function connectWs(taskId) {
   disconnectWs()
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  const gen = ++wsGeneration
   try {
     ws = createWebSocket(taskId)
-    ws.onopen = () => { wsConnected.value = true; retries = 0 }
-    ws.onclose = () => { wsConnected.value = false; scheduleReconnect(taskId) }
+    ws.onopen = () => {
+      if (gen !== wsGeneration) return
+      wsConnected.value = true; retries = 0
+    }
+    ws.onclose = () => {
+      if (gen !== wsGeneration) return
+      wsConnected.value = false; scheduleReconnect(taskId)
+    }
     ws.onmessage = (e) => {
+      if (gen !== wsGeneration) return
       try {
         const data = JSON.parse(e.data)
         taskStore.addWsMessage({ ...data, task_id: taskId })
@@ -234,10 +246,16 @@ function connectWs(taskId) {
         }
         scrollDown()
       } catch {
-        if (e.data === 'ping') ws?.send('pong')
+        if (e.data === 'ping') {
+          // readyState 守卫：非 OPEN 状态 send 会抛未捕获异常
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send('pong')
+        }
       }
     }
-    ws.onerror = () => { wsConnected.value = false }
+    ws.onerror = () => {
+      if (gen !== wsGeneration) return
+      wsConnected.value = false
+    }
   } catch {
     wsConnected.value = false
   }
@@ -254,8 +272,15 @@ function scheduleReconnect(taskId) {
 }
 
 function disconnectWs() {
+  ++wsGeneration
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-  if (ws) { ws.close(); ws = null }
+  if (ws) {
+    // 先摘除全部事件处理器再 close：close() 异步触发 onclose，
+    // 否则会重新调度重连，形成卸载后的幽灵连接
+    ws.onopen = ws.onclose = ws.onmessage = ws.onerror = null
+    try { ws.close() } catch { /* ignore */ }
+    ws = null
+  }
   wsConnected.value = false
 }
 

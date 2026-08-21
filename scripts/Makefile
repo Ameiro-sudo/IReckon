@@ -16,10 +16,10 @@ install-all: install install-dev install-frontend ## Install everything
 # ─── Development ──────────────────────────────────────────────────────────────
 
 dev: ## Start both backend and frontend
-	python scripts/run.sh
+	bash scripts/run.sh
 
 dev-backend: ## Start backend server only
-	python -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000 --reload
+	python -m uvicorn app.web.api:app --host 127.0.0.1 --port 8000 --reload
 
 dev-frontend: ## Start frontend dev server only
 	cd frontend && npm run dev
@@ -45,10 +45,10 @@ typecheck-strict: ## Run mypy with strict settings
 	mypy --strict app/
 
 security: ## Run security scanners
-	bandit -r app/ -x app/tests/
+	bandit -r app/
 
 security-verbose: ## Run all security scanners with detailed output
-	bandit -r app/ -x app/tests/ -f json
+	bandit -r app/ -f json
 
 lint-all: lint format-check typecheck security ## Run all linting and checks
 
@@ -66,10 +66,10 @@ smoke-test: ## Run smoke test
 # ─── Pre-commit ──────────────────────────────────────────────────────────────
 
 pre-commit-install: ## Install pre-commit hooks
-	pre-commit install
+	pre-commit install --config config/.pre-commit-config.yaml
 
 pre-commit-run: ## Run pre-commit on all files
-	pre-commit run --all-files
+	pre-commit run --config config/.pre-commit-config.yaml --all-files
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ build-frontend: ## Build frontend for production
 	cd frontend && npm run build
 
 clean: ## Clean build artifacts and caches
-	rm -rf build/ dist/ *.spec __pycache__/
+	rm -rf build/ dist/ __pycache__/
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	rm -rf .mypy_cache/ .ruff_cache/ .pytest_cache/

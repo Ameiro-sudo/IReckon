@@ -1,106 +1,139 @@
 /* ============================================================
-   IReckon 设计系统 v3 — 极简 SaaS · Linear/Notion 质感
-   中性灰画布 · 发丝边框 · Indigo 强调 · 克制阴影
+   IReckon 设计系统 v4 — 工业控制室 · Instrument Panel
+   石墨机身 · 琥珀信号灯 · 铭牌刻线 · 传送带节拍
+   字体分工：Chakra Petch（拉丁/数字显示）· IBM Plex Mono（数据）
+             中文走系统栈（PingFang/MiSans/雅黑），不加载中文 webfont
    ============================================================ */
 
 :root {
-  /* 品牌色 */
-  --accent: #5b5bd6;
-  --accent-hover: #4a4ac4;
-  --accent-active: #3f3fb0;
-  --accent-soft: rgba(91, 91, 214, 0.09);
-  --accent-border: rgba(91, 91, 214, 0.28);
-  --accent-contrast: #ffffff;
+  /* 信号色 —— 工业琥珀 */
+  --accent: #b8770a;            /* 浅色主题下作文字色可读 */
+  --accent-fill: #eea92e;       /* 按钮等填充面 */
+  --accent-fill-hover: #f3b54a;
+  --accent-fill-active: #dd9a22;
+  --accent-ink: #1c1506;        /* 填充面上的深色文字 */
+  --accent-soft: rgba(184, 119, 10, 0.09);
+  --accent-border: rgba(184, 119, 10, 0.32);
+  --accent-contrast: #1c1506;
 
-  /* 语义色 */
-  --success: #159f63;
-  --success-soft: rgba(21, 159, 99, 0.1);
+  /* 语义色 —— 控制室信号灯 */
+  --success: #1f9e68;
+  --success-soft: rgba(31, 158, 104, 0.1);
   --warning: #b45309;
   --warning-soft: rgba(180, 83, 9, 0.1);
-  --error: #dc2626;
-  --error-soft: rgba(220, 38, 38, 0.08);
-  --info: #2563eb;
-  --info-soft: rgba(37, 99, 235, 0.09);
+  --error: #d13438;
+  --error-soft: rgba(209, 52, 56, 0.08);
+  --info: #2273a8;
+  --info-soft: rgba(34, 115, 168, 0.09);
 
-  /* 中性色（浅色） */
-  --bg: #f7f7f8;
-  --bg-surface: #ffffff;
-  --bg-subtle: #fafafa;
-  --bg-hover: #f2f2f4;
-  --bg-active: #ebebee;
+  /* 中性色 —— 日班车间（浅色） */
+  --bg: #e8eaed;
+  --bg-housing: #dfe3e8;        /* 侧边栏机身 */
+  --bg-surface: #f6f7f8;
+  --bg-subtle: #eef0f2;
+  --bg-hover: #e2e5e9;
+  --bg-active: #d9dee3;
 
-  --text: #1a1a1e;
-  --text-secondary: #62626b;
-  --text-muted: #a1a1aa;
+  --text: #1c2228;
+  --text-secondary: #55606a;
+  --text-muted: #87929c;
 
-  --border: #e8e8eb;
-  --border-strong: #d6d6dc;
+  --border: #d8dde2;
+  --border-strong: #c2cad1;
 
-  --overlay: rgba(24, 24, 27, 0.45);
+  --overlay: rgba(20, 26, 32, 0.45);
 
-  /* 状态色 */
-  --st-pending: #71717a;
-  --st-planning: #7c3aed;
-  --st-executing: #d97706;
-  --st-reviewing: #0284c7;
-  --st-revising: #ea580c;
-  --st-delivering: #db2777;
-  --st-completed: #159f63;
-  --st-failed: #dc2626;
-  --st-paused: #64748b;
+  /* 工序信号灯 */
+  --st-pending: #87929c;
+  --st-planning: #3d84c6;
+  --st-executing: #c07c08;
+  --st-reviewing: #7a5fd0;
+  --st-revising: #cf5f34;
+  --st-delivering: #c74e86;
+  --st-completed: #1f9e68;
+  --st-failed: #d13438;
+  --st-paused: #64707c;
 
-  /* 几何 */
-  --radius-sm: 6px;
-  --radius: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
+  /* 几何 —— 更方正的机械感 */
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
 
-  /* 阴影 — 克制的微投影 */
-  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
-  --shadow-md: 0 1px 3px rgba(24, 24, 27, 0.06), 0 4px 14px rgba(24, 24, 27, 0.05);
-  --shadow-lg: 0 4px 12px rgba(24, 24, 27, 0.08), 0 16px 48px rgba(24, 24, 27, 0.12);
-  --shadow-focus: 0 0 0 3px rgba(91, 91, 214, 0.16);
+  /* 阴影 —— 克制 */
+  --shadow-sm: 0 1px 2px rgba(16, 22, 28, 0.06);
+  --shadow-md: 0 1px 3px rgba(16, 22, 28, 0.07), 0 4px 14px rgba(16, 22, 28, 0.06);
+  --shadow-lg: 0 4px 12px rgba(16, 22, 28, 0.09), 0 16px 48px rgba(16, 22, 28, 0.14);
+  --shadow-focus: 0 0 0 3px rgba(238, 169, 46, 0.25);
 
   --sidebar-w: 236px;
 
   /* 代码块 */
-  --code-bg: #fafafa;
-  --code-text: #24292f;
+  --code-bg: #eef0f2;
+  --code-text: #242b32;
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 字体 */
+  --font-display: 'Chakra Petch', 'Inter', -apple-system, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei UI', 'Microsoft YaHei',
+    Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular,
+    'Cascadia Mono', Menlo, Consolas, monospace;
 }
 
 [data-theme="dark"] {
-  --bg: #0e0e10;
-  --bg-surface: #161618;
-  --bg-subtle: #1c1c1f;
-  --bg-hover: #232326;
-  --bg-active: #2a2a2e;
+  --accent: #eda73f;
+  --accent-fill: #eda73f;
+  --accent-fill-hover: #f4bc60;
+  --accent-fill-active: #dd9a2e;
+  --accent-ink: #191307;
+  --accent-soft: rgba(237, 167, 63, 0.1);
+  --accent-border: rgba(237, 167, 63, 0.35);
 
-  --text: #ededef;
-  --text-secondary: #a3a3ab;
-  --text-muted: #6f6f78;
+  --success: #35c287;
+  --success-soft: rgba(53, 194, 135, 0.12);
+  --warning: #e0a038;
+  --warning-soft: rgba(224, 160, 56, 0.12);
+  --error: #e5534b;
+  --error-soft: rgba(229, 83, 75, 0.12);
+  --info: #4cb3d4;
+  --info-soft: rgba(76, 179, 212, 0.11);
 
-  --border: #26262a;
-  --border-strong: #38383e;
+  /* 夜班控制室 */
+  --bg: #0f1317;
+  --bg-housing: #0b0f13;
+  --bg-surface: #151a20;
+  --bg-subtle: #1a2128;
+  --bg-hover: #222a33;
+  --bg-active: #29323c;
 
-  --overlay: rgba(0, 0, 0, 0.6);
+  --text: #e6e9ec;
+  --text-secondary: #98a2ac;
+  --text-muted: #5c6873;
 
-  --accent: #7c7cf0;
-  --accent-hover: #8b8bf3;
-  --accent-active: #9a9af5;
-  --accent-soft: rgba(124, 124, 240, 0.14);
-  --accent-border: rgba(124, 124, 240, 0.35);
+  --border: #232c35;
+  --border-strong: #33404c;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+  --overlay: rgba(4, 8, 12, 0.62);
+
+  --st-pending: #8a95a0;
+  --st-planning: #4fa3d8;
+  --st-executing: #eda73f;
+  --st-reviewing: #9d8cff;
+  --st-revising: #e0764a;
+  --st-delivering: #e0679a;
+  --st-completed: #35c287;
+  --st-failed: #e5534b;
+  --st-paused: #6d7d8d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.32);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
-  --shadow-focus: 0 0 0 3px rgba(124, 124, 240, 0.22);
+  --shadow-focus: 0 0 0 3px rgba(237, 167, 63, 0.22);
 
-  --code-bg: #17171a;
-  --code-text: #e6e6e9;
+  --code-bg: #10151b;
+  --code-text: #d7dde3;
 }
 
 * {
@@ -131,7 +164,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-fill);
   outline-offset: 2px;
 }
 
@@ -157,8 +190,8 @@ code, pre {
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
 }
 
 ::-webkit-scrollbar {
@@ -219,12 +252,12 @@ code, pre {
   }
 }
 
-/* ============ 侧边栏 ============ */
+/* ============ 侧边栏 — 机身控制列 ============ */
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border);
+  background: var(--bg-housing);
+  border-right: 1px solid var(--border-strong);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -236,33 +269,41 @@ code, pre {
   align-items: center;
   gap: 10px;
   padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .brand-mark {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-contrast);
   font-weight: 700;
   font-size: 15px;
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   flex-shrink: 0;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
 }
 
 .brand-name {
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
   line-height: 1.25;
+  text-transform: uppercase;
 }
 
 .brand-sub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .sidebar-nav {
@@ -275,9 +316,10 @@ code, pre {
 }
 
 .nav-group-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.09em;
+  font-family: var(--font-mono);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
   padding: 18px 10px 6px;
@@ -308,6 +350,18 @@ code, pre {
   font-weight: 600;
 }
 
+/* 选中态左侧信号轨 */
+.nav-item.router-link-active::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent-fill);
+}
+
 .nav-item .nav-icon {
   display: flex;
   align-items: center;
@@ -327,11 +381,12 @@ code, pre {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-contrast);
+  border-radius: var(--radius-sm);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
   font-size: 10px;
   font-weight: 700;
+  font-family: var(--font-mono);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -364,8 +419,14 @@ code, pre {
   flex-shrink: 0;
 }
 
-.status-dot.on { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
-.status-dot.off { background: var(--error); box-shadow: 0 0 0 3px var(--error-soft); }
+.status-dot.on {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft), 0 0 6px var(--success);
+}
+.status-dot.off {
+  background: var(--error);
+  box-shadow: 0 0 0 3px var(--error-soft), 0 0 6px var(--error);
+}
 
 .footer-version {
   font-size: 11px;
@@ -374,7 +435,7 @@ code, pre {
   margin-left: 4px;
 }
 
-/* ============ 按钮 — 扁平质感 ============ */
+/* ============ 按钮 — 信号面板 ============ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -397,17 +458,19 @@ code, pre {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--accent-fill);
+  color: var(--accent-ink);
   border-color: transparent;
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
 }
 
 .btn-primary:active:not(:disabled) {
-  background: var(--accent-active);
+  background: var(--accent-fill-active);
 }
 
 .btn-secondary {
@@ -441,7 +504,7 @@ code, pre {
 
 .btn-danger:hover:not(:disabled) {
   background: var(--error);
-  color: var(--accent-contrast);
+  color: #fff;
 }
 
 .btn-sm {
@@ -499,7 +562,7 @@ code, pre {
 }
 
 .input:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-fill);
   box-shadow: var(--shadow-focus);
 }
 
@@ -526,10 +589,6 @@ select.input {
   cursor: pointer;
 }
 
-[data-theme="dark"] select.input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236f6f78' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
 label.form-label {
   display: block;
   font-size: 13px;
@@ -542,11 +601,11 @@ label.form-label {
   margin-bottom: 16px;
 }
 
-/* ============ 面板 / 卡片 ============ */
+/* ============ 面板 / 卡片 — 铭牌铭刻 ============ */
 .panel {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   padding: 20px;
 }
 
@@ -558,6 +617,16 @@ label.form-label {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 铭牌刻线：标题前的琥珀刻度 */
+.panel-title::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--accent-fill);
+  flex-shrink: 0;
 }
 
 .panel-desc {
@@ -588,7 +657,8 @@ label.form-label {
 .page-title {
   font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
   line-height: 1.2;
   display: flex;
   align-items: center;
@@ -608,13 +678,13 @@ label.form-label {
   flex-wrap: wrap;
 }
 
-/* ============ 徽章 / 状态点 ============ */
+/* ============ 徽章 — 信号灯标签 ============ */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 1px 9px;
-  border-radius: 999px;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -628,17 +698,18 @@ label.form-label {
   height: 5px;
   border-radius: 50%;
   background: currentColor;
+  box-shadow: 0 0 5px currentColor;
 }
 
-.st-pending { background: var(--bg-subtle); color: var(--st-pending); border-color: var(--border); }
-.st-planning { background: rgba(124, 58, 237, 0.1); color: var(--st-planning); }
-.st-executing { background: var(--warning-soft); color: var(--st-executing); }
-.st-reviewing { background: var(--info-soft); color: var(--st-reviewing); }
-.st-revising { background: rgba(234, 88, 12, 0.1); color: var(--st-revising); }
-.st-delivering { background: rgba(219, 39, 119, 0.1); color: var(--st-delivering); }
+.st-pending { background: var(--bg-subtle); color: var(--st-pending); border-color: var(--border-strong); }
+.st-planning { background: rgba(79, 163, 216, 0.12); color: var(--st-planning); }
+.st-executing { background: rgba(237, 167, 63, 0.13); color: var(--st-executing); }
+.st-reviewing { background: rgba(157, 140, 255, 0.12); color: var(--st-reviewing); }
+.st-revising { background: rgba(224, 118, 74, 0.12); color: var(--st-revising); }
+.st-delivering { background: rgba(224, 103, 154, 0.12); color: var(--st-delivering); }
 .st-completed { background: var(--success-soft); color: var(--st-completed); }
 .st-failed { background: var(--error-soft); color: var(--st-failed); }
-.st-paused { background: var(--bg-subtle); color: var(--st-paused); border-color: var(--border); }
+.st-paused { background: var(--bg-subtle); color: var(--st-paused); border-color: var(--border-strong); }
 .st-warning { background: var(--warning-soft); color: var(--warning); }
 .st-info { background: var(--info-soft); color: var(--info); }
 
@@ -656,13 +727,14 @@ label.form-label {
 
 .table th {
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-muted);
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
 
@@ -700,9 +772,9 @@ label.form-label {
 .empty-state .empty-icon {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--bg-subtle);
-  border: 1px solid var(--border);
+  border: 1px dashed var(--border-strong);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -727,7 +799,7 @@ label.form-label {
 .progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: var(--accent);
+  background: var(--accent-fill);
   transition: width 0.4s ease;
 }
 
@@ -746,8 +818,8 @@ label.form-label {
 
 .modal {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
   padding: 26px;
   width: 520px;
@@ -765,7 +837,8 @@ label.form-label {
 .modal-title {
   font-size: 16px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
   margin-bottom: 4px;
 }
 
@@ -868,7 +941,7 @@ label.form-label {
 }
 
 .md-body blockquote {
-  border-left: 3px solid var(--border-strong);
+  border-left: 3px solid var(--accent-fill);
   padding-left: 12px;
   color: var(--text-secondary);
   margin: 8px 0;
@@ -886,8 +959,9 @@ label.form-label {
 }
 
 .md-body :not(pre) > code {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--border);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 12px;
@@ -1018,8 +1092,8 @@ label.form-label {
 }
 
 .switch-label input:checked + .switch-track {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
 }
 
 .switch-label input:checked + .switch-track .switch-thumb {
@@ -1041,7 +1115,7 @@ label.form-label {
   gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-surface);
+  background: var(--bg-housing);
   position: sticky;
   top: 0;
   z-index: 20;
@@ -1050,7 +1124,9 @@ label.form-label {
 .mobile-title {
   font-weight: 700;
   font-size: 14px;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 @media (max-width: 768px) {

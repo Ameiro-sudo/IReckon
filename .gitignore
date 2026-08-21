@@ -41,6 +41,8 @@ data/logs/
 data/states/
 data/outputs/
 data/knowledge_base/
+data/uploads/
+data/harness/
 frontend/npm-debug.txt
 full_validation.txt
 inspect_lines.txt
@@ -53,8 +55,13 @@ coverage_html/
 htmlcov/
 
 
-# dsh 运行时生成配置
-config/harness/
+# dsh 运行时生成配置（minimal.cordis.yml 为显式提交的模板，见下方例外）
+config/harness/*
+!config/harness/minimal.cordis.yml
 .env
+测试用key.txt
+
+# 本地实例配置：含实例密钥与 auth 自动回写的 api_token，不入库（模板见 config.example.yaml）
+config/config.yaml
 
 tests/.tmp/

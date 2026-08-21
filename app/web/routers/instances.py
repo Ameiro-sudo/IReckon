@@ -52,6 +52,9 @@ async def create_ai_instance(inst: AIInstanceRequest):
         raise HTTPException(422, "endpoint 和 model 为必填项")
     if not data.get("id"):
         data["id"] = f"ai-{uuid.uuid4().hex[:12]}"
+    # 拒绝覆盖已有 ID：防止实例被同 ID 重建劫持（改指向恶意端点）
+    if await db.get_ai_instance(data["id"]):
+        raise HTTPException(409, f"实例 ID 已存在: {data['id']}，如需修改请用 PUT")
     cap = AICapability(**data)
     await capability_pool.add_instance(cap)
     return {"status": "ok", "id": data["id"]}
@@ -62,9 +65,9 @@ async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
     existing = await capability_pool.get_by_id(instance_id)
     if not existing:
         raise HTTPException(404, "Instance not found")
-    # 以现有实例为基础做部分更新（exclude_unset 只覆盖传入字段）
+    # 以现有实例为基础做部分更新：exclude_unset 只覆盖请求中显式传入的字段
     data = existing.to_dict()
-    patch = inst.model_dump()
+    patch = inst.model_dump(exclude_unset=True)
     patch.pop("id", None)
     # api_key 为空串时保留已有密钥（前端编辑不填视为不变更）
     if not patch.get("api_key"):
@@ -77,7 +80,9 @@ async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
 
 @router.delete("/ai-instances/{instance_id}")
 async def delete_ai_instance(instance_id: str):
-    await capability_pool.remove_instance(instance_id)
+    deleted = await capability_pool.remove_instance(instance_id)
+    if not deleted:
+        raise HTTPException(404, "Instance not found")
     return {"status": "ok"}
 
 
@@ -132,4 +137,5 @@ async def test_ai_instance(instance_id: str):
 @router.get("/capabilities")
 async def list_capabilities():
     caps = await capability_pool.get_all(refresh=True)
-    return [c.to_dict() for c in caps]
+    # 与列表接口一致：不返回明文 api_key，只暴露是否已配置
+    return [_mask_instance(c.to_dict()) for c in caps]
