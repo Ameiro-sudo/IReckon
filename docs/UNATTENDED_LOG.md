@@ -100,3 +100,10 @@
 - waterfall 独立仓库收编完成；bocchi-mod 平台轨道按用户决定关闭
 - inecraft 方案A代码交付完毕，部署清单就绪等 VPS 恢复(外部条件，不在本目标内)
 - .notify 通道全程在线，里程碑通报均送达
+## 用户指令轮：双更新渠道
+
+- [x] updater 双渠道：installer(下载 Setup exe 拉起向导，支持 silent)/portable(zip 自替换)，渠道解析=显式>配置 self_update.channel>自动探测(冻结+unins*.exe)
+- [x] build.yml：新增便携版打包步骤，Release 同时挂 Setup exe 与 Portable zip
+- [x] API：/update/check 回传 channel；/update/apply 接受 {channel,silent} 并回传 message
+- [x] 前端设置页渠道下拉(auto/portable/installer)+message 展示
+- [x] +13 渠道测试；四件套+前端构建全绿；远端 CI success @ 8501372
