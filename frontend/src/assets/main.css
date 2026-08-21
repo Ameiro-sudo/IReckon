@@ -279,6 +279,7 @@
   }
 
   .view-root {
+    @apply mx-auto w-full max-w-[1180px] shrink-0 px-4 pt-5 pb-12 md:px-10 md:pt-8 md:pb-16;
     @apply flex min-h-0 flex-1 flex-col;
   }
 
@@ -286,8 +287,12 @@
     @apply flex min-h-0 flex-1 flex-col;
   }
 
+  /* 页面级盒模型（居中/限宽/内边距）已上移至 .view-root 统一持有：
+     标题(PageHeader)与内容列因此共享同一坐标系，根治大标题与面板水平错位
+     （实测错位 52px：.page 内边距+居中 vs 内容列裸贴 view-root 左缘）。
+     .page 仅剩 PageHeader 根节点的通栏容器语义。 */
   .page {
-    @apply mx-auto w-full max-w-[1180px] shrink-0 px-4 pt-5 pb-12 md:px-10 md:pt-8 md:pb-16;
+    @apply w-full;
   }
 
   /* ---- 按钮 —— 信号面板按键 ---- */
