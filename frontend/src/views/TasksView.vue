@@ -32,7 +32,7 @@
         </thead>
         <tbody>
           <tr v-for="task in filteredTasks" :key="task.task_id" class="cursor-pointer" @click="viewTask(task)">
-            <td class="font-mono text-ink-3">{{ task.task_id.slice(5, 13) }}</td>
+            <td class="font-mono text-ink-3">{{ task.task_id?.slice(5, 13) ?? task.task_id ?? '—' }}</td>
             <td>
               <span class="block max-w-[380px] truncate" :title="task.user_request">{{ taskTitle(task) }}</span>
             </td>
