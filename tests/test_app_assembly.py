@@ -55,3 +55,28 @@ def test_cors_credentials_never_offered():
         r = c.get("/api/health", headers={"Origin": "http://127.0.0.1:3000"})
         # allow_credentials=False：绝不出现允许携带凭据的响应头
         assert r.headers.get("access-control-allow-credentials") in (None, "false")
+
+
+def test_security_headers_present():
+    with TestClient(app) as c:
+        r = c.get("/api/health")
+        csp = r.headers.get("content-security-policy", "")
+        # CSP 关键指令：脚本仅限自身、对象/框架全禁
+        assert "default-src 'self'" in csp
+        assert "script-src 'self'" in csp
+        assert "object-src 'none'" in csp
+        assert "frame-ancestors 'none'" in csp
+        # WebSocket 同源放行
+        assert "connect-src 'self' ws: wss:" in csp
+        assert r.headers.get("x-content-type-options") == "nosniff"
+        assert r.headers.get("x-frame-options") == "DENY"
+
+
+def test_csp_allows_font_domains_but_blocks_foreign_scripts():
+    with TestClient(app) as c:
+        csp = c.get("/api/health").headers.get("content-security-policy", "")
+        assert "https://fonts.googleapis.com" in csp  # 字体样式域放行
+        assert "https://fonts.gstatic.com" in csp  # 字体文件域放行
+        # 脚本来源绝不包含外域
+        script_part = [p for p in csp.split("; ") if p.startswith("script-src")][0]
+        assert "http" not in script_part.replace("script-src 'self'", "").strip()
