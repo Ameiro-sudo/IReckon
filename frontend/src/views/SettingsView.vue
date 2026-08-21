@@ -1,6 +1,6 @@
 <template>
   <div class="view-root">
-    <PageHeader title="设置" subtitle="系统配置与更新管理" />
+    <PageHeader title="设置" subtitle="系统配置与更新管理" content-class="max-w-[680px]" />
 
     <div class="flex max-w-[680px] flex-col gap-3 pb-3">
       <div class="panel">
@@ -29,7 +29,7 @@
         <div class="plate">更新管理</div>
         <p class="plate-desc">检查并应用系统更新</p>
 
-        <div v-if="updateStatus" class="flex flex-col gap-2 rounded-lg border border-line bg-subtle px-4 py-3">
+        <div v-if="updateStatus" class="mb-3.5 flex flex-col gap-2 rounded-lg border border-line bg-subtle px-4 py-3">
           <div class="flex items-center justify-between text-[13px]">
             <span class="text-ink-2">当前版本</span>
             <span class="font-mono">{{ updateStatus.current_version }}</span>
@@ -45,11 +45,14 @@
           </div>
         </div>
 
-        <div class="mt-3.5 flex flex-wrap items-center gap-2">
-          <button class="btn btn-secondary" :disabled="checking" @click="checkUpdate">
-            {{ checking ? '检查中...' : '检查更新' }}
-          </button>
-          <select v-model="updateChannel" class="input h-8 py-0 text-[13px]" title="更新渠道">
+        <label class="mb-1.5 block text-xs text-ink-3">检查</label>
+        <button class="btn btn-secondary w-fit" :disabled="checking" @click="checkUpdate">
+          {{ checking ? '检查中...' : '检查更新' }}
+        </button>
+
+        <label class="mb-1.5 mt-4 block text-xs text-ink-3">应用更新（渠道）</label>
+        <div class="flex items-center gap-2.5">
+          <select v-model="updateChannel" class="input h-8! w-64 py-0! text-[13px]" title="更新渠道：auto 按安装形态自动选择">
             <option value="auto">自动选择渠道</option>
             <option value="portable">便携版 ZIP（直接启动）</option>
             <option value="installer">安装器 EXE（Setup）</option>

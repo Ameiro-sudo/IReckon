@@ -50,8 +50,11 @@ export const useTaskStore = defineStore('tasks', () => {
     loading.value = true
     try {
       const res = await taskAPI.list()
-      tasks.value = res.data
-      return res.data
+// 无变化跳过赋值: 8s 轮询不触发下游重算与 DOM 更新(与状态站同款模式)
+      if (JSON.stringify(res.data) !== JSON.stringify(tasks.value)) {
+          tasks.value = res.data
+      }
+      return tasks.value
     } catch (e) {
       error.value = e.message
       return []
@@ -187,7 +190,9 @@ export const useTaskStore = defineStore('tasks', () => {
   async function fetchStats() {
     try {
       const res = await statsAPI.get()
-      stats.value = res.data
+if (JSON.stringify(res.data) !== JSON.stringify(stats.value)) {
+          stats.value = res.data
+      }
       return res.data
     } catch {
       return null
