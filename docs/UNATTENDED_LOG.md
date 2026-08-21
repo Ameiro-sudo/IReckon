@@ -123,3 +123,15 @@
 - [x] 并行监督修复协同：6043614(无 dist 时 docs 端点 404，防 CI 重定向循环)与本轮 CSP 断言语义一致，合并后 CI 绿 @ 6923c51
 - [x] formatTime 复核：R2 重构已抽取为 utils/format.js 的 timeHM/timeMDHM，ChatView 仅存别名——P2-12 该项确认过期
 - [x] 目标三要件全部达成：①流水线实测(双资产85MB) ②质量债(base 86%/library 100%/api 62%+P2-12 CSP) ③验证纪律(四件套+前端构建+CI watch 全程执行)
+## 新目标轮 3：日志页专业度治理
+
+- [x] **源头**：文件 sink 级别跟随 system.log_level(原硬编码 DEBUG 把 aiosqlite 每个操作灌进日志页)；噪音源压级(aiosqlite/watchdog/urllib3/httpx→WARNING)
+- [x] **时间戳贯穿**：队列载荷 HH:mm:ss|LEVEL|message → push 消费方/logs API 解析透传 time 字段
+- [x] **前端徽章化**：LogViewer 时间列 + 按级别着色的圆角标签(替代纯文本列)，坏行容错
+- [x] 与用户 PR #6(任务表骨架屏)合并后 CI 绿 @ ba221b5
+
+### 用户反馈待办队列（按收到顺序）
+1. PageHeader 大标题与内容区对齐
+2. 设置页"更新管理"区块元素挤成一团(检查更新按钮/渠道下拉/立即更新竖排堆叠)
+3. 自我进化页重写：过于简略+刷新丢状态 → 方案已定(后台任务化+内存运行态+历史持久化 data/self_improve/history.json+状态轮询端点)，实现未开始(self_improve.py 导入改动已回退保持树干净)
+4. AI 实例添加配置：预设芯片(DeepSeek/OpenAI/Kimi/Ollama)+扫描 /v1/models 让用户勾选模型；本地端点需 security.allow_private_endpoints 开关联动 SSRF 门禁(test/probe 一致)
