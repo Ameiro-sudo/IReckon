@@ -460,3 +460,211 @@ def test_push_to_remote_failure(monkeypatch):
 
     monkeypatch.setattr(si_mod.subprocess, "run", boom)
     assert asyncio.run(imp.push_to_remote()) is False
+
+
+# ---------- 异步运行态：start_run / status / history ----------
+
+
+def _make_async_improver(monkeypatch, tmp_path):
+    """带 tmp 数据目录的 improver；历史持久化全部落在测试沙箱内。"""
+    imp = make_improver(monkeypatch)
+
+    def get_with_datadir(k, d=None):
+        if k == "system.data_dir":
+            return str(tmp_path)
+        return _cfg_get(k, d)
+
+    monkeypatch.setattr(si_mod, "get", get_with_datadir)
+    monkeypatch.setattr(si_mod.config_manager, "get", get_with_datadir)
+    return imp
+
+
+def test_start_run_completes_and_persists_history(monkeypatch, tmp_path):
+    import json
+
+    imp = _make_async_improver(monkeypatch, tmp_path)
+
+    async def fake_analyze(task_id):
+        return {"success": True, "analysis": "## 发现 1\n涉及 2 个文件"}
+
+    async def fake_apply(task_id, analysis):
+        return {
+            "success": True,
+            "branch": "self-improve/abcd1234",
+            "files_changed": ["app/x.py"],
+            "commit_message": "self-improve: AI 自动改进",
+        }
+
+    monkeypatch.setattr(imp, "analyze", fake_analyze)
+    monkeypatch.setattr(imp, "apply_improvements", fake_apply)
+
+    async def scenario():
+        started = await imp.start_run()
+        assert started["status"] == "started"
+        assert started["run"]["status"] == "running"
+        await asyncio.gather(*list(imp._run_tasks))
+        status = await imp.get_status()
+        return started, status
+
+    started, status = asyncio.run(scenario())
+    assert started["run"]["run_id"] == status["run"]["run_id"]
+    assert started["run"]["phase"] == "analyzing"
+    assert status["active"] is False
+    run = status["run"]
+    assert run["status"] == "ok"
+    assert run["branch"] == "self-improve/abcd1234"
+    assert run["files_changed"] == ["app/x.py"]
+    assert run["finished_at"]
+
+    hist_file = tmp_path / "self_improve" / "history.json"
+    assert hist_file.exists()
+    items = json.loads(hist_file.read_text(encoding="utf-8"))
+    assert len(items) == 1
+    assert items[0]["status"] == "ok"
+    assert items[0]["run_id"] == run["run_id"]
+
+
+def test_start_run_rejects_concurrent(monkeypatch, tmp_path):
+    imp = _make_async_improver(monkeypatch, tmp_path)
+    release = asyncio.Event()
+
+    async def slow_apply(task_id, analysis):
+        await release.wait()
+        return {"success": True, "branch": "self-improve/zz", "files_changed": []}
+
+    async def fake_analyze(task_id):
+        return {"success": True, "analysis": "x"}
+
+    async def scenario():
+        first = await imp.start_run()
+        second = await imp.start_run()  # 流水线仍挂起 → busy
+        release.set()
+        await asyncio.gather(*list(imp._run_tasks))
+        return first, second
+
+    monkeypatch.setattr(imp, "analyze", fake_analyze)
+    monkeypatch.setattr(imp, "apply_improvements", slow_apply)
+    first, second = asyncio.run(scenario())
+    assert first["status"] == "started"
+    assert second["status"] == "busy"
+    assert second["run"]["run_id"] == first["run"]["run_id"]
+
+
+def test_start_run_error_recorded_in_status_and_history(monkeypatch, tmp_path):
+    import json
+
+    imp = _make_async_improver(monkeypatch, tmp_path)
+
+    async def failing_analyze(task_id):
+        return {"success": False, "error": "无法获取 Executor agent"}
+
+    async def scenario():
+        started = await imp.start_run()
+        await asyncio.gather(*list(imp._run_tasks))
+        return started, await imp.get_status()
+
+    monkeypatch.setattr(imp, "analyze", failing_analyze)
+    started, status = asyncio.run(scenario())
+    assert started["status"] == "started"
+    assert status["active"] is False
+    assert status["run"]["status"] == "error"
+    assert "Executor" in status["run"]["error"]
+
+    items = json.loads(
+        (tmp_path / "self_improve" / "history.json").read_text(encoding="utf-8")
+    )
+    assert items[0]["status"] == "error"
+
+
+def test_start_run_disabled(monkeypatch, tmp_path):
+    imp = _make_async_improver(monkeypatch, tmp_path)
+    imp._enabled = False
+    result = asyncio.run(imp.start_run())
+    assert result["status"] == "error"
+    assert "关闭" in result["error"]
+
+
+def test_history_capped_at_50_newest_first(monkeypatch, tmp_path):
+    imp = _make_async_improver(monkeypatch, tmp_path)
+    for i in range(60):
+        imp._append_history({"run_id": f"r{i}", "status": "ok"})
+    items = imp.get_history()
+    assert len(items) == 50
+    assert items[0]["run_id"] == "r59"  # 新→旧
+    assert items[-1]["run_id"] == "r10"
+
+
+def test_history_missing_or_corrupt_degrades_empty(monkeypatch, tmp_path):
+    imp = _make_async_improver(monkeypatch, tmp_path)
+    assert imp.get_history() == []
+    f = tmp_path / "self_improve" / "history.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("{not-json", encoding="utf-8")
+    assert imp.get_history() == []
+
+
+# ---------- API 形状（路由薄封装冒烟，直接打 self_improver 单例） ----------
+
+
+def test_api_start_status_history_flow(monkeypatch, tmp_path):
+    import json as _json
+
+    import httpx
+
+    from app.web.api import app
+
+    def get_with_datadir(k, d=None):
+        if k == "system.data_dir":
+            return str(tmp_path)
+        return _cfg_get(k, d)
+
+    monkeypatch.setattr(si_mod, "get", get_with_datadir)
+    monkeypatch.setattr(si_mod.config_manager, "get", get_with_datadir)
+
+    imp = si_mod.self_improver
+    monkeypatch.setattr(imp, "_enabled", True)
+
+    async def fake_analyze(task_id):
+        return {"success": True, "analysis": "涉及 1 个文件"}
+
+    async def fake_apply(task_id, analysis):
+        return {
+            "success": True,
+            "branch": "self-improve/api1",
+            "files_changed": ["a.py"],
+        }
+
+    monkeypatch.setattr(imp, "analyze", fake_analyze)
+    monkeypatch.setattr(imp, "apply_improvements", fake_apply)
+    # require_strict_token 端点：显式配置 token 并随请求携带
+    monkeypatch.setenv("IRECKON_API_TOKEN", "irk_self_improve_test")
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=app)
+        headers = {"X-API-Token": "irk_self_improve_test"}
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", headers=headers
+        ) as c:
+            post = await c.post("/api/self-improve")
+            await asyncio.gather(*list(imp._run_tasks))
+            status = await c.get("/api/self-improve/status")
+            history = await c.get("/api/self-improve/history")
+            return post, status, history
+
+    post, status, history = asyncio.run(scenario())
+    assert post.status_code == 200
+    body = post.json()
+    assert body["status"] == "started"
+    assert body["run"]["status"] == "running"
+
+    sbody = status.json()
+    assert sbody["status"] == "ok"
+    assert sbody["active"] is False
+    assert sbody["run"]["status"] == "ok"
+    assert sbody["run"]["branch"] == "self-improve/api1"
+
+    hbody = history.json()
+    assert hbody["status"] == "ok"
+    assert isinstance(hbody["items"], list)
+    assert any(item["run_id"] == body["run"]["run_id"] for item in hbody["items"])
+    assert _json.dumps(hbody, ensure_ascii=False)  # 序列化健全性
