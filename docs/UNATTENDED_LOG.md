@@ -35,3 +35,8 @@
 - [ ] inecraft-Server-Status 后端接口真实化方案
 - [ ] 考虑 r2-review-fixes 是否合并回 master（建议用户回来后 review + merge）
 - [ ] 已知环境坑：PowerShell 执行策略禁 npm.ps1（用 npm.cmd）；write 工具创建新文件 EISDIR（用 pwsh 兜底）；子代理基础设施本会话不可用（4 连败）
+## 第 1 轮补充（同日晚）
+
+- [x] waterfall.py 收编 → D:\project\waterfall\ 独立仓库(root 74533d7)：README+requirements+.gitignore，修复输出父目录自动创建，27 图冒烟测试通过；原散落文件已删除
+- [x] inecraft-Server-Status 后端调研 → backend-proposal 分支(9244883) docs/BACKEND_PROPOSAL.md：核心结论"缺的是采样器不是后端"，方案 A(极简 JSON 存储+定时采样器)为推荐，含 API 契约与决策点
+- [x] .notify 企微通知通道接入：notify.py 计数 bug 修复(stem→name)，双监听器实例事故清理并重启单实例，通道自检 SENT(1 target)
