@@ -1,32 +1,32 @@
 /* ============================================================
-   IReckon 设计系统 v5 �?工业控制�?· Instrument Panel（精修版�?
-   石墨机身 · 琥珀信号�?· 铭牌刻线 · 传送带节拍
-   签名元素：「琥珀信号轨」—�?导航激�?/ 任务选中 / 文件选中
-              共用同一�?3px 琥珀左轨�?sig.on�?
-   Tailwind CSS v4 驱动：语义令牌经 @theme inline 映射为工具类�?
-   明暗主题只切换原始变量，一套类名通吃双主题�?
-   字体分工：Chakra Petch（显�?数字）�?Inter（正文）· IBM Plex Mono（数据）
-             中文走系统栈（PingFang/MiSans/雅黑），不加载中�?webfont
+   IReckon 设计系统 v5 —— 工业控制台 · Instrument Panel（精修版）
+   石墨机身 · 琥珀信号灯 · 铭牌刻线 · 传送带节拍
+   签名元素：「琥珀信号轨」—— 导航激活 / 任务选中 / 文件选中
+              共用同一条 3px 琥珀左轨（sig.on）
+   Tailwind CSS v4 驱动：语义令牌经 @theme inline 映射为工具类?
+   明暗主题只切换原始变量，一套类名通吃双主题?
+   字体分工：Chakra Petch（显示数字）· Inter（正文）· IBM Plex Mono（数据）
+             中文走系统栈（PingFang/MiSans/雅黑），不加载中文 webfont
    ============================================================ */
 
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* ============ 原始令牌（随主题翻转�?============ */
+/* ============ 原始令牌（随主题翻转） ============ */
 :root {
   color-scheme: light;
 
-  /* 信号�?—�?工业琥珀 */
+  /* 信号灯 —— 工业琥珀 */
   --accent: #b8770a;             /* 浅色下作文字色仍可读 */
-  --accent-fill: #eea92e;        /* 填充�?*/
+  --accent-fill: #eea92e;        /* 填充层 */
   --accent-fill-hover: #f3b54a;
   --accent-fill-active: #dd9a22;
-  --accent-ink: #1c1506;         /* 填充面上的深色文�?*/
+  --accent-ink: #1c1506;         /* 填充面上的深色文字 */
   --accent-soft: rgba(184, 119, 10, 0.09);
   --accent-border: rgba(184, 119, 10, 0.32);
 
-  /* 语义信号�?*/
+  /* 语义信号灯 */
   --success: #178f5d;
   --success-soft: rgba(31, 158, 104, 0.1);
   --warning: #b45309;
@@ -36,9 +36,9 @@
   --info: #2273a8;
   --info-soft: rgba(34, 115, 168, 0.09);
 
-  /* 中�?—�?日班车间 */
+  /* 中性 —— 日班车间 */
   --bg: #e9ebee;
-  --housing: #dde2e7;            /* 侧边栏机�?*/
+  --housing: #dde2e7;            /* 侧边栏机身 */
   --surface: #f7f8f9;
   --subtle: #edeff1;
   --hover: #e0e4e8;
@@ -54,7 +54,7 @@
   --overlay: rgba(18, 24, 30, 0.45);
   --ring: rgba(238, 169, 46, 0.25);
 
-  /* 工序信号�?*/
+  /* 工序信号灯 */
   --st-pending: #87929c;
   --st-planning: #3d84c6;
   --st-executing: #c07c08;
@@ -65,7 +65,7 @@
   --st-failed: #cf3034;
   --st-paused: #64707c;
 
-  /* 阴影 —�?克制 */
+  /* 阴影 —— 克制 */
   --elev-1: 0 1px 2px rgba(16, 22, 28, 0.06);
   --elev-2: 0 1px 3px rgba(16, 22, 28, 0.07), 0 4px 14px rgba(16, 22, 28, 0.06);
   --elev-3: 0 4px 12px rgba(16, 22, 28, 0.09), 0 16px 48px rgba(16, 22, 28, 0.14);
@@ -103,7 +103,7 @@
   --info: #4cb3d4;
   --info-soft: rgba(76, 179, 212, 0.11);
 
-  /* 夜班控制�?*/
+  /* 夜班控制室 */
   --bg: #0e1216;
   --housing: #090d11;
   --surface: #14191f;
@@ -139,7 +139,7 @@
   --code-text: #d7dde3;
 }
 
-/* ============ 主题映射 �?Tailwind 工具�?============ */
+/* ============ 主题映射 → Tailwind 工具类 ============ */
 @theme inline {
   --color-bg: var(--bg);
   --color-housing: var(--housing);
@@ -200,7 +200,7 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* v4 preflight 将按钮光标改�?default，恢复指针语�?*/
+  /* v4 preflight 将按钮光标改为 default，恢复指针语义 */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -290,7 +290,7 @@
     @apply mx-auto w-full max-w-[1180px] shrink-0 px-4 pt-5 pb-12 md:px-10 md:pt-8 md:pb-16;
   }
 
-  /* ---- 按钮 —�?信号面板按键 ---- */
+  /* ---- 按钮 —— 信号面板按键 ---- */
   .btn {
     @apply inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-3.5 py-[7px] text-[13px] font-medium no-underline transition-colors duration-150;
   }
@@ -359,7 +359,7 @@
     @apply mb-1.5 block text-[13px] font-semibold text-ink-2;
   }
 
-  /* ---- 面板 —�?铭牌铭刻 ---- */
+  /* ---- 面板 —— 铭牌铭刻 ---- */
   .panel {
     @apply rounded-lg border border-line bg-surface p-5;
   }
@@ -378,7 +378,7 @@
     @apply mb-4 text-[13px] leading-relaxed text-ink-2;
   }
 
-  /* 铭牌小节标题（mono 大写�?*/
+  /* 铭牌小节标题（mono 大写） */
   .eyebrow {
     @apply font-mono text-[10px] font-semibold tracking-[0.14em] uppercase text-ink-3;
   }
@@ -387,7 +387,7 @@
     @apply transition-[border-color,box-shadow] duration-150 hover:border-line-strong hover:shadow-md;
   }
 
-  /* ---- 徽章 —�?信号灯标�?---- */
+  /* ---- 徽章 —— 信号灯标记 ---- */
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-sm border border-transparent px-2 py-px text-[11px] leading-[1.7] font-semibold whitespace-nowrap;
   }
@@ -469,7 +469,7 @@
     @apply border-b-0;
   }
 
-  /* ---- 空状�?---- */
+  /* ---- 空状态 ---- */
   .empty-state {
     @apply flex flex-col items-center justify-center gap-1.5 px-5 py-10 text-center text-ink-3;
   }
@@ -482,7 +482,12 @@
     @apply mb-2 text-[13px];
   }
 
-  /* ---- 进度�?---- */
+  /* ---- 骨架屏（首屏加载占位） ---- */
+  .sk {
+    @apply animate-pulse rounded bg-subtle;
+  }
+
+  /* ---- 进度条 ---- */
   .progress-track {
     @apply h-[5px] overflow-hidden rounded-full border border-line bg-subtle;
   }
@@ -491,7 +496,7 @@
     @apply h-full rounded-full bg-accent-fill transition-[width] duration-300;
   }
 
-  /* ---- 开�?---- */
+  /* ---- 开关 ---- */
   .switch-label {
     @apply inline-flex cursor-pointer items-center gap-2.5 text-[13px];
   }
@@ -541,7 +546,7 @@
     @apply bg-accent-soft font-semibold text-accent;
   }
 
-  /* 签名元素：激活项左侧琥珀信号�?*/
+  /* 签名元素：激活项左侧琥珀信号轨 */
   .nav-item.router-link-active::before {
     content: '';
     position: absolute;
@@ -585,7 +590,7 @@
     background: var(--accent-fill);
   }
 
-  /* ---- 信号�?/ 状态点 ---- */
+  /* ---- 信号灯 / 状态点 ---- */
   .lamp {
     @apply size-2 shrink-0 rounded-full;
   }
@@ -617,7 +622,7 @@
   }
 }
 
-/* ============ Markdown 消息�?============ */
+/* ============ Markdown 消息流 ============ */
 .md-body {
   font-size: 13px;
   line-height: 1.7;
@@ -716,7 +721,7 @@
   padding: 0;
 }
 
-/* ============ 代码高亮（深色主题适配�?============ */
+/* ============ 代码高亮（深色主题适配）============ */
 [data-theme="dark"] .hljs {
   color: #c9d1d9;
   background: transparent;
@@ -781,7 +786,7 @@
   font-weight: 600;
 }
 
-/* ============ 动画关键�?============ */
+/* ============ 动画关键帧 ============ */
 @keyframes blink {
   0%,
   100% {
