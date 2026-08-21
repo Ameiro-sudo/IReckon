@@ -129,8 +129,9 @@ class FakeWS:
         self.closed = False
         self._dead = dead
 
-    async def accept(self):
+    async def accept(self, subprotocol=None):
         self.accepted = True
+        self.accepted_subprotocol = subprotocol
 
     async def send_json(self, msg):
         if self._dead:

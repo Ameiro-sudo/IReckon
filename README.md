@@ -82,7 +82,7 @@ graph TB
 
     UI -->|X-API-Token| AUTH
     AUTH --> API
-    UI -->|?token=| WSS
+    UI -->|WS-Protocol 令牌| WSS
     WSS --> RT
     API --> CFG
     API --> Engine
@@ -161,7 +161,7 @@ planning ──▶ execute ──▶ review ──┐
 ### 安全体系
 - **Web 全局鉴权（fail-closed）** — 所有 `/api/*` 与 `/ws*` 均需令牌：
   - 令牌来源优先级：`IRECKON_API_TOKEN` 环境变量 > `config.yaml` 的 `security.api_token` > 首次启动自动生成随机 token 并持久化
-  - 前端登录页粘贴令牌后存入 localStorage（Jupyter/VS Code 模式），HTTP 走 `X-API-Token` 头，WebSocket 走 `?token=` 查询参数
+  - 前端登录页粘贴令牌后存入 localStorage（Jupyter/VS Code 模式），HTTP 走 `X-API-Token` 头，WebSocket 走 `Sec-WebSocket-Protocol` 子协议头（`['ireckon.v1', <token>]`，令牌不进 URL）；`?token=` 查询参数仅为旧脚本兼容保留（已弃用）
   - 未配置令牌且绑定非回环地址时拒绝远程访问
 - **高危端点强制显式令牌** — 自我进化、自更新等可改写程序自身的操作必须显式携带有效 token（本机回环也不例外）
 - **多层命令过滤** — L1 自动执行 / L2 共识投票 / L3 严格拦截
@@ -273,7 +273,7 @@ python mcp_server.py
 
 ## API 参考
 
-所有 `/api/*` 接口需携带 `X-API-Token` 请求头（豁免：`/api/health`、`/api/themes`、`/api/auth/check`）；WebSocket 通过 `?token=` 查询参数鉴权。标 ⚠ 的高危端点必须显式配置并携带有效令牌。
+所有 `/api/*` 接口需携带 `X-API-Token` 请求头（豁免：`/api/health`、`/api/themes`、`/api/auth/check`）；WebSocket 以 `Sec-WebSocket-Protocol: ireckon.v1, <token>` 握手鉴权（服务端只回显 `ireckon.v1`，令牌不进 URL/访问日志；旧版 `?token=` 查询参数兼容保留但已弃用）。标 ⚠ 的高危端点必须显式配置并携带有效令牌。
 
 ### 任务
 

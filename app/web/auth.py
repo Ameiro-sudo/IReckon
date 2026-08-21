@@ -128,10 +128,50 @@ def has_strict_token(x_api_token: Optional[str]) -> bool:
         return False
 
 
-def ws_authorized(websocket) -> bool:
-    """WebSocket 握手鉴权：token 通过查询参数 ?token= 传入。"""
+# --- WebSocket 握手鉴权（子协议优先） ---
+#
+# token 走 Sec-WebSocket-Protocol 头：客户端以 ["ireckon.v1", <token>] 请求子协议，
+# 服务端校验后只回显常量服务名。token 不再进入 URL——反代 access_log、浏览器
+# 历史、Referer 泄漏面归零（上反向代理前的强制项，见安全审计留档）。
+# 查询参数 ?token= 仅作旧外部脚本兼容保留，使用时会打一次弃用告警。
+WS_SUBPROTOCOL = "ireckon.v1"
+
+_query_token_warned = False
+
+
+def _ws_requested_protocols(websocket) -> list:
+    """解析 Sec-WebSocket-Protocol 头为去空白协议名列表。"""
+    header = websocket.headers.get("sec-websocket-protocol", "")
+    return [p.strip() for p in header.split(",") if p.strip()]
+
+
+def ws_handshake(websocket):
+    """校验 WebSocket 握手，返回 (authorized, subprotocol)。
+
+    - authorized：是否放行（无 token 配置时沿用回环信任边界语义）；
+    - subprotocol：客户端请求了本服务子协议时 accept 应回显的名称
+      （只回显常量服务名，不把 token 原样写回响应头），否则 None。
+    """
+    global _query_token_warned
     token = configured_token()
+    requested = _ws_requested_protocols(websocket)
+    subprotocol = WS_SUBPROTOCOL if WS_SUBPROTOCOL in requested else None
+
     if not token:
-        return server_bound_loopback()
-    supplied = websocket.query_params.get("token", "")
-    return bool(supplied) and secrets.compare_digest(supplied, token)
+        return server_bound_loopback(), subprotocol
+
+    supplied = ""
+    if len(requested) >= 2 and requested[0] == WS_SUBPROTOCOL:
+        # 子协议二元组：<公开服务名>, <凭据>
+        supplied = requested[1]
+    elif websocket.query_params.get("token"):
+        supplied = str(websocket.query_params.get("token", ""))
+        if not _query_token_warned:
+            _query_token_warned = True
+            logger.warning(
+                "WebSocket 鉴权使用了 ?token= 查询参数（已弃用）："
+                f"请改用 Sec-WebSocket-Protocol ['{WS_SUBPROTOCOL}', <token>]，"
+                "避免 token 进入 URL 与访问日志"
+            )
+    authorized = bool(supplied) and secrets.compare_digest(supplied, token)
+    return authorized, subprotocol
