@@ -313,6 +313,7 @@ class SelfImprover:
         run: Dict = {
             "run_id": run_id,
             "status": "running",
+            "phase": "analyzing",
             "started_at": datetime.now().isoformat(timespec="seconds"),
             "finished_at": None,
             "analysis": "",
@@ -333,6 +334,7 @@ class SelfImprover:
             if not analysis.get("success"):
                 raise RuntimeError(analysis.get("error") or "分析失败")
             run["analysis"] = (analysis.get("analysis") or "")[:500]
+            run["phase"] = "applying"
 
             result = await self.apply_improvements(run["run_id"], analysis)
             if not result.get("success"):

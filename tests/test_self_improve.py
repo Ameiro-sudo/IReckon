@@ -508,6 +508,7 @@ def test_start_run_completes_and_persists_history(monkeypatch, tmp_path):
 
     started, status = asyncio.run(scenario())
     assert started["run"]["run_id"] == status["run"]["run_id"]
+    assert started["run"]["phase"] == "analyzing"
     assert status["active"] is False
     run = status["run"]
     assert run["status"] == "ok"
