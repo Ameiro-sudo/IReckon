@@ -11,7 +11,7 @@
       </template>
     </PageHeader>
 
-    <div class="pb-3">
+    <div class="max-w-[680px] pb-3">
       <div class="panel">
         <div class="plate">进化引擎</div>
         <p class="plate-desc">让 IReckon 分析自身代码，识别优化机会并自动生成改进方案。分析完成后可推送独立分支到远程仓库。</p>
