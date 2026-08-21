@@ -4,6 +4,24 @@
 
 IReckon 是一个 Python 后端 + Vue 前端的应用。APK 构建需要额外环境配置。
 
+## ⚠️ 现状与可行性评估（2026-08 无人值守验证轮更新）
+
+**当前主分发渠道是 Windows EXE / 安装包**（见 `.github/workflows/build.yml`：
+PyInstaller onedir → Inno Setup），本地已复现验证通过。APK 三方案经评估
+均属**探索方向而非可用路径**：
+
+| 方案 | 评估 | 阻断点 |
+| --- | --- | --- |
+| 1. WebView 壳 | 仅能加载静态前端 | IReckon 是重后端应用（FastAPI + LangGraph + SQLite + chromadb），WebView 壳不解决 Python 后端在 Android 上的运行问题 |
+| 2. Buildozer/p4a | 不可行 | buildozer 不支持 Windows 宿主（需 WSL/Linux/macOS）；FastAPI/uvicorn/chromadb/litellm 无 p4a recipe |
+| 3. Briefcase | 不可行（现阶段） | 同样受限于上述依赖的 Android 交叉编译生态缺失 |
+
+**移动端的现实替代方案**：将 IReckon 部署在 PC 上，手机浏览器远程访问。
+服务默认绑定 `127.0.0.1`（fail-closed 鉴权已内置），公网暴露请置于反向代理
+之后并显式配置 `security.api_token`。
+
+以下原始方案保留作为未来依赖生态成熟后的参考。
+
 ## 构建方案
 
 ### 方案 1: 使用 Android Studio WebView (推荐)
