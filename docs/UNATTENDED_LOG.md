@@ -117,3 +117,9 @@
 - [x] tools/library.py 55%→**100%**（CRUD/查询组合、入库扫描门禁：fail-closed 拒绝/scan_fail_open 降级/高危拒绝/LOW放行/扫描器异常容错）
 - [x] web/api.py 48%→62%（lifespan 真实拉起与退出、/docs /redoc /openapi.json 默认关闭断言、CORS 白名单放行与陌生来源拒发 ACAO、凭据头永不出现）
 - [x] 全量 pytest 绿；累计测试 196→356
+## 新目标轮 3-4：P2-12 收尾与目标完成
+
+- [x] **CSP 落地**：api.py 安全响应头中间件(default-src/script-src self、object/frame-ancestors none、connect-src 显式 ws/wss、Google Fonts 双域放行) + nosniff/X-Frame-Options DENY/Referrer-Policy；主题引导脚本外链化 theme-init.js 以满足 script-src 'self'(防暗色闪白的先渲染语义保留)
+- [x] 并行监督修复协同：6043614(无 dist 时 docs 端点 404，防 CI 重定向循环)与本轮 CSP 断言语义一致，合并后 CI 绿 @ 6923c51
+- [x] formatTime 复核：R2 重构已抽取为 utils/format.js 的 timeHM/timeMDHM，ChatView 仅存别名——P2-12 该项确认过期
+- [x] 目标三要件全部达成：①流水线实测(双资产85MB) ②质量债(base 86%/library 100%/api 62%+P2-12 CSP) ③验证纪律(四件套+前端构建+CI watch 全程执行)
