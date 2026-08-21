@@ -1,10 +1,26 @@
 import asyncio
+import json
+import shlex
 import tempfile
 import os
 import subprocess
+from pathlib import Path
+from typing import Optional
+
 from loguru import logger
 
 from app.core.config import get
+
+from .sandbox import sandbox
+
+# 各扫描工具的容器内 argv（不含目标文件路径）
+_SCAN_TOOL_ARGV = {
+    "bandit": ("bandit", "-f", "json"),
+    "semgrep": ("semgrep", "--config", "auto", "--json"),
+}
+
+# 扫描目标在容器内的挂载点（临时文件所在目录以只读方式挂入）
+_SANDBOX_SCAN_DIR = "/scan"
 
 
 class CodeScanner:
@@ -49,7 +65,44 @@ class CodeScanner:
                 except Exception as e:
                     logger.warning(f"临时文件清理失败: {e}")
 
+    async def _scan_in_sandbox(self, filepath) -> Optional[list]:
+        """容器内执行扫描（可选增强：security.sandbox.enabled）。
+
+        返回 findings 列表；返回 None 表示沙箱路径不可用或失败，
+        调用方应回退宿主机扫描——绝不因沙箱缺失改变门禁既有语义。
+        目标目录以只读挂载进容器固定路径，扫描器只读代码、不落盘宿主机。
+        """
+        argv = _SCAN_TOOL_ARGV.get(self.tool)
+        if argv is None:
+            return None
+        target = Path(filepath)
+        inner_cmd = shlex.join([*argv, f"{_SANDBOX_SCAN_DIR}/{target.name}"])
+        result = await sandbox.run(
+            inner_cmd,
+            timeout=30,
+            mounts={_SANDBOX_SCAN_DIR: (str(target.parent), "ro")},
+        )
+        # bandit 发现问题时退出码为 1，输出仍是合法 JSON——与宿主机路径同语义
+        if result.get("returncode") not in (0, 1):
+            logger.warning(
+                f"沙箱扫描失败(rc={result.get('returncode')})，回退宿主机: "
+                f"{str(result.get('stderr', ''))[:200]}"
+            )
+            return None
+        try:
+            # 显式标注：json.loads 返回 Any，收口为 list 再返回
+            findings: list = json.loads(result.get("stdout") or "{}").get("results", [])
+            return findings
+        except Exception as e:
+            logger.warning(f"沙箱扫描输出解析失败: {e}")
+            return None
+
     async def _run_scanner(self, filepath):
+        # 沙箱总闸开启时优先容器内隔离执行；失败/不可用自动回退宿主机路径
+        if bool(get("security.sandbox.enabled", False)):
+            sandboxed = await self._scan_in_sandbox(filepath)
+            if sandboxed is not None:
+                return sandboxed
         proc = None
         try:
             if self.tool == "bandit":
@@ -63,8 +116,6 @@ class CodeScanner:
                 )
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
                 # bandit 发现漏洞时退出码为 1，但 JSON 输出仍然有效——必须无条件解析
-                import json
-
                 try:
                     return json.loads(stdout).get("results", [])
                 except Exception as e:
@@ -81,8 +132,6 @@ class CodeScanner:
                     stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-                import json
-
                 try:
                     return json.loads(stdout).get("results", [])
                 except Exception as e:

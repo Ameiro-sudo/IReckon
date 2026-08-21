@@ -123,10 +123,20 @@ security:
     L2_vote_threshold: 0.5
     L3_block: true
   sandbox:
+    # 总闸：默认关闭。开启后静态扫描(bandit/semgrep)优先在容器内隔离执行
+    # （目标目录只读挂载），沙箱不可用/失败时自动回退宿主机扫描。
+    # 注意：镜像需自带所选扫描工具，否则容器内扫描会回退宿主机。
+    enabled: false
     cpu_limit: 1.0
-    engine: udocker
+    # docker（推荐，网络/资源限制真实生效）| udocker（proot 用户态，
+    # 无 cgroup/网络命名空间——不传资源与网络参数，隔离能力有限）
+    engine: docker
+    env_whitelist: []
     image: python:3.11-slim
     memory_limit: 512m
+    # 容器网络策略（仅 docker 引擎生效）：none = 无网络；
+    # 置空字符串则不传 --network。udocker 无网络命名空间，本配置对其无效。
+    network: none
   supply_chain_blacklist:
     npm: []
     pip: []
