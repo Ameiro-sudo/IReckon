@@ -65,3 +65,6 @@ config/harness/*
 config/config.yaml
 
 tests/.tmp/
+
+# PyInstaller 自动生成
+IReckon.spec
