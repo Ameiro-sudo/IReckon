@@ -72,11 +72,14 @@ def test_security_headers_present():
         assert r.headers.get("x-frame-options") == "DENY"
 
 
-def test_csp_allows_font_domains_but_blocks_foreign_scripts():
+def test_csp_self_hosts_fonts_and_blocks_foreign_scripts():
     with TestClient(app) as c:
         csp = c.get("/api/health").headers.get("content-security-policy", "")
-        assert "https://fonts.googleapis.com" in csp  # 字体样式域放行
-        assert "https://fonts.gstatic.com" in csp  # 字体文件域放行
+        # 字体已自托管（frontend/public/fonts/），CSP 不放行任何字体外域
+        assert "fonts.googleapis.com" not in csp
+        assert "fonts.gstatic.com" not in csp
+        assert "style-src 'self' 'unsafe-inline'" in csp
+        assert "font-src 'self'" in csp
         # 脚本来源绝不包含外域
         script_part = [p for p in csp.split("; ") if p.startswith("script-src")][0]
         assert "http" not in script_part.replace("script-src 'self'", "").strip()
