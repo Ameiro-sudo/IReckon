@@ -50,9 +50,7 @@ async def test_auth_check_valid_token_body(client, monkeypatch):
 
 async def test_auth_check_wrong_token_reports_not_authenticated(client, monkeypatch):
     monkeypatch.setenv("IRECKON_API_TOKEN", "irk_strict_test")
-    r = await client.get(
-        "/api/auth/check", headers={"X-API-Token": "definitely-wrong"}
-    )
+    r = await client.get("/api/auth/check", headers={"X-API-Token": "definitely-wrong"})
     assert r.status_code == 200
     assert r.json() == {"authenticated": False, "required": True}
 
@@ -61,7 +59,13 @@ async def test_stats_shape(client):
     r = await client.get("/api/stats")
     assert r.status_code == 200
     body = r.json()
-    for key in ("total_tasks", "by_status", "active_tasks", "ai_instances", "uptime_seconds"):
+    for key in (
+        "total_tasks",
+        "by_status",
+        "active_tasks",
+        "ai_instances",
+        "uptime_seconds",
+    ):
         assert key in body
 
 

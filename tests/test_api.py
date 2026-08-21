@@ -13,7 +13,6 @@ from app.web.api import app
 from app.web.auth import configured_token
 
 
-
 @pytest_asyncio.fixture(scope="function")
 async def client(session_db):
     transport = httpx.ASGITransport(app=app)
@@ -74,9 +73,7 @@ async def test_config_get(client):
 
 
 async def test_config_update_roundtrip(client):
-    r = await client.post(
-        "/api/config/update", json={"updates": {"ui.theme": "cyber"}}
-    )
+    r = await client.post("/api/config/update", json={"updates": {"ui.theme": "cyber"}})
     assert r.status_code == 200
     r2 = await client.get("/api/config")
     assert r2.json()["ui"]["theme"] == "cyber"
@@ -225,7 +222,6 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
         text = '{"data":[{"id":"auto"}]}'
 
     class FakeClient:
-
         async def get(self, url, headers=None):
             assert url.endswith("/models")
             return FakeResponse()
@@ -236,7 +232,9 @@ async def test_ai_instance_test_reachable(client, monkeypatch):
         async def __aexit__(self, *a):
             return False
 
-    monkeypatch.setattr(instances_router.httpx, "AsyncClient", lambda **kw: FakeClient())
+    monkeypatch.setattr(
+        instances_router.httpx, "AsyncClient", lambda **kw: FakeClient()
+    )
 
     await client.post(
         "/api/ai-instances",
@@ -270,7 +268,9 @@ async def test_ai_instance_test_unreachable(client, monkeypatch):
         async def __aexit__(self, *a):
             return False
 
-    monkeypatch.setattr(instances_router.httpx, "AsyncClient", lambda **kw: FakeClient())
+    monkeypatch.setattr(
+        instances_router.httpx, "AsyncClient", lambda **kw: FakeClient()
+    )
 
     await client.post(
         "/api/ai-instances",

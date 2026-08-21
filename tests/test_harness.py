@@ -83,9 +83,7 @@ def test_full_access_gate_blocks_by_default():
     """安全门：cordis 为 danger-full-access 且未显式允许时必须拒绝。"""
     cfg = FakeConfig()
     # allow_full_access 未配置（返回默认 False）→ 安全门生效
-    cfg.get = lambda k, d=None: (
-        d if k == "harness.allow_full_access" else CFG.get(k, d)
-    )
+    cfg.get = lambda k, d=None: d if k == "harness.allow_full_access" else CFG.get(k, d)
     client = DSHClient(cfg=cfg)
     result = asyncio.run(client.run("写一个 hello world"))
     assert result.ok is False
@@ -112,9 +110,7 @@ def test_policy_check_fails_closed_on_unreadable_cordis(monkeypatch):
             raise OSError("disk error")
 
     cfg = FakeConfig()
-    cfg.get = lambda k, d=None: (
-        d if k == "harness.allow_full_access" else CFG.get(k, d)
-    )
+    cfg.get = lambda k, d=None: d if k == "harness.allow_full_access" else CFG.get(k, d)
     client = DSHClient(cfg=cfg)
     monkeypatch.setattr(client, "_cordis_config", lambda: _UnreadablePath())
     error = client._policy_check()

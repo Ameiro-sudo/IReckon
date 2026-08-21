@@ -59,7 +59,9 @@ def test_extract_fenced_json():
 
 
 def test_extract_from_surrounding_prose():
-    text = '好的,审查结论如下:\n{"passed": false, "issues": ["x"]}\n以上是我的审查结果。'
+    text = (
+        '好的,审查结论如下:\n{"passed": false, "issues": ["x"]}\n以上是我的审查结果。'
+    )
     data = extract_json(text)
     assert data["passed"] is False
     assert data["issues"] == ["x"]

@@ -88,7 +88,9 @@ class TestMainFeatures:
             calls.append("check")
 
         monkeypatch.setattr(main_mod.updater, "check", _check)
-        monkeypatch.setattr(main_mod.updater, "mark_checked", lambda: calls.append("marked"))
+        monkeypatch.setattr(
+            main_mod.updater, "mark_checked", lambda: calls.append("marked")
+        )
 
         await main_mod._check_update()
 
@@ -104,7 +106,9 @@ class TestMainFeatures:
             return "1.2.3"
 
         monkeypatch.setattr(main_mod.updater, "check", _check)
-        monkeypatch.setattr(main_mod.updater, "mark_checked", lambda: calls.append("marked"))
+        monkeypatch.setattr(
+            main_mod.updater, "mark_checked", lambda: calls.append("marked")
+        )
 
         await main_mod._check_update()
 
@@ -121,7 +125,9 @@ class TestMainFeatures:
             return None
 
         monkeypatch.setattr(main_mod.updater, "check", _check)
-        monkeypatch.setattr(main_mod.updater, "mark_checked", lambda: calls.append("marked"))
+        monkeypatch.setattr(
+            main_mod.updater, "mark_checked", lambda: calls.append("marked")
+        )
 
         await main_mod._check_update()
 
@@ -203,7 +209,9 @@ class TestMainFeatures:
         rec = LogRecorder()
         monkeypatch.setattr(main_mod, "logger", rec)
         monkeypatch.setattr(
-            main_mod.shutil, "which", lambda name: "C:/npm/npm.cmd" if name == "npm" else None
+            main_mod.shutil,
+            "which",
+            lambda name: "C:/npm/npm.cmd" if name == "npm" else None,
         )
         monkeypatch.setattr(main_mod.os.path, "exists", lambda p: False)
 
@@ -269,7 +277,9 @@ class TestMainFeatures:
         monkeypatch.setattr(
             main_mod.shutil,
             "which",
-            lambda name: {"node": "C:/node/node.exe", "npm": "C:/npm/npm.cmd"}.get(name),
+            lambda name: {"node": "C:/node/node.exe", "npm": "C:/npm/npm.cmd"}.get(
+                name
+            ),
         )
         bin_vite = str(ROOT / "frontend" / "node_modules" / ".bin" / "vite")
 

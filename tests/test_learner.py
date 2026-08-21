@@ -27,16 +27,16 @@ def test_extract_basic_repos():
 
 
 def test_extract_skips_non_repo_prefixes():
-    html = ''.join(f'<a href="/{p}/whatever">t</a>' for p in ("topics", "login", "explore"))
+    html = "".join(
+        f'<a href="/{p}/whatever">t</a>' for p in ("topics", "login", "explore")
+    )
     html += '<a href="/real/repo">r</a>'
     assert _extract_repo_candidates(html) == ["real/repo"]
 
 
 def test_extract_skips_md_and_nested_paths():
     html = (
-        '<a href="/o/readme.md">m</a>'
-        '<a href="/o/sub/dir">n</a>'
-        '<a href="/ok/repo">k</a>'
+        '<a href="/o/readme.md">m</a><a href="/o/sub/dir">n</a><a href="/ok/repo">k</a>'
     )
     assert _extract_repo_candidates(html) == ["ok/repo"]
 
@@ -91,7 +91,9 @@ def test_daily_cap_blocks_then_date_reset_unblocks():
     assert lp._should_trigger(time.time(), today) is False
     yesterday = today - timedelta(days=1)
     # 传入"昨天"模拟上次运行日期未重置 → 触发跨天重置后放行
-    assert lp._should_trigger(time.time(), yesterday - timedelta(days=0)) is True or True
+    assert (
+        lp._should_trigger(time.time(), yesterday - timedelta(days=0)) is True or True
+    )
     lp._learn_count = lp.max_learn_sessions_per_day
     lp._last_reset_date = today - timedelta(days=1)
     assert lp._should_trigger(time.time(), today) is True

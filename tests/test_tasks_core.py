@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import contextlib
 import sys
 from pathlib import Path
 
@@ -79,7 +80,9 @@ async def test_ingest_uploads_copies_files(session_db):
 
     refs = await _ingest_uploads("task-test01", batch)
     assert [r["name"] for r in refs] == ["data.csv", "spec.md"]  # sorted
-    copied = Path(get("system.data_dir", "./data")) / "outputs" / "task-test01" / "input"
+    copied = (
+        Path(get("system.data_dir", "./data")) / "outputs" / "task-test01" / "input"
+    )
     assert (copied / "spec.md").read_text(encoding="utf-8") == "# 规格"
 
 
@@ -145,7 +148,10 @@ async def test_launch_marks_failed_on_exception(session_db, fake_rooms):
 
     ce = asyncio.Event()
     await tm._launch("task-ex01", ce, boom)
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+    wrapper = tm._running.get("task-ex01")
+    if wrapper:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(wrapper, timeout=10)
     # 任务行不存在时 _mark_status 静默失败属预期；此处验证清理
     assert "task-ex01" not in tm._running
     assert fake_rooms.closed == ["task-ex01"]
@@ -162,8 +168,13 @@ async def test_launch_cancel_with_event_means_paused(session_db, fake_rooms):
     ce = asyncio.Event()
     await tm._launch("task-ca01", ce, forever)
     await started.wait()
+    wrapper = tm._running.get("task-ca01")
     assert await tm.cancel_task("task-ca01") is True
-    await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
+    # 只等具体的包装任务；绝不 gather 全量任务(跨测试残留任务会把
+    # CancelledError 炸进当前用例，且调度顺序因 Python 版本/平台而异)
+    if wrapper:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait_for(wrapper, timeout=10)
     assert "task-ca01" not in tm._cancel_events
 
 

@@ -127,9 +127,7 @@ async def test_artifacts_listing_and_read(client):
     body = r.json()
     assert body["files"][0]["path"] == "result.py"
 
-    r = await client.get(
-        "/api/tasks/task-art01/artifact", params={"path": "result.py"}
-    )
+    r = await client.get("/api/tasks/task-art01/artifact", params={"path": "result.py"})
     assert r.status_code == 200
     assert r.json()["content"] == "print('done')\n"
 
@@ -139,18 +137,14 @@ async def test_artifact_traversal_rejected(client):
     (out / "sub").mkdir(parents=True, exist_ok=True)
     (out / "secret.txt").write_text("机密", encoding="utf-8")
     for evil in ("../secret.txt", "..\\secret.txt", "sub/../../secret.txt"):
-        r = await client.get(
-            "/api/tasks/task-art02/artifact", params={"path": evil}
-        )
+        r = await client.get("/api/tasks/task-art02/artifact", params={"path": evil})
         assert r.status_code in (403, 404), evil  # 拒绝或不存在，绝不可返回内容
 
 
 async def test_artifact_missing_file_404(client):
     out = _outputs_root() / "task-art03"
     out.mkdir(parents=True, exist_ok=True)
-    r = await client.get(
-        "/api/tasks/task-art03/artifact", params={"path": "ghost.py"}
-    )
+    r = await client.get("/api/tasks/task-art03/artifact", params={"path": "ghost.py"})
     assert r.status_code == 404
 
 

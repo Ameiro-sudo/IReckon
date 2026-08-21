@@ -89,7 +89,8 @@ class IdleLearningLoop:
         self._daily_reset_if_needed(today)
         if self._learning:
             return False
-        return (
+        # bool() 显式收口：idle_trigger_minutes 来自 get() 返回 Any，比较结果被推断为 Any
+        return bool(
             now - self._last_task_time > self.idle_trigger_minutes * 60
             and self._learn_count < self.max_learn_sessions_per_day
         )
@@ -98,9 +99,7 @@ class IdleLearningLoop:
         logger.info(f"空闲学习循环已启动，触发间隔: {self.idle_trigger_minutes} 分钟")
         while True:
             await asyncio.sleep(60)
-            if self._should_trigger(
-                time.time(), datetime.now(timezone.utc).date()
-            ):
+            if self._should_trigger(time.time(), datetime.now(timezone.utc).date()):
                 logger.info(
                     f"空闲学习 ({self._learn_count + 1}/{self.max_learn_sessions_per_day})"
                 )

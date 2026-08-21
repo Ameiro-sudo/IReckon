@@ -67,9 +67,7 @@ async def test_upload_multiple_files(client):
 
 
 async def test_upload_too_many_files_rejected(client):
-    files = [
-        ("files", (f"f{i}.txt", b"x", "text/plain")) for i in range(21)
-    ]
+    files = [("files", (f"f{i}.txt", b"x", "text/plain")) for i in range(21)]
     r = await client.post("/api/uploads", files=files)
     assert r.status_code == 413
 
@@ -208,9 +206,7 @@ async def test_push_progress_message_shape():
     await mgr.broadcast_to_task(
         "t1", {"type": "progress", "progress": 0.5, "status": "executing"}
     )
-    assert ws.sent == [
-        {"type": "progress", "progress": 0.5, "status": "executing"}
-    ]
+    assert ws.sent == [{"type": "progress", "progress": 0.5, "status": "executing"}]
 
 
 async def test_batch_broadcast_order_preserved():

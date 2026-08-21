@@ -22,7 +22,9 @@ class TestMainFlow:
         patch_main_externals(monkeypatch, rec)
         frontend_calls = []
         monkeypatch.setattr(
-            main_mod.IReckonApp, "_start_frontend", lambda self: frontend_calls.append(self)
+            main_mod.IReckonApp,
+            "_start_frontend",
+            lambda self: frontend_calls.append(self),
         )
         dist_dir = str(ROOT / "frontend" / "dist")
         _orig_isdir = main_mod.os.path.isdir
@@ -42,7 +44,9 @@ class TestMainFlow:
         asyncio.run(main_mod.main())
 
         assert len(backend_apps) == 1
-        assert frontend_calls == []  # 存在 frontend/dist 且非开发模式时不启动 dev server
+        assert (
+            frontend_calls == []
+        )  # 存在 frontend/dist 且非开发模式时不启动 dev server
         assert rec.has("系统初始化完成")
         assert rec.has("系统已关闭")
 

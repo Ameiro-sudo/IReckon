@@ -42,7 +42,9 @@ def _utf8_stream(stream):
     except Exception:
         try:
             if stream is not None and hasattr(stream, "buffer"):
-                return io.TextIOWrapper(stream.buffer, encoding="utf-8", errors="backslashreplace")
+                return io.TextIOWrapper(
+                    stream.buffer, encoding="utf-8", errors="backslashreplace"
+                )
         except (AttributeError, ValueError):
             pass
     return stream
@@ -88,7 +90,7 @@ class IReckonApp:
 
     async def initialize(self):
         setup_logging()
-        logger.info(f"启动 { get('system.name')} v{ get('system.version')}")
+        logger.info(f"启动 {get('system.name')} v{get('system.version')}")
 
         # 确保存在 API token（首次启动自动生成并持久化），控制台明示
         api_token = ensure_token()
@@ -116,11 +118,15 @@ class IReckonApp:
         # 源码运行且未构建前端产物（或显式指定开发模式）时启动独立 dev server；
         # 否则由 FastAPI 直接托管 frontend/dist 静态文件。
         dev_mode = os.environ.get("IRECKON_DEV_FRONTEND", "") == "1"
-        if not getattr(sys, "frozen", False) and (dev_mode or not os.path.isdir(DIST_DIR)):
+        if not getattr(sys, "frozen", False) and (
+            dev_mode or not os.path.isdir(DIST_DIR)
+        ):
             # npm install 可能耗时数分钟，放线程池避免阻塞事件循环
             await asyncio.to_thread(self._start_frontend)
         elif not os.path.isdir(DIST_DIR):
-            logger.warning("frontend/dist 不存在，请先执行 cd frontend && npm run build")
+            logger.warning(
+                "frontend/dist 不存在，请先执行 cd frontend && npm run build"
+            )
         logger.info("系统初始化完成")
 
     def _start_frontend(self):
@@ -155,7 +161,10 @@ class IReckonApp:
         bin_vite = os.path.join(FRONTEND_DIR, "node_modules", ".bin", "vite")
         vite_js = os.path.join(FRONTEND_DIR, "node_modules", "vite", "bin", "vite.js")
         if os.path.exists(bin_vite):
-            cmds = [["npm", "run", "dev"], ["npx", "vite", "--host", "127.0.0.1", "--port", "3000"]]
+            cmds = [
+                ["npm", "run", "dev"],
+                ["npx", "vite", "--host", "127.0.0.1", "--port", "3000"],
+            ]
         elif os.path.exists(vite_js) and shutil.which("node"):
             cmds = [["node", vite_js, "--host", "127.0.0.1", "--port", "3000"]]
         elif npm_path:
@@ -238,7 +247,7 @@ async def start_backend(app: "IReckonApp"):
     if app._frontend_proc:
         banner_lines = [
             f"后端 API   http://{host}:{port}",
-            f"前端界面   { get('server.frontend_dev_url', 'http://127.0.0.1:3000')} (开发模式)",
+            f"前端界面   {get('server.frontend_dev_url', 'http://127.0.0.1:3000')} (开发模式)",
         ]
     else:
         # 生产模式：FastAPI 同端口托管前端，前后端合一
@@ -247,7 +256,7 @@ async def start_backend(app: "IReckonApp"):
         banner_lines.append(f"局域网访问 http://{lan_ip}:{port}")
     banner_lines.append(f"健康检查   http://{host}:{port}/api/health")
     log_banner(
-        f"IReckon v{ get('system.version')} 已启动",
+        f"IReckon v{get('system.version')} 已启动",
         banner_lines,
     )
 
@@ -265,7 +274,10 @@ async def start_backend(app: "IReckonApp"):
 
 
 async def start_backend_embedded(
-    app: "IReckonApp", ready: threading.Event, port_holder: dict, closing: threading.Event
+    app: "IReckonApp",
+    ready: threading.Event,
+    port_holder: dict,
+    closing: threading.Event,
 ):
     """嵌入式模式后端：uvicorn 绑定 127.0.0.1 随机端口，窗口关闭时优雅退出。"""
     import uvicorn
@@ -297,7 +309,7 @@ async def start_backend_embedded(
         port = server.servers[0].sockets[0].getsockname()[1]
         port_holder["port"] = port
         log_banner(
-            f"IReckon v{ get('system.version')} 已启动(嵌入式)",
+            f"IReckon v{get('system.version')} 已启动(嵌入式)",
             [f"Web UI   http://127.0.0.1:{port}", "关闭窗口即退出"],
         )
         ready.set()
@@ -317,6 +329,7 @@ async def main():
     _signal_tasks: set = set()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
+
             def _handle_signal(sig_name=sig):
                 task = asyncio.create_task(app.shutdown())
                 _signal_tasks.add(task)  # 持有引用防 GC；退出后统一清理
@@ -328,7 +341,9 @@ async def main():
 
     backend_task = asyncio.create_task(start_backend(app))
     backend_task.add_done_callback(
-        lambda task: app.shutdown_event.set() if not app._shutdown_event.is_set() else None
+        lambda task: (
+            app.shutdown_event.set() if not app._shutdown_event.is_set() else None
+        )
     )
     try:
         await app._shutdown_event.wait()

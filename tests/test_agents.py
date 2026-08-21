@@ -4,7 +4,12 @@ import json
 
 
 from app.agents.deliverer import DelivererAgent
-from app.agents.executor import ExecutorAgent, _parse_patches, _syntax_errors, _apply_unified_diff
+from app.agents.executor import (
+    ExecutorAgent,
+    _parse_patches,
+    _syntax_errors,
+    _apply_unified_diff,
+)
 from app.agents.reviewer import CorrectnessReviewerAgent, _parse_review_response
 from app.agents.scheduler import SchedulerAgent, recruit_team
 from conftest import FakeCapabilityPool, make_cap
@@ -108,7 +113,9 @@ def test_executor_parse_multi_file():
 
 
 def test_executor_parse_strips_markdown_fences():
-    text = "//// filename: a.py\n```python\nprint(1)\n```\n//// filename: b.py\nplain text"
+    text = (
+        "//// filename: a.py\n```python\nprint(1)\n```\n//// filename: b.py\nplain text"
+    )
     out = make_executor()._parse_artifacts(text)
     assert out["a.py"] == "print(1)"
     assert out["b.py"] == "plain text"
@@ -188,7 +195,9 @@ def test_reviewer_parse_invalid_fallback():
 
 def test_deliverer_safe_filename():
     assert DelivererAgent._safe_filename("src/models/todo.py") == "src/models/todo.py"
-    assert DelivererAgent._safe_filename("tests/unit/test_a.py") == "tests/unit/test_a.py"
+    assert (
+        DelivererAgent._safe_filename("tests/unit/test_a.py") == "tests/unit/test_a.py"
+    )
     assert DelivererAgent._safe_filename("../evil/x.py") == "evil/x.py"
     assert DelivererAgent._safe_filename("a:b.py") == "a_b.py"
     assert DelivererAgent._safe_filename("") == "unnamed.txt"

@@ -14,7 +14,9 @@ def fake_response(content="hi", finish="stop"):
     return SimpleNamespace(
         model="fake-model",
         choices=[
-            SimpleNamespace(message=SimpleNamespace(content=content), finish_reason=finish)
+            SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason=finish
+            )
         ],
         usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2),
     )
@@ -33,7 +35,9 @@ def client():
 
 
 def _timeout():
-    return client_mod.litellm.exceptions.Timeout("boom", model="m", llm_provider="openai")
+    return client_mod.litellm.exceptions.Timeout(
+        "boom", model="m", llm_provider="openai"
+    )
 
 
 def _api_error():
@@ -111,7 +115,9 @@ async def test_cancellation_raises(client, monkeypatch):
     evt = asyncio.Event()
     evt.set()
     with pytest.raises(LLMCallError):
-        await client.call(make_cap(), [{"role": "user", "content": "x"}], cancellation_event=evt)
+        await client.call(
+            make_cap(), [{"role": "user", "content": "x"}], cancellation_event=evt
+        )
 
 
 async def test_unhealthy_endpoint_skipped(client, monkeypatch):

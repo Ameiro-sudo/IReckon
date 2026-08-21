@@ -60,7 +60,10 @@ def pytest_configure(config):
         for src_file in src_config.rglob("*"):
             if src_file.is_file():
                 dst_file = dst_config / src_file.relative_to(src_config)
-                if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
+                if (
+                    not dst_file.exists()
+                    or src_file.stat().st_mtime > dst_file.stat().st_mtime
+                ):
                     dst_file.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(src_file, dst_file)
 

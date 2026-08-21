@@ -41,9 +41,7 @@ async def test_add_entry_writes_file_and_db_row(session_db, monkeypatch):
     captured = {}
 
     async def fake_add_documents(collection, ids, documents, metadatas):
-        captured.update(
-            {"collection": collection, "ids": ids, "docs": documents}
-        )
+        captured.update({"collection": collection, "ids": ids, "docs": documents})
 
     monkeypatch.setattr(kf_mod.vector_store, "add_documents", fake_add_documents)
     kb = FileKnowledgeBase()
@@ -73,5 +71,3 @@ async def test_add_entry_invalid_type_raises_before_io(session_db, monkeypatch):
     kb = FileKnowledgeBase()
     with pytest.raises(ValueError, match="非法知识类型"):
         await kb.add_entry("../evil", "标题", "内容")
-
-

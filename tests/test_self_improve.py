@@ -108,7 +108,7 @@ def test_get_executor_uses_find_best_match(monkeypatch):
         return cap
 
     monkeypatch.setattr(si_mod.capability_pool, "find_best_match", fake_find)
-    ex = asyncio.run( _get_executor("t1"))
+    ex = asyncio.run(_get_executor("t1"))
     assert ex is not None
     assert ex.context is not None
     assert ex.context.task_id == "t1"
@@ -122,7 +122,7 @@ def test_get_executor_falls_back_to_get_all(monkeypatch):
         return [cap]
 
     monkeypatch.setattr(si_mod.capability_pool, "get_all", fake_get_all)
-    ex = asyncio.run( _get_executor("t1"))
+    ex = asyncio.run(_get_executor("t1"))
     assert ex is not None
 
 
@@ -133,7 +133,7 @@ def test_get_executor_no_caps(monkeypatch):
         return []
 
     monkeypatch.setattr(si_mod.capability_pool, "get_all", fake_get_all)
-    assert asyncio.run( _get_executor("t1")) is None
+    assert asyncio.run(_get_executor("t1")) is None
 
 
 def test_get_executor_unregistered_role(monkeypatch):
@@ -147,7 +147,7 @@ def test_get_executor_unregistered_role(monkeypatch):
     monkeypatch.setattr(
         si_mod.role_registry, "create_agent", lambda role, cap, **kw: None
     )
-    assert asyncio.run( _get_executor("t1")) is None
+    assert asyncio.run(_get_executor("t1")) is None
 
 
 # ---------- 源文件扫描 ----------
@@ -217,7 +217,9 @@ def test_apply_improvements_disabled_analysis(monkeypatch):
 def test_apply_improvements_branch_fail(monkeypatch):
     imp = make_improver(monkeypatch)
     monkeypatch.setattr(imp, "_git_create_branch", lambda b: False)
-    result = asyncio.run(imp.apply_improvements("t1", {"success": True, "analysis": "x"}))
+    result = asyncio.run(
+        imp.apply_improvements("t1", {"success": True, "analysis": "x"})
+    )
     assert result["success"] is False
     assert "分支" in result["error"]
 
@@ -230,7 +232,9 @@ def test_apply_improvements_no_caps(monkeypatch):
         return []
 
     monkeypatch.setattr(si_mod.capability_pool, "get_all", fake_get_all)
-    result = asyncio.run(imp.apply_improvements("t1", {"success": True, "analysis": "x"}))
+    result = asyncio.run(
+        imp.apply_improvements("t1", {"success": True, "analysis": "x"})
+    )
     assert result["success"] is False
     assert "AI 实例" in result["error"]
 
@@ -247,7 +251,9 @@ def test_apply_improvements_no_valid_patches(monkeypatch):
     monkeypatch.setattr(
         si_mod.role_registry, "create_agent", lambda role, cap, **kw: FakeExecutor()
     )
-    result = asyncio.run(imp.apply_improvements("t1", {"success": True, "analysis": "x"}))
+    result = asyncio.run(
+        imp.apply_improvements("t1", {"success": True, "analysis": "x"})
+    )
     assert result["success"] is False
     assert "没有生成有效" in result["error"]
 
@@ -270,10 +276,14 @@ def test_apply_improvements_full_success(monkeypatch, tmp_path):
     )
     written = []
     monkeypatch.setattr(
-        Path, "write_text", lambda self, content, encoding=None: written.append((str(self), content))
+        Path,
+        "write_text",
+        lambda self, content, encoding=None: written.append((str(self), content)),
     )
 
-    result = asyncio.run(imp.apply_improvements("t1", {"success": True, "analysis": "分析"}))
+    result = asyncio.run(
+        imp.apply_improvements("t1", {"success": True, "analysis": "分析"})
+    )
     assert result["success"] is True
     assert result["branch"] == "self-improve/t1"
     assert result["files_changed"] == ["app/engine/cost.py"]
@@ -434,8 +444,9 @@ def test_push_to_remote_branch(monkeypatch):
     monkeypatch.setattr(
         si_mod.subprocess,
         "run",
-        lambda *a, **kw: calls.append(a[0])
-        or SimpleNamespace(returncode=0, stdout="feature/x"),
+        lambda *a, **kw: (
+            calls.append(a[0]) or SimpleNamespace(returncode=0, stdout="feature/x")
+        ),
     )
     assert asyncio.run(imp.push_to_remote()) is True
     assert ["git", "push", "-u", "origin", "feature/x"] in calls

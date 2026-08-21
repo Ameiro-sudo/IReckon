@@ -22,7 +22,14 @@ def make_engine():
 
 def test_engine_graph_has_all_nodes():
     names = {n for n in make_engine().graph.get_graph().nodes}
-    assert {"planning", "execute", "review", "revise", "deliver", "handle_error"} <= names
+    assert {
+        "planning",
+        "execute",
+        "review",
+        "revise",
+        "deliver",
+        "handle_error",
+    } <= names
 
 
 def test_engine_edges():
@@ -102,7 +109,7 @@ async def test_cost_tracker_monthly_warning():
     ct = CostTracker()
     ct.monthly_warning_threshold = 50
     await ct.add_usage("t2", 100, 0.0)
-    assert ct._monthly_usage[ _current_month()] >= 100
+    assert ct._monthly_usage[_current_month()] >= 100
 
 
 async def test_cost_tracker_is_over_budget():
@@ -153,7 +160,11 @@ PLAN = {
     ],
     "recruitment_plan": {
         "executor": {"count": 1, "required_tags": ["python"], "prefer_cheap": True},
-        "reviewer_correctness": {"count": 1, "required_tags": ["python"], "prefer_cheap": True},
+        "reviewer_correctness": {
+            "count": 1,
+            "required_tags": ["python"],
+            "prefer_cheap": True,
+        },
     },
 }
 
@@ -207,7 +218,9 @@ async def test_full_pipeline_review_fail_then_pass(session_db, monkeypatch):
         if role in ("reviewer_correctness", "reviewer_efficiency"):
             calls["review"] += 1
             if calls["review"] == 1:
-                return json.dumps({"passed": False, "issues": ["缺少参数校验"], "suggestions": []})
+                return json.dumps(
+                    {"passed": False, "issues": ["缺少参数校验"], "suggestions": []}
+                )
             return json.dumps({"passed": True, "issues": [], "suggestions": []})
         return "ok"
 
