@@ -57,3 +57,8 @@
 - [x] engine/tasks.py 37%→67%：任务创建/上传批次白名单(_UPLOAD_ID_RE)/_ingest_uploads 穿越防护/需求拼装(超限与非法路径跳过)/_launch 异常→FAILED、取消+事件→PAUSED 语义，+13 测试
 - [x] web/routers/system.py 31%→67%：auth/check 三态(免鉴权布尔语义/回环信任/错 token)、stats 形状、logs 解析与 level 过滤，+5 测试
 - [x] 全量 pytest 保持绿，63f4f84 已推远端
+## 自主轮 3
+
+- [x] agents/learner 14%→80% + engine/learner 21%→53%（8c222e9）：工具建议解析全路径、Trending 提取抽纯函数 _extract_repo_candidates、空闲触发判定抽 _should_trigger/_daily_reset_if_needed（行为不变的纯重构）
+- [x] knowledge/files.py 33%→84%（类型校验参数化/2MB限制/落盘+DB+向量库打桩三重断言）
+- [x] 全量 pytest 保持绿；累计自主轮新增测试 196→253
