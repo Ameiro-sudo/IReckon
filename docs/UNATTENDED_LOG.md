@@ -187,7 +187,13 @@
 
 - ✅ **PR#20 已合并**（0aa5c16）：IR-01「我看行」品牌激活——LoginView 副标/machine.py 交付者完成语/
   ChatView 空态三触点，纯文案层零逻辑改动；创意笔记状态 💡→✅（含勘误：双关原文不在 README，系从零注入）
+- ✅ **PR#21 已合并**（ca11823）：cost.py DB 路径补测 +17——惰性建表幂等/落库失败降级内存/
+  四路 DB 读取大值兜底与失败回退/enforce_limits 三段额度分支按判定顺序打桩/_task_budget_limit 回退；
+  **cost.py 66%→97%**，全量 518 绿
 - ✅ **SSRF pin-IP 评估结论入档**：完整方案需自定义 httpcore transport+每请求 SNI 覆写，
   httpx 无公开挂点，硬做易引 TLS 校验坑——判定为"专门设计轮"事项，无人值守时段不动网络层；
   现有缓解（校验紧贴出网+禁重定向+注册期静态校验）继续有效
-- master CI 对 #18/#19 合并复核双绿；docs 直推不触发 CI（workflow 有路径过滤）属预期
+- ⚠️ **直推事故未遂×1**：#21 的提交曾误落本地 master（建分支前手快），push 被远端分支保护拒绝——
+  分支保护立功。纠正流程=从该提交切分支+`branch -f master origin/master` 弹回。教训：merge 后
+  checkout master 的状态下**先 branch 再动手**
+- master CI 对 #18/#19/#20 合并复核绿；docs 直推不触发 CI（workflow 有路径过滤）属预期
