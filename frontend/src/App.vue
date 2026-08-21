@@ -24,6 +24,7 @@
             :key="item.to"
             :to="item.to"
             class="nav-item"
+            :title="item.label + '（Alt+' + item.hotkey + '）'"
             @click="mobileSidebarOpen = false"
           >
             <span class="flex w-[15px] shrink-0 justify-center opacity-85">
@@ -66,7 +67,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTaskStore } from './stores/taskStore.js'
 import { healthAPI } from './api/index.js'
 import ToastContainer from './components/ToastContainer.vue'
@@ -77,29 +78,31 @@ const NAV = [
   {
     label: '工作台',
     items: [
-      { to: '/', icon: 'chat', label: '聊天' },
-      { to: '/tasks', icon: 'list', label: '任务', badge: true },
-      { to: '/dashboard', icon: 'gauge', label: '仪表盘' }
+      { to: '/', icon: 'chat', label: '聊天', hotkey: 1 },
+      { to: '/tasks', icon: 'list', label: '任务', badge: true, hotkey: 2 },
+      { to: '/dashboard', icon: 'gauge', label: '仪表盘', hotkey: 3 }
     ]
   },
   {
     label: '监控',
     items: [
-      { to: '/logs', icon: 'zap', label: '系统日志' },
-      { to: '/artifacts', icon: 'file', label: '交付产物' }
+      { to: '/logs', icon: 'zap', label: '系统日志', hotkey: 4 },
+      { to: '/artifacts', icon: 'file', label: '交付产物', hotkey: 5 }
     ]
   },
   {
     label: '管理',
     items: [
-      { to: '/ai-instances', icon: 'cpu', label: 'AI 实例' },
-      { to: '/self-improve', icon: 'eye', label: '自我进化' },
-      { to: '/settings', icon: 'gear', label: '设置' }
+      { to: '/ai-instances', icon: 'cpu', label: 'AI 实例', hotkey: 6 },
+      { to: '/self-improve', icon: 'eye', label: '自我进化', hotkey: 7 },
+      { to: '/settings', icon: 'gear', label: '设置', hotkey: 8 }
     ]
   }
 ]
+const flatNav = NAV.flatMap(g => g.items)
 
 const route = useRoute()
+const router = useRouter()
 const taskStore = useTaskStore()
 const isDark = ref(false)
 const version = ref('—')
@@ -129,6 +132,7 @@ onMounted(async () => {
   isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
   await checkHealth()
   healthTimer = setInterval(checkHealth, 15000)
+  window.addEventListener('keydown', onGlobalKeydown)
   if (isBare.value) return
   // 任务列表初始加载一次；后续轮询统一由 taskStore.startPolling 管理，
   // 避免双定时器导致请求翻倍且 stopPolling 失效
@@ -137,5 +141,19 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (healthTimer) clearInterval(healthTimer)
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
+
+/* Alt+数字 快捷跳转（输入框聚焦时失效，登录页除外） */
+function onGlobalKeydown(e) {
+  if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+  const idx = Number(e.key) - 1
+  if (!(idx >= 0 && idx < flatNav.length)) return
+  const el = e.target
+  if (el && el.closest && el.closest('input, textarea, select, [contenteditable="true"]')) return
+  if (isBare.value) return
+  e.preventDefault()
+  mobileSidebarOpen.value = false
+  router.push(flatNav[idx].to)
+}
 </script>
