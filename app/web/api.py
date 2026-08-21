@@ -70,15 +70,16 @@ app.add_middleware(
 # 说明：
 # - script-src 'self'：主题引导已外链为 /theme-init.js（public/），入口无内联脚本；
 # - style-src 'unsafe-inline'：Vue 运行时与 Tailwind 会注入内联样式，无法收紧；
-# - Google Fonts 两个域仅为字体样式与字体文件；
+# - style-src 'self' 'unsafe-inline'：Vue 运行时与 Tailwind 会注入内联样式，无法收紧；
+# - 字体已自托管于前端 public/fonts/（woff2 子集），CSP 不再放行任何第三方域；
 # - connect-src 显式放行 ws/wss（部分浏览器对 'self' 覆盖 WebSocket 的行为不一致）；
 # - frame-ancestors 'none' 禁止被嵌入 iframe，配合 X-Frame-Options DENY。
 _CSP = "; ".join(
     [
         "default-src 'self'",
         "script-src 'self'",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com data:",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self' data:",
         "img-src 'self' data:",
         "connect-src 'self' ws: wss:",
         "object-src 'none'",
