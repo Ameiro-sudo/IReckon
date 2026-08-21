@@ -713,7 +713,7 @@ class WorkflowEngine:
         self.output_history.pop(tid, None)
         return {
             "status": TaskStatus.COMPLETED,
-            "messages": [{"role": "deliverer", "content": "交付完成"}],
+            "messages": [{"role": "deliverer", "content": "交付完成。我看行。"}],
             "task_board_state": tb.get_state_dict(),
         }
 
