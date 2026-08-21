@@ -112,3 +112,8 @@
 - [x] **流水线实测**：手动触发 build.yml 成功(5m19s)，产物 IReckon-Distribution(~85MB) 同时含 Setup exe 与 Portable zip——双渠道发行链路端到端验证通过
 - [x] **真bug×3**：agents/base.py 流式 token 核算的同步回调路径从未被调用(last_stream_usage callable 后未执行)，兼容 dict/同步/异步三形态后修复；base.py 52%→86%
 - [x] +15 测试(基座13+渠道13中本轮新增部分)；全量 pytest 保持绿
+## 新目标轮 2
+
+- [x] tools/library.py 55%→**100%**（CRUD/查询组合、入库扫描门禁：fail-closed 拒绝/scan_fail_open 降级/高危拒绝/LOW放行/扫描器异常容错）
+- [x] web/api.py 48%→62%（lifespan 真实拉起与退出、/docs /redoc /openapi.json 默认关闭断言、CORS 白名单放行与陌生来源拒发 ACAO、凭据头永不出现）
+- [x] 全量 pytest 绿；累计测试 196→356
