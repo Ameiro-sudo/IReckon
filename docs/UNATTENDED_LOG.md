@@ -75,3 +75,8 @@
 
 - [x] web/routers/tasks.py 48%→81%（+12 API级测试）：产物穿越拒绝矩阵、zip下载子目录打包、删除往返用 start_task 桩保证确定性（LLM 重试退避会让运行态窗口长达 30s+）
 - [x] 全量 pytest 绿；累计自主轮测试 196→285
+## 自主轮 7
+
+- [x] **真 bug**：security/supply.py shlex posix 模式吞 Windows 反斜杠 → `pip install -r C:\...` 合法命令被误拒；按平台选词法模式修复
+- [x] supply.py 50%→95%（+24 测试：PEP503 规范化/git/wheel/@scope 提取、pip/npm/uv/poetry/conda 拦截、-r 递归含 -e 与明文 http 索引拒绝）
+- [x] 全量 pytest 绿
