@@ -1,6 +1,7 @@
 """FastAPI 应用工厂：挂载路由、中间件、WebSocket 与前端静态资源。"""
 
 import asyncio
+import re
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -69,19 +70,19 @@ app.add_middleware(
 # 安全响应头（P2-12）：CSP 收紧脚本/对象/框架来源，其余为通用加固。
 # 说明：
 # - script-src 'self'：主题引导已外链为 /theme-init.js（public/），入口无内联脚本；
-# - style-src 'unsafe-inline'：Vue 运行时与 Tailwind 会注入内联样式，无法收紧；
 # - style-src 'self' 'unsafe-inline'：Vue 运行时与 Tailwind 会注入内联样式，无法收紧；
 # - 字体已自托管于前端 public/fonts/（woff2 子集），CSP 不再放行任何第三方域；
-# - connect-src 显式放行 ws/wss（部分浏览器对 'self' 覆盖 WebSocket 的行为不一致）；
+# - connect-src 的 WebSocket 来源按请求 Host 动态收敛为页面自身 authority
+#   （裸 ws:/wss: scheme-source 曾允许向任意外部 WS 主机外带数据）；
 # - frame-ancestors 'none' 禁止被嵌入 iframe，配合 X-Frame-Options DENY。
-_CSP = "; ".join(
+_CSP_TEMPLATE = "; ".join(
     [
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
         "font-src 'self' data:",
         "img-src 'self' data:",
-        "connect-src 'self' ws: wss:",
+        "connect-src 'self' {ws_sources}",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'self'",
@@ -89,14 +90,31 @@ _CSP = "; ".join(
     ]
 )
 
+# Host 头合法性：hostname[:port]，容忍 IPv6 字面量方括号
+_HOST_RE = re.compile(r"^[A-Za-z0-9.\-\[\]]+(:\d+)?$")
+
+
+def _build_csp(host: str) -> str:
+    if host and _HOST_RE.match(host):
+        ws_sources = f"ws://{host} wss://{host}"
+    else:
+        # Host 异常时仅留 'self'：现代浏览器同源策略已覆盖同主机 WS
+        ws_sources = ""
+    return _CSP_TEMPLATE.format(ws_sources=ws_sources)
+
 
 @app.middleware("http")
 async def security_headers(request, call_next):
     response = await call_next(request)
-    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["Content-Security-Policy"] = _build_csp(
+        request.headers.get("host", "")
+    )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if request.url.path.startswith("/api/"):
+        # 日志/产物/配置等敏感响应不落共享机磁盘缓存
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -135,7 +153,10 @@ def _dev_url() -> str:
 
 @app.exception_handler(RequestValidationError)
 async def validation_handler(request, exc):
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    # 只回显 loc/msg 白名单字段：pydantic v2 的 errors() 会携带 input
+    # （用户提交值回显）与 ctx（内部断言/正则细节），不应对外暴露
+    safe = [{"loc": e.get("loc"), "msg": e.get("msg")} for e in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": safe})
 
 
 @app.exception_handler(HTTPException)

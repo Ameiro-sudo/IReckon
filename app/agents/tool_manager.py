@@ -21,16 +21,22 @@ async def assemble_tool_simple(requirement: str, parts: List[Dict]) -> Optional[
     return None
 
 
+def _like_literal(text: str) -> str:
+    """转义 LIKE 通配符，防止 %/_ 被当模式注入全库枚举。"""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 async def search_parts(query: str, tags: Optional[List[str]] = None) -> List[Dict]:
     sql = "SELECT * FROM tool_parts WHERE 1=1"
     params = []
     if tags:
         for tag in tags:
-            sql += " AND tags LIKE ?"
-            params.append(f"%{tag}%")
+            sql += " AND tags LIKE ? ESCAPE '\\'"
+            params.append(f"%{_like_literal(tag)}%")
     if query:
-        sql += " AND (name LIKE ? OR description LIKE ?)"
-        params.extend([f"%{query}%", f"%{query}%"])
+        escaped = f"%{_like_literal(query)}%"
+        sql += " AND (name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')"
+        params.extend([escaped, escaped])
     rows = await db.fetch_all(sql, tuple(params))
     parts = []
     for row in rows:

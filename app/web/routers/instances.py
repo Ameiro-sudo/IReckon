@@ -50,6 +50,7 @@ async def create_ai_instance(inst: AIInstanceRequest):
     data = inst.model_dump()
     if not data.get("endpoint") or not data.get("model"):
         raise HTTPException(422, "endpoint 和 model 为必填项")
+    _validate_endpoint_static(data.get("endpoint", ""))
     if not data.get("id"):
         data["id"] = f"ai-{uuid.uuid4().hex[:12]}"
     # 拒绝覆盖已有 ID：防止实例被同 ID 重建劫持（改指向恶意端点）
@@ -69,6 +70,8 @@ async def update_ai_instance(instance_id: str, inst: AIInstanceRequest):
     data = existing.to_dict()
     patch = inst.model_dump(exclude_unset=True)
     patch.pop("id", None)
+    if patch.get("endpoint"):
+        _validate_endpoint_static(patch["endpoint"])
     # api_key 为空串时保留已有密钥（前端编辑不填视为不变更）
     if not patch.get("api_key"):
         patch.pop("api_key", None)
@@ -86,25 +89,94 @@ async def delete_ai_instance(instance_id: str):
     return {"status": "ok"}
 
 
+def _forbidden_ip_reason(ip: "ipaddress.IPv4Address | ipaddress.IPv6Address"):
+    """返回拒绝理由字符串；None 表示放行。
+
+    覆盖：私网/环回/链路本地/保留/组播/未指定地址，并先展开
+    IPv6-mapped-IPv4（如 ::ffff:127.0.0.1）再复检。
+    """
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    ):
+        return f"禁止访问内网/环回/保留/组播地址（解析到 {ip}）"
+    return None
+
+
+def _validate_endpoint_static(endpoint: str) -> None:
+    """注册/更新实例时的轻量端点校验（不做 DNS）。
+
+    拦截 scheme 异常、URL 内嵌凭据与字面量内网地址；完整 DNS 解析级
+    SSRF 校验在 /test 实际出网前执行（_reject_ssrf_target）。
+    """
+    parsed = urlparse(endpoint or "")
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise HTTPException(400, "endpoint 仅支持 http/https URL")
+    if parsed.username or parsed.password:
+        raise HTTPException(400, "endpoint URL 不应内嵌凭据")
+    try:
+        literal = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        return
+    reason = _forbidden_ip_reason(literal)
+    if reason:
+        raise HTTPException(400, reason)
+
+
 async def _reject_ssrf_target(url: str) -> None:
-    """SSRF 防护：仅允许 http/https，且解析出的所有 IP 都不得是私网/环回/链路本地/保留地址。"""
+    """SSRF 防护：仅允许 http/https，且解析出的所有 IP 都不得是
+    私网/环回/链路本地/保留/组播/未指定地址。
+
+    已知限制（纵深防御备忘）：DNS 校验与实际连接是两次独立解析，
+    理论上存在 DNS-rebinding 窗口；当前以「校验紧贴出网前执行 +
+    follow_redirects=False」缓解。若未来威胁模型升级，应改为自定义
+    transport 把连接目标固定为本次校验过的解析结果。
+    """
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise HTTPException(400, "仅支持 http/https 端点")
+    if parsed.username or parsed.password:
+        raise HTTPException(400, "端点 URL 不应内嵌凭据")
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        raise HTTPException(400, "端点端口非法")
+    # 字面量 IP 主机名快速判定：不经 DNS 直接复核（0.0.0.0/[::]/组播等形态）
+    try:
+        literal = ipaddress.ip_address(parsed.hostname)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        reason = _forbidden_ip_reason(literal)
+        if reason:
+            raise HTTPException(400, reason)
+        return
+    try:
         infos = await asyncio.to_thread(
             socket.getaddrinfo, parsed.hostname, port, proto=socket.IPPROTO_TCP
         )
     except Exception:
         raise HTTPException(400, "无法解析端点主机名")
+    seen = set()
     for info in infos:
+        addr = info[4][0]
+        if addr in seen:
+            continue
+        seen.add(addr)
         try:
-            ip = ipaddress.ip_address(info[4][0])
+            ip = ipaddress.ip_address(addr)
         except ValueError:
             continue
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-            raise HTTPException(400, "禁止访问内网/环回/保留地址")
+        reason = _forbidden_ip_reason(ip)
+        if reason:
+            raise HTTPException(400, reason)
 
 
 @router.post("/ai-instances/{instance_id}/test")

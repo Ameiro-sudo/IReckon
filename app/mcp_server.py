@@ -115,11 +115,25 @@ async def tool_review(
 
 
 async def tool_pool_status() -> Dict[str, Any]:
-    """池状态：实例清单+计费通道+缓存命中统计（交叉测试观测用）。"""
+    """池状态：实例清单+计费通道+缓存命中统计（交叉测试观测用）。
+
+    endpoint 只回传 host:port 的存在性形态（scheme+host 掩去路径与端口细节）：
+    该工具暴露给任意注册的 MCP 客户端，完整 endpoint 属内部网络拓扑信息。
+    """
     await _ensure_db()
     from app.llm.cache import response_cache
     from app.llm.pool import capability_pool
     from app.llm.router import channel_of
+    from urllib.parse import urlparse
+
+    def _masked_endpoint(endpoint: str) -> str:
+        try:
+            p = urlparse(endpoint or "")
+            if not p.scheme or not p.hostname:
+                return "(未配置)"
+            return f"{p.scheme}://{p.hostname}{'/*' if p.port else ''}"
+        except ValueError:
+            return "(非法)"
 
     caps = list(await capability_pool.get_all())
     return {
@@ -128,7 +142,7 @@ async def tool_pool_status() -> Dict[str, Any]:
                 "id": c.id,
                 "name": c.name,
                 "model": c.model,
-                "endpoint": c.endpoint,
+                "endpoint": _masked_endpoint(c.endpoint),
                 "channel": channel_of(c),
                 "enabled": c.enabled,
                 "cost_per_1k_tokens": c.cost_per_1k_tokens,

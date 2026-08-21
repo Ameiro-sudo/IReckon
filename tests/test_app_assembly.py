@@ -66,10 +66,29 @@ def test_security_headers_present():
         assert "script-src 'self'" in csp
         assert "object-src 'none'" in csp
         assert "frame-ancestors 'none'" in csp
-        # WebSocket 同源放行
-        assert "connect-src 'self' ws: wss:" in csp
+        # WebSocket 来源收敛为页面自身 authority（不再放行任意 ws:/wss: 外域）
+        assert "connect-src 'self' ws://testserver wss://testserver" in csp
         assert r.headers.get("x-content-type-options") == "nosniff"
         assert r.headers.get("x-frame-options") == "DENY"
+        # API 敏感响应禁缓存
+        assert r.headers.get("cache-control") == "no-store"
+
+
+def test_csp_host_fallback_and_validation_error_sanitized():
+    from fastapi.testclient import TestClient as _TC  # noqa: F401  # 确保同环境
+
+    with TestClient(app) as c:
+        # Host 异常（含非法字符）时回退纯 'self'，不注入畸形来源
+        r = c.get("/api/health", headers={"Host": "evil.example_bad*host"})
+        csp = r.headers.get("content-security-policy", "")
+        assert "connect-src 'self'" in csp
+        assert "evil.example" not in csp
+        # 校验错误只回显 loc/msg：不泄露提交值(input)与内部断言(ctx)
+        bad = c.post("/api/tasks", json={"user_request": {"nested": "secret"}})
+        if bad.status_code == 422:
+            detail = bad.json()["detail"]
+            assert isinstance(detail, list)
+            assert all(set(e) <= {"loc", "msg"} for e in detail)
 
 
 def test_csp_self_hosts_fonts_and_blocks_foreign_scripts():

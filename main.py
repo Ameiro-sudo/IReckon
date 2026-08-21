@@ -54,6 +54,24 @@ sys.stdout = _utf8_stream(sys.stdout)
 sys.stderr = _utf8_stream(sys.stderr)
 
 
+def _print_banner(title: str, lines) -> None:
+    """直接写 stdout 的启动横幅：不进入日志文件与 WS 推送链路。
+
+    用于必须展示完整敏感值（如 API token）的场景；普通信息仍用
+    log_banner（loguru），以便进日志与前端日志页。
+    """
+    try:
+        print(f"===== {title} =====")
+        for line in lines:
+            if line:
+                print(line)
+        print("=" * (12 + len(title)))
+        sys.stdout.flush()
+    except Exception:
+        # 控制台不可用（如窗口化运行）时静默放弃——凭据已在 config.yaml
+        pass
+
+
 def _get_lan_ip():
     s = None
     try:
@@ -97,7 +115,10 @@ class IReckonApp:
         if os.environ.get("IRECKON_API_TOKEN", "").strip():
             logger.info("API 鉴权已启用（token 来自环境变量 IRECKON_API_TOKEN）")
         else:
-            log_banner(
+            # 安全：完整 token 只直写 stdout 控制台，绝不经过 loguru——
+            # 一旦走 logger 会落盘到 data/logs/*.log（可经 /api/logs 读出）
+            # 并实时广播给所有 WS 日志订阅者，等于把凭据写进可导出的渠道。
+            _print_banner(
                 "API 访问令牌",
                 [
                     f"{api_token}",
