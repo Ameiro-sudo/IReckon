@@ -45,9 +45,7 @@ async def auth_check(x_api_token: Optional[str] = Header(None)):
     token = configured_token()
     required = bool(token)
     authenticated = bool(
-        required
-        and x_api_token
-        and _secrets.compare_digest(x_api_token, token)
+        required and x_api_token and _secrets.compare_digest(x_api_token, token)
     )
     return {"authenticated": authenticated, "required": required}
 

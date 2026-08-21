@@ -29,6 +29,19 @@ TIER_CHANNELS = {
     "judgment": "primary",
 }
 
+# 角色 → tier：高频执行角色走轻通道，判断点走重通道（调用次数套利的角色分工）
+ROLE_TIERS = {
+    "executor": "light",
+    "deliverer": "light",
+    "learner": "light",
+    "tool_manager": "light",
+    "content_filter": "light",
+    "scheduler": "heavy",
+    "creative": "heavy",
+    "reviewer_correctness": "heavy",
+    "reviewer_efficiency": "heavy",
+}
+
 
 def channel_of(cap: AICapability) -> str:
     """实例所属计费通道：打了执行标签的算执行通道，其余视为主通道。"""

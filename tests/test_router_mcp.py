@@ -239,6 +239,119 @@ async def test_reviewer_fallback_to_executor_when_no_primary(monkeypatch):
     assert all(rv.capability.id == "e1" for rv in reviewers)
 
 
+# ---------- 招募通道纪律 ----------
+
+
+async def test_recruit_team_channel_discipline(session_db):
+    """执行角色必须落在执行通道，判断点角色必须落在主通道。"""
+    from app.agents.scheduler import recruit_team
+
+    executor = make_cap(id="e1", tags=["code", "fast", "channel:execution"])
+    primary = make_cap(id="p1", tags=["review", "careful", "architecture"])
+    await _reset_pool(session_db, executor, primary)
+
+    team = await recruit_team(
+        {
+            "executor": {"count": 1, "required_tags": ["code"]},
+            "reviewer_correctness": {"count": 1, "required_tags": ["careful"]},
+        }
+    )
+    assert team["executor"][0].id == "e1"
+    assert team["reviewer_correctness"][0].id == "p1"
+
+
+async def test_recruit_team_light_role_falls_back_to_primary(session_db):
+    """执行通道为空时，轻角色允许跨通道兜底（任务不停摆优先）。"""
+    from app.agents.scheduler import recruit_team
+
+    primary = make_cap(id="p1", tags=["code"])
+    await _reset_pool(session_db, primary)
+
+    team = await recruit_team({"executor": {"count": 1, "required_tags": ["code"]}})
+    assert team["executor"][0].id == "p1"
+
+
+# ---------- 合并审查（单次调用出双结论） ----------
+
+
+async def test_merged_reviewer_single_call_two_sections(monkeypatch):
+    import app.agents  # noqa: F401
+    from app.agents.reviewer import MergedReviewerAgent
+
+    agent = MergedReviewerAgent(make_cap(id="p1", tags=["review"]))
+    agent.bind_context("t-merged-1")
+
+    calls = {"n": 0}
+
+    async def fake_think(prompt, **kw):
+        calls["n"] += 1
+        return (
+            '{"correctness": {"passed": false, "feedback": "边界缺失", "issues": ["L1:空输入"]}, '
+            '"efficiency": {"passed": true, "feedback": "", "suggestions": ["可缓存"]}}'
+        )
+
+    monkeypatch.setattr(agent, "think", fake_think)
+    out = await agent.execute(
+        {"code": "print(1)", "requirements": "r", "task_context": "tc"}
+    )
+    assert calls["n"] == 1, "合并审查必须只产生一次 LLM 调用"
+    assert out["correctness"]["passed"] is False
+    assert out["correctness"]["issues"] == ["L1:空输入"]
+    assert out["efficiency"]["passed"] is True
+
+
+async def test_merged_reviewer_invalid_structure_raises(monkeypatch):
+    """整体结构非法时抛错，让引擎回退双流水线而不是静默放过。"""
+    import app.agents  # noqa: F401
+    from app.agents.reviewer import MergedReviewerAgent
+
+    agent = MergedReviewerAgent(make_cap(id="p1"))
+
+    async def fake_think(prompt, **kw):
+        return "我觉得代码写得不错"
+
+    monkeypatch.setattr(agent, "think", fake_think)
+    try:
+        await agent.execute({"code": "x"})
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised is True
+
+
+async def test_create_merged_reviewer_prefers_team_then_heavy(monkeypatch):
+    """团队指定了审查实例则直接用；否则走 heavy 通道路由。"""
+    import app.agents  # noqa: F401
+    import app.llm.router as router
+    from app.engine.machine import WorkflowEngine
+
+    heavy = make_cap(id="p1", tags=["review"])
+    executor_cap = make_cap(id="e1", tags=["code", "channel:execution"])
+
+    async def fake_acquire(tier="light", **kw):
+        return heavy if tier == "heavy" else None
+
+    monkeypatch.setattr(router, "acquire", fake_acquire)
+    eng = WorkflowEngine()
+
+    # 无指定 → heavy 路由
+    rv = await eng._create_merged_reviewer(
+        {"task_id": "t-m1", "team": {"executor": [executor_cap]}}
+    )
+    assert rv.capability.id == "p1"
+
+    # 团队指定 → 用指定的
+    s2 = {
+        "task_id": "t-m2",
+        "team": {
+            "executor": [executor_cap],
+            "reviewer_correctness": [make_cap(id="p9")],
+        },
+    }
+    rv2 = await eng._create_merged_reviewer(s2)
+    assert rv2.capability.id == "p9"
+
+
 # ---------- MCP Server ----------
 
 

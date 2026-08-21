@@ -389,7 +389,6 @@ class WorkflowEngine:
 
         code = s["last_code"]
         reqs = phases[pi].get("description", "")
-        reviewers = await self._create_reviewers(s)
 
         await asyncio.gather(
             tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"]),
@@ -402,28 +401,67 @@ class WorkflowEngine:
             f"\n任务复杂度: {plan.get('complexity', 'simple')}\n"
             f"原始需求: {s.get('user_request', '')}"
         )
+        task_data = {
+            "code": code,
+            "requirements": reqs + scope,
+            "context": reqs + scope,
+            "task_context": ctx,
+        }
 
-        # 并行执行多个评审者（异常隔离：失败的评审者视为通过，不拖垮整体）
-        async def run_reviewer(rv):
-            return await rv.execute(
-                {
-                    "code": code,
-                    "requirements": reqs + scope,
-                    "task_context": ctx,
-                }
+        # 合并审查：判断通道单次调用同时产出正确性+效率结论（调用次数减半）。
+        # 失败或关闭开关时回退双流水线并行审查。
+        results = None
+        if get("task_defaults.merged_review", True):
+            mrv = await self._create_merged_reviewer(s)
+            if mrv is not None:
+                try:
+                    merged = await mrv.execute(task_data)
+                    results = [
+                        (
+                            mrv,
+                            {
+                                **merged.get("correctness", {}),
+                                "reviewer_type": "correctness",
+                            },
+                        ),
+                        (
+                            mrv,
+                            {
+                                **merged.get("efficiency", {}),
+                                "reviewer_type": "efficiency",
+                            },
+                        ),
+                    ]
+                except Exception as e:
+                    logger.warning(f"合并审查失败，回退双流水线: {e}")
+
+        if results is None:
+            reviewers = await self._create_reviewers(s)
+
+            # 并行执行多个评审者（异常隔离：失败的评审者视为通过，不拖垮整体）
+            async def run_reviewer(rv):
+                return await rv.execute(
+                    {
+                        "code": code,
+                        "requirements": reqs + scope,
+                        "task_context": ctx,
+                    }
+                )
+
+            reviewer_results = await asyncio.gather(
+                *[run_reviewer(rv) for rv in reviewers], return_exceptions=True
             )
 
-        reviewer_results = await asyncio.gather(
-            *[run_reviewer(rv) for rv in reviewers], return_exceptions=True
-        )
+            results = []
+            for rv, res in zip(reviewers, reviewer_results):
+                if isinstance(res, Exception):
+                    logger.warning(
+                        f"评审者 {rv.role} 评审异常，视为通过（无意见）: {res}"
+                    )
+                    results.append((rv, {"passed": True, "feedback": ""}))
+                else:
+                    results.append((rv, res))
 
-        results = []
-        for rv, res in zip(reviewers, reviewer_results):
-            if isinstance(res, Exception):
-                logger.warning(f"评审者 {rv.role} 评审异常，视为通过（无意见）: {res}")
-                results.append((rv, {"passed": True, "feedback": ""}))
-            else:
-                results.append((rv, res))
         for rv, res in results:
             await _broadcast_review_result(tid, room, rv, res)
 
@@ -483,6 +521,24 @@ class WorkflowEngine:
                 rv.bind_context(s["task_id"])
                 reviewers.append(rv)
         return reviewers or [_create_executor(s)]
+
+    async def _create_merged_reviewer(self, s):
+        """合并审查员：优先用招募计划指定的审查实例，否则按通道路由取主通道重模型。"""
+        from app.llm.router import acquire
+
+        rc = (
+            s["team"].get("reviewer_correctness", [None])[0]
+            or s["team"].get("reviewer_efficiency", [None])[0]
+        )
+        if rc is None:
+            rc = await acquire(tier="heavy")
+        if rc is None:
+            return None
+        rv = role_registry.create_agent("reviewer_merged", rc)
+        if rv is None:
+            return None
+        rv.bind_context(s["task_id"])
+        return rv
 
     async def revise_node(self, s):
         # FAILED 状态不继续修订

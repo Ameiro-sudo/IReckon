@@ -1,8 +1,9 @@
 import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), tailwindcss()],
   server: {
     // 默认仅本机访问；如需局域网协作再显式改为 0.0.0.0
     host: '127.0.0.1',

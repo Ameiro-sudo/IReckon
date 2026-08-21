@@ -180,7 +180,7 @@ class SelfImprover:
         self._enabled = get("self_update.enabled", True)
         self._max_files = get("self_update.max_files_per_round", 5)
         self._branch_prefix = get("self_update.branch_prefix", "self-improve")
-        self._jinja_env = Environment(
+        self._jinja_env = Environment(  # nosec B701: 模板渲染 LLM 提示词纯文本，非 HTML 输出
             loader=FileSystemLoader(str(get_prompt_template_dir())),
             autoescape=False,
         )
