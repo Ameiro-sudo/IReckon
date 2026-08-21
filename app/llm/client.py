@@ -621,7 +621,7 @@ class LLMClient:
                             cancel_evt,
                             max_retries=5,
                             infinite_retry=False,
-                            fallback_capabilities=fallback_caps,
+                            fallback_caps=fallback_caps,
                             **kwargs,
                         )
                         nr.stop_reason = StopReason.STREAM_FALLBACK
