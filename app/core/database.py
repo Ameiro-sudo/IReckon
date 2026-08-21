@@ -50,7 +50,8 @@ class Database:
             return
         self._init = True
         self._conn = None  # 数据库连接
-        self._fernet = None  # 加密器
+        self._fernet: Optional[Fernet] = None  # 加密器
+        self._cipher_lock = threading.Lock()  # 密钥初始化锁（防并发双写 .key）
         self._write_lock = asyncio.Lock()  # 写操作锁
         self._connect_lock = asyncio.Lock()  # 连接锁
         self._query_cache: Dict[str, tuple] = {}  # 查询缓存
@@ -68,25 +69,31 @@ class Database:
         第一次会自动生成密钥，保存到 .key 文件里～
         """
         if self._fernet is None:
-            key_path = Path(get("system.data_dir", "./data")) / ".key"
-            key_path.parent.mkdir(parents=True, exist_ok=True)
+            key = None
+            with self._cipher_lock:
+                if self._fernet is None:
+                    key_path = Path(get("system.data_dir", "./data")) / ".key"
+                    key_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # 读取现有密钥 or 生成新密钥～
-            if key_path.exists():
-                with open(key_path, "rb") as f:
-                    key = f.read()
-            else:
-                key = Fernet.generate_key()
-                with open(key_path, "wb") as f:
-                    f.write(key)
-                # 在 Linux/Mac 上设置权限为 600，保护密钥～
-                if os.name == "posix":
-                    try:
-                        await asyncio.to_thread(key_path.chmod, 0o600)
-                    except Exception:
-                        pass
+                    # 读取现有密钥 or 生成新密钥～
+                    if key_path.exists():
+                        with open(key_path, "rb") as f:
+                            key = f.read()
+                    else:
+                        key = Fernet.generate_key()
+                        with open(key_path, "wb") as f:
+                            f.write(key)
+                        self._new_key_created = os.name == "posix"
 
-            self._fernet = Fernet(key)
+                    self._fernet = Fernet(key)
+            # 锁外收紧权限（仅首次生成时；避免持锁跨 await）
+            if getattr(self, "_new_key_created", False):
+                try:
+                    key_path = Path(get("system.data_dir", "./data")) / ".key"
+                    await asyncio.to_thread(key_path.chmod, 0o600)
+                except Exception:
+                    pass
+                self._new_key_created = False
         return self._fernet
 
     async def connect(self):
@@ -96,7 +103,10 @@ class Database:
                 return
 
             # 配置数据库参数～
-            journal = get("database.journal_mode", "wal")
+            journal = str(get("database.journal_mode", "wal")).lower()
+            if journal not in ("wal", "delete", "truncate", "persist", "memory", "off"):
+                logger.warning(f"非法 journal_mode 配置: {journal}，回退为 wal")
+                journal = "wal"
             timeout = get("database.timeout", 5.0)
 
             self._conn = await _open_connection(
@@ -247,8 +257,8 @@ class Database:
             "endpoint": row[2],
             "model": row[3],
             "api_key": key,
-            "parameters": json.loads(row[5]),
-            "tags": json.loads(row[6]),
+            "parameters": json.loads(row[5]) if row[5] else {},
+            "tags": json.loads(row[6]) if row[6] else [],
             "cost_per_1k_tokens": row[7],
             "max_context": row[8],
             "enabled": bool(row[9]),

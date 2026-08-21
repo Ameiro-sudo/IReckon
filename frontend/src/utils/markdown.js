@@ -15,12 +15,24 @@ marked.setOptions({
   breaks: true
 })
 
+const escapeAttr = (s) =>
+  String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+const safeUrl = (u) => {
+  const s = String(u ?? '').trim()
+  if (/^(https?:|mailto:)/i.test(s)) return s
+  if (/^[./#]/.test(s) && !/^\/\//.test(s)) return s
+  return '#'
+}
+
 marked.use({
   renderer: {
     link({ href, title, tokens }) {
       const text = this.parser.parseInline(tokens)
-      const attrs = `href="${href}"${title ? ` title="${title}"` : ''} target="_blank" rel="noopener noreferrer"`
-      return `<a ${attrs}>${text}</a>`
+      const url = escapeAttr(safeUrl(href))
+      const titleAttr = title ? ` title="${escapeAttr(title)}"` : ''
+      return `<a href="${url}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`
     }
   }
 })

@@ -1,5 +1,6 @@
 """系统级 API：健康检查、统计、用量、日志、更新、自我进化。"""
 
+import secrets
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -51,7 +52,14 @@ async def auth_check(x_api_token: Optional[str] = Header(None)):
 
 
 @router.get("/health")
-async def health():
+async def health(x_api_token: Optional[str] = Header(None)):
+    # 免鉴权路径：未携带有效 token 时仅返回存活状态，不泄露内部运行信息
+    token = configured_token()
+    authenticated = bool(
+        token and x_api_token and secrets.compare_digest(x_api_token, token)
+    )
+    if not authenticated:
+        return {"status": "ok"}
     caps = await capability_pool.get_all(refresh=False)
     latest = await _check_update_cached()
     return {

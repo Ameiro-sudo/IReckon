@@ -1,13 +1,13 @@
 <template>
-  <div class="log-viewer">
-    <div class="log-toolbar">
-      <div class="flex-center">
-        <span class="live-dot" :class="{ on: connected }"></span>
-        <span class="text-sm text-secondary">{{ connected ? '实时连接中' : '连接断开' }}</span>
-        <span class="log-count text-xs text-muted">{{ filtered.length }} 条</span>
+  <div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-subtle px-3.5 py-2.5">
+      <div class="flex items-center gap-2">
+        <span class="lamp" :class="connected ? 'lamp-ok' : 'lamp-warn'"></span>
+        <span class="text-[13px] text-ink-2">{{ connected ? '实时连接中' : '连接断开' }}</span>
+        <span class="font-mono text-xs text-ink-3">{{ filtered.length }} 条</span>
       </div>
-      <div class="flex-center">
-        <select v-model="levelFilter" class="input log-filter" aria-label="日志级别筛选">
+      <div class="flex items-center gap-2">
+        <select v-model="levelFilter" class="input w-[110px]! px-2! py-1! text-xs" aria-label="日志级别筛选">
           <option value="">全部级别</option>
           <option value="DEBUG">DEBUG</option>
           <option value="INFO">INFO</option>
@@ -15,37 +15,40 @@
           <option value="ERROR">ERROR</option>
         </select>
         <button class="btn btn-secondary btn-sm" @click="clear">清空</button>
-        <button class="btn btn-secondary btn-sm" @click="pauseToggle" :class="{ active: !autoscroll }">
+        <button class="btn btn-secondary btn-sm" :class="{ 'border-accent-border! bg-accent-soft! text-accent!': !autoscroll }" @click="pauseToggle">
           {{ autoscroll ? '暂停滚动' : '恢复滚动' }}
         </button>
       </div>
     </div>
 
-    <div class="log-body" ref="bodyRef" role="log" aria-live="polite" aria-label="系统日志">
-      <div v-for="(l, i) in filtered" :key="i" class="log-line" :class="`lv-${l.level.toLowerCase()}`">
-        <span class="log-level">{{ l.level }}</span>
-        <span class="log-msg">{{ l.message }}</span>
+    <div ref="bodyRef" class="min-h-0 flex-1 overflow-y-auto py-2.5 font-mono text-xs leading-relaxed" role="log" aria-live="polite" aria-label="系统日志">
+      <div
+        v-for="(l, i) in filtered"
+        :key="i"
+        class="flex gap-3 border-l-2 border-transparent px-4 py-0.5 break-all whitespace-pre-wrap hover:bg-hover"
+      >
+        <span class="w-[62px] shrink-0 text-[11px] font-semibold tracking-wide select-none" :class="levelColor(l.level)">{{ l.level }}</span>
+        <span class="text-ink-2">{{ l.message }}</span>
       </div>
-      <div v-if="!filtered.length" class="log-empty">暂无日志…</div>
+      <div v-if="!filtered.length" class="py-10 text-center text-ink-3">暂无日志…</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
-import {createWebSocket, statsAPI} from '../api/index.js'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { statsAPI } from '../api/index.js'
+import { useLiveSocket } from '../composables/useLiveSocket.js'
 
 const logs = ref([])
 const levelFilter = ref('')
-const connected = ref(false)
 const autoscroll = ref(true)
 const bodyRef = ref(null)
 const MAX_LOGS = 1000
-let ws = null
-let reconnectTimer = null
-let retries = 0
-// 连接代数守卫：防止卸载后旧 socket 回调触发幽灵重连
-let wsGeneration = 0
+
+// WS 生命周期统一由 useLiveSocket 管理（代数守卫 + 退避重连 + 心跳应答）
+const socket = useLiveSocket({ onMessage: handleMsg })
+const connected = socket.connected
 
 const filtered = computed(() => {
   if (!levelFilter.value) return logs.value
@@ -53,73 +56,28 @@ const filtered = computed(() => {
 })
 
 onMounted(async () => {
+  await loadHistory()
+  socket.connect(null)
+  await nextTick(() => scrollBottom())
+})
+
+onUnmounted(() => socket.disconnect())
+
+async function loadHistory() {
   try {
     const res = await statsAPI.logs(300)
     logs.value = res.data.slice(-MAX_LOGS)
   } catch {
     /* ignore */
   }
-  connectWs()
-  await nextTick(() => scrollBottom())
-})
-
-onUnmounted(() => disconnectWs())
-
-function connectWs() {
-  disconnectWs()
-  const gen = ++wsGeneration
-  try {
-    ws = createWebSocket()
-    ws.onopen = () => {
-      if (gen !== wsGeneration) return
-      connected.value = true; retries = 0
-    }
-    ws.onclose = () => {
-      if (gen !== wsGeneration) return
-      connected.value = false; scheduleReconnect()
-    }
-    ws.onmessage = (e) => {
-      if (gen !== wsGeneration) return
-      try {
-        const data = JSON.parse(e.data)
-        if (data.type === 'log') {
-          logs.value.push({ level: data.level || 'INFO', message: data.message })
-          if (logs.value.length > MAX_LOGS) logs.value.shift()
-          if (autoscroll.value) scrollBottom()
-        }
-      } catch {
-        if (e.data === 'ping') {
-          // readyState 守卫：非 OPEN 状态 send 会抛未捕获异常
-          if (ws && ws.readyState === WebSocket.OPEN) ws.send('pong')
-        }
-      }
-    }
-  } catch {
-    connected.value = false
-    scheduleReconnect()
-  }
 }
 
-function scheduleReconnect() {
-  if (reconnectTimer) return
-  const delay = Math.min(1000 * 2 ** retries, 15000)
-  retries += 1
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null
-    connectWs()
-  }, delay)
-}
-
-function disconnectWs() {
-  ++wsGeneration
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-  if (ws) {
-    // 先摘除事件处理器再 close，防止 onclose 触发幽灵重连
-    ws.onopen = ws.onclose = ws.onmessage = ws.onerror = null
-    try { ws.close() } catch { /* ignore */ }
-    ws = null
+function handleMsg(data) {
+  if (data.type === 'log') {
+    logs.value.push({ level: data.level || 'INFO', message: data.message })
+    if (logs.value.length > MAX_LOGS) logs.value.shift()
+    if (autoscroll.value) scrollBottom()
   }
-  connected.value = false
 }
 
 function clear() {
@@ -127,13 +85,8 @@ function clear() {
 }
 
 async function reload() {
-  try {
-    const res = await statsAPI.logs(300)
-    logs.value = res.data.slice(-MAX_LOGS)
-    await nextTick(() => scrollBottom())
-  } catch {
-    /* ignore */
-  }
+  await loadHistory()
+  await nextTick(() => scrollBottom())
 }
 
 function pauseToggle() {
@@ -146,105 +99,16 @@ function scrollBottom() {
   }
 }
 
+function levelColor(level) {
+  return {
+    DEBUG: 'text-ink-3',
+    INFO: 'text-info',
+    WARNING: 'text-warning',
+    ERROR: 'text-error'
+  }[level] || 'text-ink-3'
+}
+
 watch(levelFilter, () => nextTick(() => scrollBottom()))
 
 defineExpose({ reload })
 </script>
-
-<style scoped>
-.log-viewer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-}
-
-.log-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-  background: var(--bg-subtle);
-}
-
-.live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.live-dot.on {
-  background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-soft);
-}
-
-.log-count {
-  font-family: var(--font-mono);
-}
-
-.log-filter {
-  width: 110px;
-  padding: 4px 8px;
-  font-size: 12px;
-}
-
-.btn-sm.active {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
-
-.log-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.log-line {
-  display: flex;
-  gap: 12px;
-  padding: 2px 16px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  border-left: 2px solid transparent;
-}
-
-.log-line:hover {
-  background: var(--bg-hover);
-}
-
-.log-level {
-  flex-shrink: 0;
-  width: 62px;
-  font-weight: 600;
-  user-select: none;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-}
-
-.lv-debug .log-level { color: var(--text-muted); }
-.lv-info .log-level { color: var(--info); }
-.lv-warning .log-level { color: var(--warning); }
-.lv-error .log-level { color: var(--error); }
-
-.log-msg {
-  color: var(--text-secondary);
-}
-
-.log-empty {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 40px 0;
-}
-</style>

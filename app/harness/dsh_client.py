@@ -7,6 +7,7 @@ DeepSeek Harness (dsh) 客户端
 import asyncio
 import importlib.util
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -279,8 +280,17 @@ class DSHClient:
         return bool(self._get("enabled", True))
 
     def _session_lock(self, session_root: str, session_id: str) -> asyncio.Lock:
-        """per-session 互斥锁：key = session_root + session_id。"""
-        key = f"{session_root}|{session_id}"
+        """per-session 互斥锁：key = session_root + session_id + 当前事件循环。
+
+        锁按事件循环隔离：dsh_task 的线程回退路径会在独立 loop 中运行
+        同一单例，跨 loop 复用同一把 asyncio.Lock 会抛
+        "attached to a different loop"。
+        """
+        try:
+            loop_key = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_key = 0
+        key = f"{loop_key}|{session_root}|{session_id}"
         lock = self._session_locks.get(key)
         if lock is None:
             lock = asyncio.Lock()
@@ -310,6 +320,12 @@ class DSHClient:
                 policy_mode = str(
                     self._get("policy_mode", "danger-full-access")
                 ).strip()
+                # 白名单校验，防止配置值注入额外 YAML 结构
+                if not re.fullmatch(r"[A-Za-z0-9_.-]+", policy_mode):
+                    logger.warning(
+                        f"非法 harness.policy_mode 值: {policy_mode!r}，回退为 workspace-restricted"
+                    )
+                    policy_mode = "workspace-restricted"
                 template = DEFAULT_CORDIS_TEMPLATE.replace(
                     "mode: danger-full-access", f"mode: {policy_mode}", 1
                 )
@@ -334,8 +350,13 @@ class DSHClient:
             return None
         try:
             text = cordis.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
+        except OSError as e:
+            # 读不到策略文件就无法证明它不是 danger-full-access，
+            # 与安全门整体语义一致：fail-closed 拒绝执行
+            return (
+                f"无法读取 cordis 策略配置（{e}），安全门无法验证沙箱策略，"
+                "已拒绝执行；请修复文件权限或显式设置 harness.allow_full_access"
+            )
         if "danger-full-access" in text:
             return (
                 "dsh sandbox-policy 为 danger-full-access（宿主机完全访问），"

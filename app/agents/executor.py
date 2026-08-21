@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Optional, Tuple
 from loguru import logger
 
 from .base import BaseAgent
@@ -316,6 +316,18 @@ class ExecutorAgent(BaseAgent):
             return current_files
         return new_files
 
+    @staticmethod
+    def _sanitize_filename(filename: str) -> Optional[str]:
+        normalized = filename.strip().replace("\\", "/")
+        if not normalized or normalized.startswith(("/", "~")):
+            return None
+        if re.match(r"^[A-Za-z]:", normalized):
+            return None
+        parts = [p for p in normalized.split("/") if p not in ("", ".")]
+        if not parts or any(p == ".." for p in parts):
+            return None
+        return "/".join(parts)
+
     def _parse_artifacts(
         self, response: str, language: str = "python"
     ) -> Dict[str, str]:
@@ -341,10 +353,12 @@ class ExecutorAgent(BaseAgent):
                 if len(lines) >= 2:
                     filename = lines[0].strip()
                     filename = filename.strip("`").strip().strip("*").strip()
-                    if not filename:
+                    safe_name = self._sanitize_filename(filename)
+                    if not safe_name:
+                        logger.warning(f"忽略非法产物文件名: {filename!r}")
                         continue
                     content = clean(lines[1])
-                    artifacts[filename] = content
+                    artifacts[safe_name] = content
         return artifacts
 
     async def execute(self, task_data: Dict[str, Any]) -> Dict[str, Any]:

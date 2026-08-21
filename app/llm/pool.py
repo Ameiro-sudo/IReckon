@@ -101,12 +101,12 @@ class CapabilityPool:
 
     async def get_by_id(self, iid):
         # 检查内存缓存
-        now = time.time()
+        now = time.monotonic()
         if iid in self._memory_cache:
             cached_time = self._cache_timestamps.get(iid, 0)
             if now - cached_time < self._cache_ttl:
                 # 返回副本，避免调用方修改共享缓存对象（如意外改动 enabled）
-                return copy.copy(self._memory_cache[iid])
+                return copy.deepcopy(self._memory_cache[iid])
 
         if not self.capabilities:
             await self.refresh()
@@ -120,7 +120,7 @@ class CapabilityPool:
         if result:
             self._memory_cache[iid] = result
             self._cache_timestamps[iid] = now
-            return copy.copy(result)
+            return copy.deepcopy(result)
         return result
 
     async def find_best_match(

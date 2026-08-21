@@ -102,3 +102,51 @@
 ## 总体评价
 
 架构清晰、安全意识高于同类项目（参数化 SQL、路径穿越防护、secrets.compare_digest 等均到位），但多处防护存在"注释说做了、代码没做"的实现漂移。本次修复以"危险操作默认关闭 + 显式开启"为原则落地 P0/P1，遗留项均已标注暂缓原因与后续方向。
+
+---
+
+# 第二轮审查（2026-08-21 · 针对 master @ f7f0b97 全量复审）
+
+> 方法：3 路并行深读 + 手工核实行号；对照第一轮清单去重后新增 27 项，本轮修复 20 项。
+
+## 新增 P0（已全部修复）
+
+- [x] **R2-P0-1 self_improve `_write_files` 路径穿越**：`base_dir / filepath` 对绝对路径直接返回右侧，LLM 可写任意位置。已加 `resolve()` 包含检查，越界拒绝。
+- [x] **R2-P0-2 executor `_parse_artifacts` 文件名无校验**：`//// filename:` 后内容直接作路径。已加 `_sanitize_filename`（拒绝绝对路径/`..`/盘符），非法名记日志丢弃。
+- [x] **R2-P0-3 config `save_value` 类型损坏**：`json.dumps(str(value))` 把布尔/数字写成字符串。已改为 `json.dumps(value)` 保留原类型。
+- [x] **R2-P0-4 database NULL 行崩溃**：`json.loads(row[5])` 遇 NULL 抛 TypeError。已加空值回退（`{}` / `[]`）。
+- [x] **R2-P0-5 信号处理器 task 未持引用**：`create_task(app.shutdown())` 可能被 GC 致优雅停机失效。已存入集合并挂 done_callback。
+- [-] **R2-P0-6 asyncio.Lock 在无循环线程创建**：不修。项目 requires-python >=3.10，Lock 自 3.10 起惰性绑定循环，构造时无循环是安全的；真正的跨 loop 风险由 R2-P1-8 解决。
+
+## 新增 P1（已修复 7 项，暂缓 1 项）
+
+- [x] **R2-P1-1 dsh `_cordis_config` YAML 注入**：policy_mode 以 f-string 直插模板。已加 `[A-Za-z0-9_.-]+` 白名单，非法回退 workspace-restricted。
+- [x] **R2-P1-2 markdown 链接属性未转义**：href/title 直接拼 HTML。已加属性转义 + URL scheme 白名单（http/https/mailto/相对路径）。
+- [x] **R2-P1-3 config API `ui.*` 前缀全放行**：可注入深层嵌套键。已收紧为两级且段名限 `[A-Za-z0-9_-]{1,64}`。
+- [x] **R2-P1-4 http_tool 回传完整响应头**：Set-Cookie/Authorization 进入 LLM 上下文。已过滤敏感头黑名单。
+- [x] **R2-P1-5 logger 队列双 level 前缀**：sink 手拼 `LEVEL|` 与 format 重复，WS 推送消息带冗余前缀。已只发 `str(message)`。
+- [x] **R2-P1-6 npm install 同步阻塞事件循环**：`_start_frontend` 中 subprocess.run 可阻塞数分钟。已包 `asyncio.to_thread`。
+- [x] **R2-P1-7 `_get_cipher` TOCTOU**：并发首初始化可能双写 .key 致旧数据无法解密。已加 threading.Lock 双检锁，chmod 移出锁外避免持锁跨 await。
+- [-] **R2-P1-8 dsh_harness 跨线程复用 asyncio.Lock**：以按事件循环隔离的锁 key 缓解（每 loop 独立锁）；彻底方案（threading.Lock 化 session 锁）涉及执行语义变更，观察后续。
+
+## 新增 P2（已修复 7 项，暂缓 6 项）
+
+- [x] R2-P2-1 pool.py 浅拷贝污染缓存 → `copy.deepcopy`。
+- [x] R2-P2-2 pool.py 混用 time.time/monotonic → 统一 monotonic。
+- [x] R2-P2-3 PRAGMA journal_mode 字符串拼接 → 白名单校验。
+- [x] R2-P2-4 state.py 快照清理同步 unlink → to_thread。
+- [x] R2-P2-5 save_value 固定临时文件名并发竞态 → tempfile.mkstemp 唯一名。
+- [x] R2-P2-6 `/api/health` 免鉴权泄露内部状态 → 未携带有效 token 仅返回 `{"status":"ok"}`。
+- [x] R2-P2-7 `_serve_once2` closing 参数未接线 → 加 watcher 置 should_exit。
+- [-] R2-P2-8 updater reveal_type 残留 → 第一轮已在特性分支清理。
+- [-] R2-P2-9 WS token 走 URL query → 同第一轮 P1-11 暂缓（需首帧鉴权协议改造）。
+- [-] R2-P2-10 http_tool 异常返回 str(e) → 错误信息对 LLM 重试有价值，仅记录不改。
+- [-] R2-P2-11 前端路由守卫仅查 localStorage 存在性 → 后端已强制鉴权，纯 UI 卫生项。
+- [-] R2-P2-12 CI 缓存隔离 / buildozer.spec 敏感值 → 子代理结论证据不足，未采纳。
+
+## 第二轮验证
+
+- `pytest`：**120 passed**（当前分支全量）
+- `ruff check app/ main.py tests/test_api.py`：All checks passed
+- `mypy app/ --ignore-missing-imports`：本次修改文件 0 error（剩余为既有 watchdog import 模式与环境性 numpy stubs）
+- 前端 `npm run build`：构建成功

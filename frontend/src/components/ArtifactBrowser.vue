@@ -1,100 +1,79 @@
 <template>
-  <div class="artifact-browser">
-    <div class="ab-side">
-      <div class="ab-task-search">
-        <input v-model="searchText" class="input" placeholder="搜索任务..." />
-      </div>
-      <div class="ab-task-list">
-        <div
-          v-for="task in filteredTasks"
-          :key="task.task_id"
-          class="ab-task"
-          :class="{ active: selected?.task_id === task.task_id }"
-          @click="selectTask(task)"
-          :title="task.user_request"
-        >
-          <span class="ab-task-name overflow-ellipsis">{{ taskTitle(task) }}</span>
-          <StatusPill :status="task.status" />
-        </div>
-        <div v-if="!filteredTasks.length" class="text-muted text-sm" style="padding: 20px; text-align: center;">
-          暂无任务
-        </div>
-      </div>
-    </div>
+  <div class="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-line bg-surface">
+    <aside class="flex w-[280px] shrink-0 flex-col bg-subtle max-md:w-full max-md:max-h-[200px] max-md:border-b">
+      <TaskListRail :tasks="tasks" v-model="selected" empty-text="暂无任务" />
+    </aside>
 
-    <div class="ab-main">
+    <section class="flex min-w-0 flex-1 flex-col max-md:hidden" :class="{ 'flex!': selected }">
       <template v-if="selected">
-        <div class="ab-head">
-          <div class="ab-head-info">
-            <div class="text-sm text-secondary overflow-ellipsis" style="max-width: 400px;">
-              {{ selected.user_request?.slice(0, 60) || '无描述' }}
-            </div>
-            <div class="flex-center gap-8">
+        <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3 max-sm:flex-wrap">
+          <div class="flex min-w-0 flex-col gap-1">
+            <div class="max-w-[400px] truncate text-[13px] text-ink-2">{{ selected.user_request?.slice(0, 60) || '无描述' }}</div>
+            <div class="flex items-center gap-2">
               <StatusPill :status="selected.status" />
-              <span class="mono text-muted">{{ selected.task_id }}</span>
+              <span class="font-mono text-xs text-ink-3">{{ selected.task_id }}</span>
             </div>
           </div>
-          <div class="flex-center">
-            <a :href="downloadUrl" class="btn btn-secondary btn-sm" target="_blank">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              下载 ZIP
-            </a>
-          </div>
+          <a :href="downloadUrl" class="btn btn-secondary btn-sm shrink-0" target="_blank">
+            <AppIcon name="download" :size="12" />
+            下载 ZIP
+          </a>
         </div>
 
-        <div class="ab-body">
-          <div class="ab-files">
-            <div v-if="!files.length" class="empty-state">
-              <p class="text-sm">该任务暂无产物</p>
-            </div>
-            <div
+        <div class="flex min-h-0 flex-1 max-md:flex-col">
+          <div class="w-[260px] shrink-0 overflow-y-auto border-r border-line bg-subtle p-1.5 max-md:w-full max-md:max-h-[150px] max-md:border-r-0 max-md:border-b">
+            <div v-if="!files.length" class="p-5 text-center text-[13px] text-ink-3">该任务暂无产物</div>
+            <button
               v-for="f in files"
               :key="f.path"
-              class="ab-file"
-              :class="{ active: current?.path === f.path }"
+              class="sig mb-0.5 flex w-full items-center gap-2 rounded-md border border-transparent px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-hover"
+              :class="{ 'on border-line-strong bg-surface shadow-sm': current?.path === f.path }"
               @click="openFile(f)"
             >
-              <span class="ab-file-icon">
-                <svg v-if="isText(f)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>
+              <span class="flex shrink-0 text-ink-3">
+                <AppIcon :name="isText(f) ? 'file' : 'fileBinary'" :size="12" />
               </span>
-              <span class="ab-file-path mono overflow-ellipsis">{{ f.path }}</span>
-              <span class="ab-file-size mono text-muted">{{ formatSize(f.size) }}</span>
-            </div>
+              <span class="flex-1 truncate font-mono text-xs text-ink">{{ f.path }}</span>
+              <span class="shrink-0 font-mono text-xs text-ink-3">{{ formatSize(f.size) }}</span>
+            </button>
           </div>
 
-          <div class="ab-preview">
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col">
             <template v-if="current">
-              <div class="ab-preview-head">
-                <span class="mono text-sm">{{ current.path }}</span>
-                <span class="mono text-muted text-xs">{{ formatSize(current.size) }}</span>
+              <div class="flex items-center justify-between border-b border-line bg-subtle px-4 py-2">
+                <span class="truncate font-mono text-[13px] text-ink">{{ current.path }}</span>
+                <span class="ml-3 shrink-0 font-mono text-xs text-ink-3">{{ formatSize(current.size) }}</span>
               </div>
-              <pre v-if="content !== null" class="ab-code"><code class="hljs" v-html="highlighted"></code></pre>
-              <div v-else class="empty-state">
-                <p class="text-sm">二进制或超大文件，无法预览</p>
+              <pre v-if="content !== null" class="m-0 min-h-0 flex-1 overflow-auto p-4 font-mono text-[13px] leading-relaxed whitespace-pre text-code"><code class="hljs" v-html="highlighted"></code></pre>
+              <div v-else class="empty-state flex-1">
+                <p>二进制或超大文件，无法预览</p>
               </div>
             </template>
-            <div v-else class="empty-state">
-              <p class="text-sm">选择左侧文件查看内容</p>
+            <div v-else class="empty-state flex-1">
+              <p>选择左侧文件查看内容</p>
             </div>
           </div>
         </div>
       </template>
 
-      <div v-else class="empty-state" style="flex: 1;">
-        <p class="text-sm">选择左侧任务查看交付产物</p>
+      <div v-else class="empty-state flex-1">
+        <div class="empty-icon"><AppIcon name="box" :size="19" /></div>
+        <p>选择左侧任务查看交付产物</p>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import {computed, onMounted, ref} from 'vue'
-import {useTaskStore} from '../stores/taskStore.js'
-import {taskAPI} from '../api/index.js'
-import {highlightCode} from '../utils/markdown.js'
-import {taskTitle} from '../utils/task.js'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useTaskStore } from '../stores/taskStore.js'
+import { taskAPI } from '../api/index.js'
+import { highlightCode } from '../utils/markdown.js'
+import { taskTitle } from '../utils/task.js'
+import { formatSize } from '../utils/format.js'
 import StatusPill from './StatusPill.vue'
+import TaskListRail from './TaskListRail.vue'
+import AppIcon from './ui/AppIcon.vue'
 
 const taskStore = useTaskStore()
 const tasks = computed(() => taskStore.tasks)
@@ -102,15 +81,8 @@ const selected = ref(null)
 const files = ref([])
 const current = ref(null)
 const content = ref(null)
-const searchText = ref('')
 
 const TEXT_EXTS = ['py', 'js', 'ts', 'vue', 'json', 'yaml', 'yml', 'toml', 'md', 'txt', 'html', 'css', 'sh', 'bat', 'sql', 'xml', 'ini', 'env', 'cfg', 'log', 'tsx', 'jsx', 'dockerfile', 'gitignore']
-
-const filteredTasks = computed(() => {
-  const q = searchText.value.toLowerCase()
-  if (!q) return tasks.value
-  return tasks.value.filter(t => (t.user_request || '').toLowerCase().includes(q))
-})
 
 const downloadUrl = computed(() => selected.value ? taskAPI.downloadUrl(selected.value.task_id) : '#')
 
@@ -121,8 +93,7 @@ const highlighted = computed(() => {
 
 onMounted(() => taskStore.fetchTasks())
 
-async function selectTask(task) {
-  selected.value = task
+async function selectArtifacts(task) {
   files.value = []
   current.value = null
   content.value = null
@@ -152,205 +123,7 @@ async function openFile(f) {
   }
 }
 
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-}
+watch(selected, (task) => {
+  if (task) selectArtifacts(task)
+})
 </script>
-
-<style scoped>
-.artifact-browser {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-}
-
-.ab-side {
-  width: 280px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--bg-subtle);
-}
-
-.ab-task-search {
-  padding: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.ab-task-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px;
-}
-
-.ab-task {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.1s ease;
-  border: 1px solid transparent;
-}
-
-.ab-task:hover {
-  background: var(--bg-hover);
-}
-
-.ab-task.active {
-  background: var(--bg-surface);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
-}
-
-.ab-task-name {
-  font-size: 13px;
-  color: var(--text);
-  flex: 1;
-}
-
-.ab-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.ab-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.ab-head-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.ab-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-.ab-files {
-  width: 260px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 6px;
-  background: var(--bg-subtle);
-}
-
-.ab-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 9px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.1s ease;
-  border: 1px solid transparent;
-}
-
-.ab-file:hover {
-  background: var(--bg-hover);
-}
-
-.ab-file.active {
-  background: var(--bg-surface);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
-}
-
-.ab-file-icon {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  display: flex;
-}
-
-.ab-file-path {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text);
-}
-
-.ab-file-size {
-  flex-shrink: 0;
-}
-
-.ab-preview {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.ab-preview-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-subtle);
-}
-
-.ab-code {
-  flex: 1;
-  overflow: auto;
-  padding: 16px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--code-text);
-  background: var(--code-bg);
-  white-space: pre;
-  margin: 0;
-}
-
-.ab-code code {
-  font-family: var(--font-mono);
-  background: transparent;
-  white-space: pre;
-}
-
-@media (max-width: 768px) {
-  .ab-side { width: 220px; }
-  .ab-files { width: 180px; }
-}
-
-@media (max-width: 480px) {
-  .artifact-browser { flex-direction: column; }
-  .ab-side {
-    width: 100%;
-    max-height: 200px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .ab-body { flex-direction: column; }
-  .ab-files {
-    width: 100%;
-    max-height: 150px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .ab-head { flex-wrap: wrap; }
-  .ab-preview { min-height: 300px; }
-}
-</style>

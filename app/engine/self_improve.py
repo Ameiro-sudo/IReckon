@@ -389,8 +389,12 @@ class SelfImprover:
 
     def _write_files(self, patched: Dict[str, str]) -> None:
         """把修改写入磁盘；目录不存在时自动创建。"""
+        base_resolved = self._base_dir.resolve()
         for filepath, content in patched.items():
-            full_path = self._base_dir / filepath
+            full_path = (self._base_dir / filepath).resolve()
+            if not full_path.is_relative_to(base_resolved):
+                logger.warning(f"拒绝越界写入（路径穿越防护）: {filepath}")
+                continue
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(content, encoding="utf-8")
 

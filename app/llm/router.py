@@ -59,8 +59,15 @@ async def acquire(
       回退主通道（会消耗按次调用，打警告日志）；
     - heavy/judgment：只在主通道里选（排除执行通道实例，避免判断点被
       轻模型糊弄）。
+
+    未知 tier 直接抛错而非静默落到主通道——主通道按次计费，拼写错误
+    不该烧掉真实配额。
     """
-    channel = TIER_CHANNELS.get(str(tier).lower(), "primary")
+    channel = TIER_CHANNELS.get(str(tier).lower())
+    if channel is None:
+        raise ValueError(
+            f"未知 tier: {tier!r}（可选: {', '.join(sorted(TIER_CHANNELS))}）"
+        )
     if channel == "execution":
         cap = await capability_pool.find_best_match(
             required_tags=(required_tags or []) + [CHANNEL_EXECUTION_TAG],

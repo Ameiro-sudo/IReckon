@@ -1,7 +1,6 @@
 <template>
   <div class="view-root">
-    <PageHeader title="交付产物" subtitle="浏览所有任务生成的交付文件">
-    </PageHeader>
+    <PageHeader title="交付产物" subtitle="浏览所有任务生成的交付文件" />
 
     <div class="fill-view">
       <ArtifactBrowser />
@@ -10,8 +9,8 @@
 </template>
 
 <script setup>
-import {onMounted, onUnmounted} from 'vue'
-import {useTaskStore} from '../stores/taskStore.js'
+import { onMounted, onUnmounted } from 'vue'
+import { useTaskStore } from '../stores/taskStore.js'
 import PageHeader from '../components/PageHeader.vue'
 import ArtifactBrowser from '../components/ArtifactBrowser.vue'
 

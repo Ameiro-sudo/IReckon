@@ -16,6 +16,22 @@ import httpx
 DEFAULT_TIMEOUT = 10.0
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1MB
 
+# 不回传给调用方（LLM）的敏感响应头，避免 Cookie/凭证进入对话上下文
+_SENSITIVE_RESPONSE_HEADERS = {
+    "set-cookie",
+    "cookie",
+    "authorization",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "www-authenticate",
+}
+
+
+def _safe_response_headers(headers: httpx.Headers) -> Dict[str, str]:
+    return {
+        k: v for k, v in headers.items() if k.lower() not in _SENSITIVE_RESPONSE_HEADERS
+    }
+
 
 def _is_safe_url(url: str) -> str:
     """校验 URL scheme 与目标 IP，返回规范化 URL；不安全时抛 ValueError。"""
@@ -79,7 +95,7 @@ def http_request(
                 text = text[:MAX_RESPONSE_BYTES] + "\n...[响应超限截断]"
             result = {
                 "status_code": response.status_code,
-                "headers": dict(response.headers),
+                "headers": _safe_response_headers(response.headers),
                 "text": text,
                 "elapsed": response.elapsed.total_seconds(),
             }

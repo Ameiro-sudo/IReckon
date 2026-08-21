@@ -1,3 +1,4 @@
+import asyncio
 import json
 import copy
 from datetime import datetime, timezone
@@ -79,7 +80,7 @@ class StateManager:
         snapshots = sorted(self.states_dir.glob("snapshot_*.json"))
         if len(snapshots) > self.max_snapshots:
             for old in snapshots[: -self.max_snapshots]:
-                old.unlink()
+                await asyncio.to_thread(old.unlink)
 
     async def load_latest_snapshot(self) -> Optional[Dict[str, Any]]:
         snapshots = sorted(self.states_dir.glob("snapshot_*.json"))

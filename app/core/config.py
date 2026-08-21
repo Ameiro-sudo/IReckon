@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -263,14 +264,18 @@ class ConfigManager:
             m = pattern.match(stripped)
             if not m:
                 continue
-            new_value = json.dumps(str(value), ensure_ascii=False)
+            new_value = json.dumps(value, ensure_ascii=False)
             rebuilt = f"{m.group(1)}{name}: {new_value}"
             if m.group(3):
                 rebuilt += f"  {m.group(3)}"
             lines[i] = rebuilt + ("\n" if line.endswith("\n") else "")
-            tmp_path = self.config_path.with_suffix(".yaml.tmp")
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(self.config_path.parent), suffix=".yaml.tmp"
+            )
+            tmp_path = Path(tmp_name)
             try:
-                tmp_path.write_text("".join(lines), encoding="utf-8")
+                with os.fdopen(fd, "w", encoding="utf-8") as tf:
+                    tf.write("".join(lines))
                 tmp_path.replace(self.config_path)
             except Exception as exc:
                 logger.warning(f"配置文件写入失败，无法持久化 {key}: {exc}")
