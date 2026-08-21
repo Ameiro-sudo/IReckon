@@ -98,7 +98,12 @@ export const statsAPI = {
 }
 
 export const selfImproveAPI = {
+  // 后台任务化：立即返回 started/busy/error，进度经 status 轮询
   analyze: () => api.post('/self-improve'),
+
+  status: () => api.get('/self-improve/status'),
+
+  history: () => api.get('/self-improve/history'),
 
   push: () => api.post('/self-improve/push')
 }
