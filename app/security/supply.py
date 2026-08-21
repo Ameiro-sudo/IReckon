@@ -17,6 +17,18 @@ class SupplyChainFirewall:
         r"(?:^|\s)(?:npm|yarn|pnpm|npx)\s+(?:install|add|i)\b",
         re.IGNORECASE,
     )
+    # 无空格的编程 API 列表形式：subprocess.run(["pip","install","pkg"]) /
+    # os.execv("npm", ["npm","add",...]) 等单 token 载荷，绕过上面的空白边界正则
+    _LIST_PIP_SEQ_RE = re.compile(
+        r"[\"'](?:python[32]?|py)[\"']\s*,\s*[\"']-m[\"']\s*,\s*[\"']pip3?[\"']"
+        r"|"
+        r"[\"'](?:pip3?|pipx|uv|poetry|conda)[\"']\s*,\s*[\"'](?:install|add|i)[\"']",
+        re.IGNORECASE,
+    )
+    _LIST_NPM_SEQ_RE = re.compile(
+        r"[\"'](?:npm|yarn|pnpm|npx)[\"']\s*,\s*[\"'](?:install|add|i)[\"']",
+        re.IGNORECASE,
+    )
 
     def __init__(self):
         self._pip_blacklist = [
@@ -79,6 +91,23 @@ class SupplyChainFirewall:
                 return False
         return True
 
+    # 编程 API 列表形式里提取所有短字符串字面量（带括号/逗号噪声的代码片段）
+    _STRING_LITERAL_RE = re.compile(r"[\"']([^\"'\n]{1,160})[\"']")
+
+    def _literals_blocked(self, text: str, blacklist: list, kind: str) -> bool:
+        """对原始文本中的全部引号字面量做黑名单扫描；命中返回 True（阻断）。
+
+        列表形式的调用（subprocess.run(["pip","install","pkg"])）经 shlex
+        切分后 token 混入括号/逗号噪声，逐 token 提取常提取不到干净包名；
+        直接扫字面量更稳。
+        """
+        for lit in self._STRING_LITERAL_RE.findall(text):
+            pkg = self._extract_package_name(lit)
+            if pkg and pkg in blacklist:
+                logger.warning(f"供应链防火墙拦截 {kind} 包(列表形式): {pkg}")
+                return True
+        return False
+
     def _check_requirements_line(self, line: str) -> bool:
         """检查 requirements 单行：含 -e/--editable 与 http 明文源拦截。"""
         line = line.strip()
@@ -120,8 +149,14 @@ class SupplyChainFirewall:
         except ValueError:
             tokens = stripped.split()
 
-        is_pip = bool(self._PIP_INSTALL_RE.search(stripped))
-        is_npm = bool(self._NPM_INSTALL_RE.search(stripped))
+        is_pip = bool(
+            self._PIP_INSTALL_RE.search(stripped)
+            or self._LIST_PIP_SEQ_RE.search(stripped)
+        )
+        is_npm = bool(
+            self._NPM_INSTALL_RE.search(stripped)
+            or self._LIST_NPM_SEQ_RE.search(stripped)
+        )
         if not is_pip and not is_npm:
             return True
 
@@ -149,7 +184,11 @@ class SupplyChainFirewall:
                     return False
 
         if is_pip:
+            if self._literals_blocked(stripped, self._pip_blacklist, "pip"):
+                return False
             return self._check_packages(tokens, self._pip_blacklist, "pip")
+        if self._literals_blocked(stripped, self._npm_blacklist, "npm"):
+            return False
         return self._check_packages(tokens, self._npm_blacklist, "npm")
 
     async def check(self, command: str) -> bool:

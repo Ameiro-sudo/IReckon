@@ -23,6 +23,22 @@ _UPDATE_WHITELIST = {
 
 _KEY_SEGMENT = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
+# frontend_dev_url 仅允许本机回环地址：该值会被 dist 缺失分支用作
+# RedirectResponse 目标（api.py），白名单外任意 URL 即开放重定向
+_DEV_URL_RE = re.compile(r"^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/?$")
+
+
+def _validate_update_value(key: str, value: Any) -> Any:
+    """按 key 校验待写入的值；非法即 403。返回（可选规范化的）原值。"""
+    if key == "server.frontend_dev_url":
+        if not isinstance(value, str) or not _DEV_URL_RE.match(value.strip()):
+            raise HTTPException(
+                403,
+                "server.frontend_dev_url 仅允许本机 http(s)://127.0.0.1|localhost|::1 地址",
+            )
+        return value.strip()
+    return value
+
 
 def _is_allowed_update_key(key: str) -> bool:
     if key in _UPDATE_WHITELIST:
@@ -62,7 +78,7 @@ async def update_config(req: ConfigUpdateRequest):
         d = current
         for k in keys[:-1]:
             d = d.setdefault(k, {})
-        d[keys[-1]] = value
+        d[keys[-1]] = _validate_update_value(key, value)
     # 原子写入：先写临时文件再替换，避免写一半损坏配置
     fd, tmp = tempfile.mkstemp(dir=str(config_path.parent), suffix=".tmp")
     try:

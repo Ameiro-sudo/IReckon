@@ -14,6 +14,8 @@ router = APIRouter(prefix="/api", tags=["uploads"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES = 20
+# 上传区总配额：认证后仍可脚本化灌盘（每请求 ≤200MB），设总量上限防磁盘耗尽
+UPLOADS_QUOTA_BYTES = 500 * 1024 * 1024
 # 上传文件扩展名白名单
 _ALLOWED_EXTENSIONS = {
     ".py",
@@ -39,6 +41,21 @@ _ALLOWED_EXTENSIONS = {
 }
 
 
+def _uploads_usage_bytes(root: Path) -> int:
+    """统计上传区已用空间；统计失败按 0 处理（不因枚举异常阻断正常上传）。"""
+    total = 0
+    try:
+        for p in root.rglob("*"):
+            try:
+                if p.is_file():
+                    total += p.stat().st_size
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return total
+
+
 @router.post("/uploads")
 async def upload_files(files: List[UploadFile] = File(...)):
     """批量上传参考文件，返回 upload_id 供创建任务时引用。"""
@@ -55,6 +72,8 @@ async def upload_files(files: List[UploadFile] = File(...)):
         dest.relative_to(uploads_root)
     except ValueError:
         raise HTTPException(400, "非法上传路径")
+    if _uploads_usage_bytes(uploads_root) >= UPLOADS_QUOTA_BYTES:
+        raise HTTPException(413, "上传区总配额已满，请先清理旧附件")
     dest.mkdir(parents=True, exist_ok=True)
 
     saved = []
@@ -70,11 +89,23 @@ async def upload_files(files: List[UploadFile] = File(...)):
         if len(content) > MAX_FILE_SIZE:
             logger.warning(f"文件 {name} 超过大小限制，跳过")
             continue
-        (dest / name).write_bytes(content)
+        target = dest / name
+        try:
+            target.write_bytes(content)
+        except OSError as e:
+            # Windows 保留设备名(CON/NUL/COM1…)或磁盘故障：跳过并记录，
+            # 不让单个坏文件把整批请求打成 500（此前已写入的文件保留）
+            logger.warning(f"文件 {name} 写入失败({e})，跳过")
+            continue
         saved.append(
             {"name": name, "size": len(content), "path": f"uploads/{upload_id}/{name}"}
         )
 
     if not saved:
+        # 整批无效时清理空目录，避免孤儿目录堆积
+        try:
+            dest.rmdir()
+        except OSError:
+            pass
         raise HTTPException(400, "没有有效文件（扩展名不在白名单或超过大小限制）")
     return {"status": "ok", "upload_id": upload_id, "files": saved}

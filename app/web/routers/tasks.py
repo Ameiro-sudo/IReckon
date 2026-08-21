@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 import tempfile
 import zipfile
 from pathlib import Path
@@ -219,18 +220,38 @@ async def send_message(task_id: str, req: SendMessageRequest):
     return {"msg_id": msg.msg_id, "timestamp": msg.timestamp.isoformat()}
 
 
+# task_id 白名单：生成的 id 均为 <前缀>-<hex> 形态（task-/self- 等），
+# 显式拒绝点段与路径分隔符，杜绝 URL 路径段传 ".." 使产物端点退化为父目录
+_TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
 def _output_dir(task_id: str) -> Optional[Path]:
-    data_dir = Path(get("system.data_dir", "./data"))
+    if not _TASK_ID_RE.match(task_id):
+        return None
+    data_dir = Path(get("system.data_dir", "./data")).resolve()
     out_dir = Path(get("system.output_dir", str(data_dir / "outputs")))
     if not out_dir.is_absolute():
         out_dir = config_manager.base_dir / out_dir
+    out_dir = out_dir.resolve()
     candidates = [
         out_dir / task_id,
         data_dir / "harness" / "workspaces" / task_id,
     ]
     for c in candidates:
-        if c.is_dir():
-            return c
+        if not c.is_dir():
+            continue
+        resolved = c.resolve()
+        # confinement 双保险：解析后的候选目录必须仍位于 data 或 output 边界内
+        # （防符号链接/自定义 output_dir 组合下的边界逃逸）
+        for boundary in (data_dir, out_dir):
+            try:
+                resolved.relative_to(boundary)
+                break
+            except ValueError:
+                continue
+        else:
+            continue
+        return resolved
     return None
 
 

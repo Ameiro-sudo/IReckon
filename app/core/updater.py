@@ -185,32 +185,50 @@ class Updater:
                     names = ", ".join(a.get("name", "") for a in assets) or "(无附件)"
                     logger.error(f"Release 缺少 {ch} 渠道资产，现有: {names}")
                     return False
-                # 下载前校验：仅允许 https 且 host/路径归属固定仓库
-                if not _validate_zip_download_url(asset_url, self._repo):
-                    logger.error(f"更新包 URL 非法: {asset_url}")
-                    return False
-
                 suffix = ".exe" if ch == "installer" else ".zip"
                 local_path = Path(tempfile.gettempdir()) / (
                     f"IReckon-update-{ch}-{version}{suffix}"
                 )
                 logger.info(f"下载更新包({ch}): {asset_url}")
-                # 流式下载到磁盘，避免整包驻留内存，并限制大小防 zip 炸弹
-                async with client.stream("GET", asset_url) as dl_resp:
-                    if dl_resp.status_code != 200:
-                        logger.error(f"下载失败: {dl_resp.status_code}")
+                # 受控跟随重定向：httpx 默认不跟跳，而 GitHub 资产必经 302 到 CDN，
+                # 此前 portable 更新恒报"下载失败"。改为手动逐跳校验——每一跳都必须
+                # 重新通过 host/路径白名单（_validate_zip_download_url），防跳向任意外域。
+                download_url_hop = asset_url
+                saved = False
+                for _hop in range(5):
+                    if not _validate_zip_download_url(download_url_hop, self._repo):
+                        logger.error(
+                            f"更新包 URL 非法(第{_hop + 1}跳): {download_url_hop}"
+                        )
                         return False
-                    downloaded = 0
-                    with open(local_path, "wb") as f:
-                        async for chunk in dl_resp.aiter_bytes(_READ_CHUNK):
-                            downloaded += len(chunk)
-                            if downloaded > self._max_zip_bytes:
-                                logger.error(
-                                    f"更新包超过大小限制 "
-                                    f"({self._max_zip_bytes} bytes)，拒绝应用"
-                                )
+                    async with client.stream("GET", download_url_hop) as dl_resp:
+                        if dl_resp.status_code in (301, 302, 303, 307, 308):
+                            location = dl_resp.headers.get("location", "")
+                            if not location:
+                                logger.error("重定向缺少 Location 头")
                                 return False
-                            f.write(chunk)
+                            download_url_hop = str(
+                                httpx.URL(download_url_hop).join(location)
+                            )
+                            continue  # 关闭本跳响应，进入下一跳白名单校验
+                        if dl_resp.status_code != 200:
+                            logger.error(f"下载失败: {dl_resp.status_code}")
+                            return False
+                        downloaded = 0
+                        with open(local_path, "wb") as f:
+                            async for chunk in dl_resp.aiter_bytes(_READ_CHUNK):
+                                downloaded += len(chunk)
+                                if downloaded > self._max_zip_bytes:
+                                    logger.error(
+                                        f"更新包超过大小限制 "
+                                        f"({self._max_zip_bytes} bytes)，拒绝应用"
+                                    )
+                                    return False
+                                f.write(chunk)
+                        saved = True
+                if not saved:
+                    logger.error("更新包下载重定向跳数超限")
+                    return False
 
                 if ch == "installer":
                     # 安装器渠道：启动向导后即返回成功；不清理临时文件，

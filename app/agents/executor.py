@@ -318,6 +318,8 @@ class ExecutorAgent(BaseAgent):
 
     @staticmethod
     def _sanitize_filename(filename: str) -> Optional[str]:
+        from app.utils.filename import safe_segment
+
         normalized = filename.strip().replace("\\", "/")
         if not normalized or normalized.startswith(("/", "~")):
             return None
@@ -326,7 +328,14 @@ class ExecutorAgent(BaseAgent):
         parts = [p for p in normalized.split("/") if p not in ("", ".")]
         if not parts or any(p == ".." for p in parts):
             return None
-        return "/".join(parts)
+        # Windows 保留设备名/尾部点空格/NFKC 归一：不可挽救（退化空串）即整体拒绝
+        safe_parts = []
+        for p in parts:
+            s = safe_segment(p)
+            if not s:
+                return None
+            safe_parts.append(s)
+        return "/".join(safe_parts)
 
     def _parse_artifacts(
         self, response: str, language: str = "python"

@@ -67,12 +67,11 @@ class DelivererAgent(BaseAgent):
     @staticmethod
     def _safe_filename(name: str) -> str:
         """净化 LLM 提供的文件名，保留相对目录结构，防止路径穿越。"""
+        from app.utils.filename import safe_segment
+
         parts = []
         for seg in str(name).replace("\\", "/").split("/"):
-            seg = seg.strip()
-            if not seg or seg in (".", ".."):
-                continue
-            seg = seg.replace(":", "_").replace("\x00", "")
+            seg = safe_segment(seg.strip())
             if seg:
                 parts.append(seg)
         return "/".join(parts) if parts else "unnamed.txt"
