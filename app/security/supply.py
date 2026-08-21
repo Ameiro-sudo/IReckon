@@ -109,11 +109,14 @@ class SupplyChainFirewall:
             return True
         stripped = command.strip()
 
-        # 词法切分（容忍引号包裹的包名）
+        # 词法切分（容忍引号包裹的包名）。
+        # Windows 下必须用非 posix 模式：posix 会把路径反斜杠当转义符吞掉，
+        # 导致 `pip install -r C:\path\reqs.txt` 的清单被误判不存在而拒绝。
         try:
+            import os
             import shlex
 
-            tokens = shlex.split(stripped, posix=True)
+            tokens = shlex.split(stripped, posix=os.name != "nt")
         except ValueError:
             tokens = stripped.split()
 
