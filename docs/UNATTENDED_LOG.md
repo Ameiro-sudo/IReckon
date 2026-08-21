@@ -131,7 +131,10 @@
 - [x] 与用户 PR #6(任务表骨架屏)合并后 CI 绿 @ ba221b5
 
 ### 用户反馈待办队列（按收到顺序）
-1. PageHeader 大标题与内容区对齐
-2. 设置页"更新管理"区块元素挤成一团(检查更新按钮/渠道下拉/立即更新竖排堆叠)
-3. 自我进化页重写：过于简略+刷新丢状态 → 方案已定(后台任务化+内存运行态+历史持久化 data/self_improve/history.json+状态轮询端点)，实现未开始(self_improve.py 导入改动已回退保持树干净)
-4. AI 实例添加配置：预设芯片(DeepSeek/OpenAI/Kimi/Ollama)+扫描 /v1/models 让用户勾选模型；本地端点需 security.allow_private_endpoints 开关联动 SSRF 门禁(test/probe 一致)
+1. ~~PageHeader 大标题与内容区对齐~~ ✅ #10(contentClass) + #12(坐标系统一：页面盒模型上移 .view-root，根治 52px 双坐标系错位；SelfImprove 内容列回置 680) —— 几何断言实测重合(288/680)
+2. ~~设置页"更新管理"区块元素挤成一团~~ ✅ #10(分区重排+渠道下拉同行)
+3. 🎯 **已认领（ox-alpha 接管会话，00:2x 登记）** 自我进化页重写：过于简略+刷新丢状态 → 方案已定(后台任务化+内存运行态+历史持久化 data/self_improve/history.json+状态轮询端点)，实现未开始(self_improve.py 导入改动已回退保持树干净)。下轮起按分支+PR 流程交付
+4. ⏳ 待认领（同上会话排队中）AI 实例添加配置：预设芯片(DeepSeek/OpenAI/Kimi/Ollama)+扫描 /v1/models 让用户勾选模型；本地端点需 security.allow_private_endpoints 开关联动 SSRF 门禁(test/probe 一致)
+
+> 接管记录（2026-08-21 23:30 用户指定）：PR#9 mtime 竞态断言放宽✅、PR#12 坐标系统一+/login
+> TypeError(useModalA11y 契约归一化 getter)✅ 均五项 CI 绿合并；撞车教训与验证方法学见根目录黑板。
