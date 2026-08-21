@@ -111,6 +111,11 @@ persistence:
   max_snapshots_per_task: 20
   snapshot_interval_seconds: 60
 security:
+  # 是否放行本地/内网 AI 端点（Ollama/LM Studio/vLLM 等本机推理服务）：
+  # 默认 false；开启后实例注册、连通性测试(/test)与模型扫描(/scan-models)
+  # 统一放行私网/环回目标（组播/未指定地址仍拒绝）。仅建议本机部署开启，
+  # 服务监听非回环地址时保持 false 以免沦为内网探测跳板。
+  allow_private_endpoints: false
   api_token: ""
   code_scanner: bandit
   local_command_levels:

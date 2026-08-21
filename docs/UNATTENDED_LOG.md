@@ -134,7 +134,7 @@
 1. ~~PageHeader 大标题与内容区对齐~~ ✅ #10(contentClass) + #12(坐标系统一：页面盒模型上移 .view-root，根治 52px 双坐标系错位；SelfImprove 内容列回置 680) —— 几何断言实测重合(288/680)
 2. ~~设置页"更新管理"区块元素挤成一团~~ ✅ #10(分区重排+渠道下拉同行)
 3. ~~自我进化页重写~~ ✅ **#15 已合并**（feat/self-improve-async）：后端流水线后台任务化(start_run/_pipeline，并发忙拒)+内存运行态双槽(_active_run/_last_run)+历史持久化 data/self_improve/history.json(原子写/50条封顶/损坏降级)+status/history 端点(strict token)；前端整页重写(2s 轮询/阶段指示 analyzing→applying/完成翻转 toast/历史徽章面板/onMounted 刷新恢复)。+8 测试四件套绿；mock 三阶段截图断言+36 组合矩阵零溢出零错误
-4. ⏳ 待认领（ox-alpha 接管会话排队中）AI 实例添加配置：预设芯片(DeepSeek/OpenAI/Kimi/Ollama)+扫描 /v1/models 让用户勾选模型；本地端点需 security.allow_private_endpoints 开关联动 SSRF 门禁(test/probe 一致)
+4. 🎯 **已认领（ox-alpha 会话，2026-08-22 凌晨登记）** AI 实例添加配置：预设芯片(DeepSeek/OpenAI/Kimi/Ollama)+扫描 /v1/models 勾选模型；本地端点需 security.allow_private_endpoints 开关联动 SSRF 门禁(test/probe 一致)。⚠️ 按 #13 新基线叠加（instances SSRF 加固），分支+PR+CI 绿后合并
 
 > 接管记录（2026-08-21 23:30 用户指定）：PR#9 mtime 竞态断言放宽✅、PR#12 坐标系统一+/login
 > TypeError(useModalA11y 契约归一化 getter)✅ 均五项 CI 绿合并；撞车教训与验证方法学见根目录黑板。
