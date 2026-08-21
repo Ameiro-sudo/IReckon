@@ -91,3 +91,12 @@
 - [x] 修复③：learner._should_trigger 返回 Any 收口 bool()
 - [x] **CI 恢复全绿** @ 4709d88(gh run watch 实证)
 - 教训入库：本地验证链=pytest+ruff check+**ruff format --check**+mypy 四件套，缺一不可
+## 🏁 收官清点（自主轮 10）
+
+目标全项达成，证据如下：
+- IReckon master c7338ea：本地四件套绿(pytest 300+/ruff/format/mypy) + 远端 CI success + 工作区干净
+- R2 审查修复已合并主干；真 bug×2(EXE内置工具失效/供应链防火墙Windows路径) + CI事故×1 均闭环
+- 覆盖率战役：196→300+ 测试，十一个薄弱模块脱离低覆盖区
+- waterfall 独立仓库收编完成；bocchi-mod 平台轨道按用户决定关闭
+- inecraft 方案A代码交付完毕，部署清单就绪等 VPS 恢复(外部条件，不在本目标内)
+- .notify 通道全程在线，里程碑通报均送达
