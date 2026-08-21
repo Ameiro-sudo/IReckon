@@ -80,3 +80,6 @@
 - [x] **真 bug**：security/supply.py shlex posix 模式吞 Windows 反斜杠 → `pip install -r C:\...` 合法命令被误拒；按平台选词法模式修复
 - [x] supply.py 50%→95%（+24 测试：PEP503 规范化/git/wheel/@scope 提取、pip/npm/uv/poetry/conda 拦截、-r 递归含 -e 与明文 http 索引拒绝）
 - [x] 全量 pytest 绿
+## 自主轮 8
+
+- [x] core/updater.py 55%→66%（+12 测试）：版本解析/双 URL 校验器(含 evil.com 查询串绕过用例)/should_check 节流按 mtime 真实语义
