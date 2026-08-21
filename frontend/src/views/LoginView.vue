@@ -7,7 +7,7 @@
         <div class="brand-mark size-[38px]! text-lg!">I</div>
         <div>
           <div class="brand-name">IReckon</div>
-          <div class="brand-sub">Multi-Agent AI Factory</div>
+          <div class="brand-sub">我看行 · Multi-Agent AI Factory</div>
         </div>
       </div>
 

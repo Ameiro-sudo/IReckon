@@ -57,7 +57,7 @@
             <div v-else class="flex flex-col gap-4">
               <div v-if="!messages.length && !loading" class="empty-state py-14!">
                 <div class="empty-icon"><AppIcon name="chat" :size="19" /></div>
-                <p>暂无消息，输入内容开始对话</p>
+                <p>暂无消息。丢个需求过来，我看行。</p>
               </div>
               <div
                 v-for="(msg, i) in messages"
