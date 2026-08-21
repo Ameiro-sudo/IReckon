@@ -41,8 +41,13 @@ COPY scripts/ ./scripts/
 COPY --from=frontend-build /build/frontend/dist/ ./frontend/dist/
 
 # 运行时数据目录
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data \
+    && useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /app
 VOLUME ["/app/data"]
+
+# 以非 root 运行：容器被攻破时不直接持有宿主 root 等价权限
+USER appuser
 
 EXPOSE 8000
 

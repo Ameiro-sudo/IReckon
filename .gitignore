@@ -68,3 +68,8 @@ tests/.tmp/
 
 # PyInstaller 自动生成
 IReckon.spec
+
+# 安全扫描产物：报告含源码片段，不入库（历史曾误提交 bandit_out.json）
+bandit_out*.json
+semgrep*.json
+pip-audit*.json

@@ -7,6 +7,35 @@ from pathlib import Path
 DIST = Path("dist") / "IReckon"
 BUILD = Path("build")
 
+# 打包时从 config/ 排除的文件：本地真实配置可能含 API 密钥与自动生成的
+# api_token，烧进发行包即绕过 git 直接泄漏；运行时缺失主配置会自动回退
+# config.example.yaml（见 app/core/config.py），功能无损。
+_CONFIG_STAGE_EXCLUDES = (
+    "config.yaml",
+    ".pre-commit-config.yaml",
+    "__pycache__",
+)
+
+
+def stage_config() -> Path:
+    """把随包分发的配置模板白名单化拷贝到独立暂存目录，返回该目录路径。"""
+    src = Path("config")
+    dst = BUILD / "config-staged"
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns(*_CONFIG_STAGE_EXCLUDES))
+    return dst
+
+
+def verify_dist_no_local_config() -> None:
+    """构建后校验：产物中不得出现任何 config.yaml（防真实配置混入发行包）。"""
+    leaks = list(DIST.rglob("config.yaml"))
+    if leaks:
+        for p in leaks:
+            print(f"安全错误: 发行包中检测到本地配置 {p}")
+        print("构建中止：请检查打包来源目录是否被污染。")
+        sys.exit(1)
+
 
 def clean():
     for d in [DIST, BUILD]:
@@ -22,6 +51,8 @@ def build():
         print("错误: 前端产物 frontend/dist/ 不存在，请先运行 npm run build")
         sys.exit(1)
 
+    cfg_dir = stage_config()
+
     cmd = [
         sys.executable,
         "-m",
@@ -35,7 +66,7 @@ def build():
         "--specpath",
         str(BUILD),
         "--add-data",
-        f"config{os.pathsep}config",
+        f"{cfg_dir.as_posix()}{os.pathsep}config",
         "--add-data",
         f"frontend/dist{os.pathsep}frontend/dist",
         "--hidden-import",
@@ -165,6 +196,7 @@ pause >nul
 def main():
     clean()
     build()
+    verify_dist_no_local_config()
     create_launcher()
     size = sum(f.stat().st_size for f in DIST.rglob("*") if f.is_file())
     print(f"\n打包完成! 输出: {DIST}")
