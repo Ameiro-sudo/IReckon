@@ -646,7 +646,10 @@ class DSHClient:
         spawn_kwargs: Dict[str, Any] = {}
         if os.name == "nt":
             # 独立进程组：超时后 taskkill /T 可整树清理
-            spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            # getattr 兜底：该常量仅存在于 Windows，typeshed 在 Linux 视角下不可见
+            spawn_kwargs["creationflags"] = getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+            )
         else:
             # 独立会话：超时后 killpg 可整组清理
             spawn_kwargs["start_new_session"] = True
