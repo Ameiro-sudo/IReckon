@@ -11,6 +11,12 @@ export function useModalA11y(isOpen, panelRef, onClose, opts = {}) {
   const instance = {}
   let lastFocus = null
 
+  // 统一契约：调用方可传 ref/computed 或 getter 函数，内部归一化为 getter。
+  // 此前 onUnmounted 直接 isOpen()，ConfirmDialog 传 computed 时抛
+  // "TypeError: e is not a function"——/login 首渲染 shell→bare 切换卸载
+  // ConfirmDialog 的路径上必现（vendor 栈内联难查，特此留痕）。
+  const openState = typeof isOpen === 'function' ? isOpen : () => Boolean(isOpen && isOpen.value)
+
   instance.onKeydown = function (e) {
     if (stack[stack.length - 1] !== instance) return // 只让栈顶响应
     if (e.key === 'Escape') {
@@ -43,7 +49,7 @@ export function useModalA11y(isOpen, panelRef, onClose, opts = {}) {
   }
 
   watch(
-    isOpen,
+    openState,
     (open, was) => {
       if (open === was) return
       if (open) {
@@ -77,7 +83,7 @@ export function useModalA11y(isOpen, panelRef, onClose, opts = {}) {
     const i = stack.indexOf(instance)
     if (i !== -1) stack.splice(i, 1)
     window.removeEventListener('keydown', instance.onKeydown, true)
-    if (isOpen()) {
+    if (openState()) {
       lockCount = Math.max(0, lockCount - 1)
       if (lockCount === 0) document.body.style.overflow = ''
     }

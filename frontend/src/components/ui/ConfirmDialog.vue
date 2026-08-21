@@ -48,5 +48,6 @@ function answer(ok) {
 }
 
 // 打开时聚焦取消按钮(安全默认),ESC=取消,关闭后焦点归还触发处
-useModalA11y(isOpen, panelRef, () => answer(false), { focusFirstFocusable: true })
+// 契约：统一传 getter 函数（组合式内部虽已兼容 ref，显式 getter 意图更清晰）
+useModalA11y(() => isOpen.value, panelRef, () => answer(false), { focusFirstFocusable: true })
 </script>
