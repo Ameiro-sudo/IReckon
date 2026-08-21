@@ -62,3 +62,8 @@
 - [x] agents/learner 14%→80% + engine/learner 21%→53%（8c222e9）：工具建议解析全路径、Trending 提取抽纯函数 _extract_repo_candidates、空闲触发判定抽 _should_trigger/_daily_reset_if_needed（行为不变的纯重构）
 - [x] knowledge/files.py 33%→84%（类型校验参数化/2MB限制/落盘+DB+向量库打桩三重断言）
 - [x] 全量 pytest 保持绿；累计自主轮新增测试 196→253
+## 自主轮 4
+
+- [x] security/mining.py 50%→95%：8正4负参数化检测用例、假psutil进程扫描命中、psutil缺失降级
+- [x] knowledge/vector.py 39%→82%：绕过 chromadb 构造直测 add 委托/search 映射/n_results 钳制/可选字段容错
+- [x] 全量 pytest 绿；累计自主轮测试 196→268
