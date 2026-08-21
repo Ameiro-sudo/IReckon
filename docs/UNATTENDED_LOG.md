@@ -107,3 +107,8 @@
 - [x] API：/update/check 回传 channel；/update/apply 接受 {channel,silent} 并回传 message
 - [x] 前端设置页渠道下拉(auto/portable/installer)+message 展示
 - [x] +13 渠道测试；四件套+前端构建全绿；远端 CI success @ 8501372
+## 自主轮（新目标第1轮）
+
+- [x] **流水线实测**：手动触发 build.yml 成功(5m19s)，产物 IReckon-Distribution(~85MB) 同时含 Setup exe 与 Portable zip——双渠道发行链路端到端验证通过
+- [x] **真bug×3**：agents/base.py 流式 token 核算的同步回调路径从未被调用(last_stream_usage callable 后未执行)，兼容 dict/同步/异步三形态后修复；base.py 52%→86%
+- [x] +15 测试(基座13+渠道13中本轮新增部分)；全量 pytest 保持绿
