@@ -117,7 +117,8 @@ class IReckonApp:
         # 否则由 FastAPI 直接托管 frontend/dist 静态文件。
         dev_mode = os.environ.get("IRECKON_DEV_FRONTEND", "") == "1"
         if not getattr(sys, "frozen", False) and (dev_mode or not os.path.isdir(DIST_DIR)):
-            self._start_frontend()
+            # npm install 可能耗时数分钟，放线程池避免阻塞事件循环
+            await asyncio.to_thread(self._start_frontend)
         elif not os.path.isdir(DIST_DIR):
             logger.warning("frontend/dist 不存在，请先执行 cd frontend && npm run build")
         logger.info("系统初始化完成")
@@ -313,9 +314,15 @@ async def main():
     await app.initialize()
 
     loop = asyncio.get_running_loop()
+    _signal_tasks: set = set()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(app.shutdown()))
+            def _handle_signal(sig_name=sig):
+                task = asyncio.create_task(app.shutdown())
+                _signal_tasks.add(task)  # 持有引用防 GC；退出后统一清理
+                task.add_done_callback(_signal_tasks.discard)
+
+            loop.add_signal_handler(sig, _handle_signal)
         except NotImplementedError:
             pass
 
@@ -425,12 +432,21 @@ def run_embedded() -> None:
 
 
 async def _serve_once2(closing: threading.Event) -> None:
-    """控制台回退模式：固定默认端口 8000，等待 Ctrl+C。"""
+    """控制台回退模式：固定默认端口 8000，等待 Ctrl+C 或 closing 事件。"""
     app_obj = IReckonApp()
     await app_obj.initialize()
+
+    async def _watch_close() -> None:
+        while not closing.is_set():
+            await asyncio.sleep(0.2)
+        if app_obj._server is not None:
+            app_obj._server.should_exit = True
+
+    watcher = asyncio.create_task(_watch_close())
     try:
         await start_backend(app_obj)
     finally:
+        watcher.cancel()
         await app_obj.shutdown()
 
 

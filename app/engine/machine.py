@@ -401,10 +401,12 @@ class WorkflowEngine:
             f"\n任务复杂度: {plan.get('complexity', 'simple')}\n"
             f"原始需求: {s.get('user_request', '')}"
         )
+        # context 留空：需求/复杂度已在 requirements 中，上下文仅由 task_context
+        # （看板状态）补充，避免同一内容在 prompt 里重复出现稀释判断通道注意力
         task_data = {
             "code": code,
             "requirements": reqs + scope,
-            "context": reqs + scope,
+            "context": "",
             "task_context": ctx,
         }
 

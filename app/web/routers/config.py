@@ -1,6 +1,7 @@
 """配置管理 API：读取、原子更新配置，主题查询。"""
 
 import os
+import re
 import tempfile
 from typing import Any, Dict
 
@@ -12,7 +13,7 @@ from app.core.config import config_manager
 
 router = APIRouter(prefix="/api", tags=["config"])
 
-# 允许通过 API 更新的配置白名单（前缀 ui.* 全部放行）
+# 允许通过 API 更新的配置白名单（ui.* 限两级且段名受限，见 _is_allowed_update_key）
 _UPDATE_WHITELIST = {
     "server.open_browser",
     "server.frontend_dev_url",
@@ -20,9 +21,19 @@ _UPDATE_WHITELIST = {
     "server.log_level",
 }
 
+_KEY_SEGMENT = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
 
 def _is_allowed_update_key(key: str) -> bool:
-    return key.startswith("ui.") or key in _UPDATE_WHITELIST
+    if key in _UPDATE_WHITELIST:
+        return True
+    # ui.* 仅允许两级（ui.<segment>），防止深层嵌套注入任意配置结构
+    parts = key.split(".")
+    return (
+        len(parts) == 2
+        and parts[0] == "ui"
+        and all(_KEY_SEGMENT.match(p) for p in parts)
+    )
 
 
 class ConfigUpdateRequest(BaseModel):

@@ -187,7 +187,8 @@ def setup_logging():
         # 日志队列（供 WebSocket 推送 / logs API 消费）
         def enqueue_log(message):
             try:
-                _log_queue.put_nowait(message.record["level"].name + "|" + str(message))
+                # str(message) 已按 _QUEUE_FORMAT 渲染为 "LEVEL|message"，勿再拼前缀
+                _log_queue.put_nowait(str(message))
             except queue.Full:
                 pass
 

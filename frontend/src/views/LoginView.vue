@@ -1,24 +1,26 @@
 <template>
-  <div class="login-root">
-    <div class="login-card">
-      <div class="login-brand">
-        <div class="brand-mark">I</div>
+  <div class="grid-paper flex min-h-dvh items-center justify-center bg-bg p-5">
+    <div class="flex w-full max-w-[400px] flex-col gap-3.5 rounded-xl border border-line-strong bg-surface p-7 shadow-lg">
+      <div class="mb-1 h-[3px] rounded-sm bg-accent-fill"></div>
+
+      <div class="flex items-center gap-2.5">
+        <div class="brand-mark size-[38px]! text-lg!">I</div>
         <div>
           <div class="brand-name">IReckon</div>
           <div class="brand-sub">Multi-Agent AI Factory</div>
         </div>
       </div>
 
-      <h1 class="login-title">访问控制台</h1>
-      <p class="login-desc">
+      <h1 class="mt-1 font-display text-lg font-bold tracking-wide text-ink">访问控制台</h1>
+      <p class="text-[13px] leading-relaxed text-ink-2">
         请输入 API 访问令牌。首次启动时令牌由服务端生成并打印在控制台日志中。
       </p>
 
-      <form class="login-form" @submit.prevent="submit">
-        <div class="token-row">
+      <form class="flex flex-col gap-3" @submit.prevent="submit">
+        <div class="flex gap-2">
           <input
             v-model="token"
-            class="input mono"
+            class="input flex-1 font-mono"
             :type="showToken ? 'text' : 'password'"
             placeholder="irk_..."
             autocomplete="off"
@@ -28,13 +30,13 @@
             {{ showToken ? '隐藏' : '显示' }}
           </button>
         </div>
-        <p v-if="errorMsg" class="login-error">{{ errorMsg }}</p>
+        <p v-if="errorMsg" class="m-0 text-[13px] text-error">{{ errorMsg }}</p>
         <button type="submit" class="btn btn-primary btn-block" :disabled="loading || !token.trim()">
           {{ loading ? '验证中...' : '解锁控制台' }}
         </button>
       </form>
 
-      <p class="login-hint">
+      <p class="text-[13px] text-ink-2">
         令牌保存在本浏览器 localStorage，仅通过 X-API-Token 请求头发送。
       </p>
     </div>
@@ -42,8 +44,8 @@
 </template>
 
 <script setup>
-import {onMounted, ref} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 
 const route = useRoute()
@@ -97,111 +99,3 @@ async function submit() {
   }
 }
 </script>
-
-<style scoped>
-.login-root {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: var(--bg);
-  background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl);
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  box-shadow: var(--shadow-lg);
-}
-
-/* 铭牌顶线 */
-.login-card::before {
-  content: '';
-  height: 3px;
-  border-radius: 2px;
-  background: var(--accent-fill);
-  margin-bottom: 4px;
-}
-
-.login-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius);
-  background: var(--accent-fill);
-  color: var(--accent-ink);
-  font-weight: 700;
-  font-size: 18px;
-  font-family: var(--font-display);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
-}
-
-.brand-name {
-  font-weight: 700;
-  font-family: var(--font-display);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.brand-sub {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.login-title {
-  font-size: 18px;
-  margin: 4px 0 0;
-  font-family: var(--font-display);
-  letter-spacing: 0.01em;
-}
-
-.login-desc,
-.login-hint {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.token-row {
-  display: flex;
-  gap: 8px;
-}
-
-.token-row .input {
-  flex: 1;
-}
-
-.login-error {
-  margin: 0;
-  font-size: 13px;
-  color: var(--error);
-}
-</style>

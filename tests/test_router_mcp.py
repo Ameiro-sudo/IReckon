@@ -124,6 +124,16 @@ async def test_acquire_execution_fallback(session_db, monkeypatch):
     assert await router.acquire("light") is None
 
 
+async def test_acquire_unknown_tier_raises():
+    """未知 tier 必须抛错而非静默落到按次计费的主通道。"""
+    import pytest
+
+    from app.llm.router import acquire
+
+    with pytest.raises(ValueError, match="未知 tier"):
+        await acquire(tier="fast")
+
+
 # ---------- ask()：缓存命中不产生新调用 ----------
 
 

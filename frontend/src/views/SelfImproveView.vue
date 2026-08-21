@@ -1,62 +1,66 @@
 <template>
   <div class="view-root">
     <PageHeader title="自我进化" subtitle="AI 自主分析代码并生成改进">
-    <template #actions>
-      <button class="btn btn-secondary" :disabled="!lastResult || pushing" @click="pushChanges">
-        {{ pushing ? '推送中...' : '推送分支' }}
-      </button>
-      <button class="btn btn-primary" :disabled="analyzing" @click="analyze">
-        {{ analyzing ? '分析中...' : '开始分析' }}
-      </button>
-    </template>
-  </PageHeader>
+      <template #actions>
+        <button class="btn btn-secondary" :disabled="!lastResult || pushing" @click="pushChanges">
+          {{ pushing ? '推送中...' : '推送分支' }}
+        </button>
+        <button class="btn btn-primary" :disabled="analyzing" @click="analyze">
+          {{ analyzing ? '分析中...' : '开始分析' }}
+        </button>
+      </template>
+    </PageHeader>
 
-  <div class="evolve-grid">
-    <div class="panel">
-      <div class="panel-title">进化引擎</div>
-      <p class="panel-desc">让 IReckon 分析自身代码，识别优化机会并自动生成改进方案。分析完成后可推送独立分支到远程仓库。</p>
+    <div class="max-w-[680px] pb-3">
+      <div class="panel">
+        <div class="plate">进化引擎</div>
+        <p class="plate-desc">让 IReckon 分析自身代码，识别优化机会并自动生成改进方案。分析完成后可推送独立分支到远程仓库。</p>
 
-      <div v-if="analyzing" class="analyzing">
-        <div class="progress-track">
-          <div class="progress-fill indeterminate"></div>
+        <div v-if="analyzing" class="mt-3">
+          <div class="progress-track">
+            <div class="progress-fill w-[40%] animate-[indeterminate_1.4s_infinite_ease-in-out]"></div>
+          </div>
+          <p class="mt-2 text-[13px] text-ink-3">AI 正在检查代码...</p>
         </div>
-        <p class="text-sm text-muted">AI 正在检查代码...</p>
-      </div>
 
-      <div v-if="lastResult" class="result">
-        <div class="result-row">
-          <span class="result-label">分析摘要</span>
-          <span class="text-sm">{{ lastResult.analysis || '—' }}</span>
+        <div v-if="lastResult" class="mt-2 flex flex-col gap-2.5">
+          <div class="flex gap-2.5 text-[13px]">
+            <span class="w-[70px] shrink-0 text-ink-3">分析摘要</span>
+            <span>{{ lastResult.analysis || '—' }}</span>
+          </div>
+          <div v-if="lastResult.branch" class="flex items-center gap-2.5 text-[13px]">
+            <span class="w-[70px] shrink-0 text-ink-3">分支</span>
+            <code class="rounded-md border border-line bg-subtle px-2 py-0.5 font-mono text-xs">{{ lastResult.branch }}</code>
+          </div>
+          <div v-if="lastResult.files_changed?.length" class="flex gap-2.5 text-[13px]">
+            <span class="w-[70px] shrink-0 text-ink-3">修改文件</span>
+            <span>{{ lastResult.files_changed.length }} 个</span>
+          </div>
+          <div v-if="lastResult.files_changed?.length" class="mt-1 flex flex-col gap-1">
+            <div v-for="file in lastResult.files_changed" :key="file" class="rounded-md border border-line bg-subtle px-2.5 py-1.5 font-mono text-xs text-ink-2">
+              {{ file }}
+            </div>
+          </div>
+          <div v-if="lastResult.status === 'ok'" class="flex items-center gap-1.5 text-[13px] font-semibold text-success">
+            <AppIcon name="check" :size="13" :stroke-width="2.2" />
+            分析完成
+          </div>
         </div>
-        <div class="result-row" v-if="lastResult.branch">
-          <span class="result-label">分支</span>
-          <code class="mono">{{ lastResult.branch }}</code>
-        </div>
-        <div class="result-row" v-if="lastResult.files_changed?.length">
-          <span class="result-label">修改文件</span>
-          <span class="text-sm">{{ lastResult.files_changed.length }} 个</span>
-        </div>
-        <div class="file-list" v-if="lastResult.files_changed?.length">
-          <div v-for="file in lastResult.files_changed" :key="file" class="file-item mono">{{ file }}</div>
-        </div>
-        <div class="result-ok" v-if="lastResult.status === 'ok'">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          分析完成
-        </div>
-      </div>
 
-      <div v-if="error" class="result-error">
-        <p class="text-sm">{{ error }}</p>
+        <div v-if="error" class="mt-3.5 rounded-md bg-error-soft px-3.5 py-2.5 text-error">
+          <p class="text-[13px]">{{ error }}</p>
+        </div>
       </div>
     </div>
   </div>
-  </div>
 </template>
+
 <script setup>
-import {ref} from 'vue'
-import {selfImproveAPI} from '../api/index.js'
-import {useToast} from '../composables/useToast.js'
+import { ref } from 'vue'
+import { selfImproveAPI } from '../api/index.js'
+import { useToast } from '../composables/useToast.js'
 import PageHeader from '../components/PageHeader.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
 
 const toast = useToast()
 const analyzing = ref(false)
@@ -110,88 +114,3 @@ async function pushChanges() {
   }
 }
 </script>
-
-<style scoped>
-.evolve-grid {
-  max-width: 680px;
-}
-
-.analyzing {
-  margin-top: 12px;
-}
-
-.progress-fill.indeterminate {
-  width: 40%;
-  animation: indeterminate 1.4s infinite ease-in-out;
-}
-
-@keyframes indeterminate {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(350%); }
-}
-
-.analyzing p {
-  margin-top: 8px;
-}
-
-.result {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.result-row {
-  display: flex;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.result-label {
-  color: var(--text-muted);
-  min-width: 70px;
-  flex-shrink: 0;
-}
-
-.result-row code {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  padding: 1px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.file-item {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 6px 10px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.result-ok {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--success);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.result-error {
-  margin-top: 14px;
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  background: var(--error-soft);
-  color: var(--error);
-  border: 1px solid transparent;
-}
-</style>

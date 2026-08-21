@@ -22,10 +22,17 @@ def _load_manifest(path: Path):
     return manifest
 
 
-async def register_builtin_tools(builtin_dir: str = "app/tools/builtin"):
-    base = Path(builtin_dir)
+async def register_builtin_tools(builtin_dir: str | None = None):
+    # 默认锚定包自身位置而非 cwd：PyInstaller 打包后 cwd 是用户启动目录，
+    # 相对路径 "app/tools/builtin" 必然失配（内置工具在 EXE 中静默全部失效）；
+    # frozen 模式下 --collect-all app 会把 manifest 连同包数据放进 _MEIPASS。
+    base = (
+        Path(builtin_dir)
+        if builtin_dir
+        else Path(__file__).resolve().parent / "builtin"
+    )
     if not base.exists():
-        logger.warning(f"内置工具目录 {builtin_dir} 不存在，跳过注册")
+        logger.warning(f"内置工具目录 {builtin_dir or base} 不存在，跳过注册")
         return
 
     registered_count = 0

@@ -3,23 +3,24 @@
     <PageHeader title="系统日志" subtitle="后端实时日志流（WebSocket 推送 + 历史加载）">
       <template #actions>
         <button class="btn btn-secondary" @click="reload">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <AppIcon name="refresh" :size="13" />
           重载历史
         </button>
       </template>
     </PageHeader>
 
-    <div class="fill-view">
+    <div class="fill-view pb-4 md:pb-6">
       <LogViewer ref="viewerRef" />
     </div>
   </div>
 </template>
 
 <script setup>
-import {onMounted, onUnmounted, ref} from 'vue'
-import {useTaskStore} from '../stores/taskStore.js'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useTaskStore } from '../stores/taskStore.js'
 import PageHeader from '../components/PageHeader.vue'
 import LogViewer from '../components/LogViewer.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
 
 const taskStore = useTaskStore()
 const viewerRef = ref(null)

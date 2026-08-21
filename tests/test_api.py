@@ -47,7 +47,12 @@ async def test_health(client):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert "version" in body
+    # 免鉴权端点：未携带有效 token 时只暴露存活状态，不泄露内部信息
+    if configured_token():
+        assert "version" in body
+        assert "active_tasks" in body
+    else:
+        assert set(body.keys()) == {"status"}
 
 
 async def test_tasks_list(client):

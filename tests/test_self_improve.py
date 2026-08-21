@@ -96,7 +96,7 @@ def test_analyze_success(monkeypatch):
 
 
 def test_get_executor_uses_find_best_match(monkeypatch):
-    imp = make_improver(monkeypatch)
+    make_improver(monkeypatch)
     _instances_get = lambda k, d=None: (
         [{"id": "x"}] if k == "ai_pool.instances" else _cfg_get(k, d)
     )
@@ -115,7 +115,7 @@ def test_get_executor_uses_find_best_match(monkeypatch):
 
 
 def test_get_executor_falls_back_to_get_all(monkeypatch):
-    imp = make_improver(monkeypatch)
+    make_improver(monkeypatch)
     cap = make_cap(tags=["coding", "smart"])
 
     async def fake_get_all():
@@ -127,7 +127,7 @@ def test_get_executor_falls_back_to_get_all(monkeypatch):
 
 
 def test_get_executor_no_caps(monkeypatch):
-    imp = make_improver(monkeypatch)
+    make_improver(monkeypatch)
 
     async def fake_get_all():
         return []
@@ -137,7 +137,7 @@ def test_get_executor_no_caps(monkeypatch):
 
 
 def test_get_executor_unregistered_role(monkeypatch):
-    imp = make_improver(monkeypatch)
+    make_improver(monkeypatch)
     cap = make_cap(tags=["coding", "smart"])
 
     async def fake_get_all():
@@ -196,7 +196,7 @@ def test_build_analysis_prompt_many_files(monkeypatch):
 
 
 def test_parse_analysis(monkeypatch):
-    imp = make_improver(monkeypatch)
+    make_improver(monkeypatch)
     result = _parse_analysis("发现 2 个文件需要修改")
     assert result["success"] is True
     assert result["changes_proposed"] == 2

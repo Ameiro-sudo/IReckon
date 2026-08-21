@@ -1,13 +1,23 @@
 <template>
   <Teleport to="body">
-    <div class="toast-container" role="status" aria-live="polite">
+    <div class="pointer-events-none fixed top-4 right-4 z-[200] flex max-w-[340px] flex-col gap-2" role="status" aria-live="polite">
       <TransitionGroup name="toast">
-        <div v-for="t in toasts" :key="t.id" class="toast" :class="`toast-${t.type}`" @click="dismiss(t.id)">
-          <span class="toast-icon">
-            <svg v-if="t.type === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12.5 11 15.5 16 9.5"/></svg>
-            <svg v-else-if="t.type === 'error'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            <svg v-else-if="t.type === 'warning'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div
+          v-for="t in toasts"
+          :key="t.id"
+          class="pointer-events-auto flex cursor-pointer items-start gap-2.5 rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[13px] text-ink shadow-md"
+          @click="dismiss(t.id)"
+        >
+          <span
+            class="mt-px shrink-0"
+            :class="{
+              'text-success': t.type === 'success',
+              'text-error': t.type === 'error',
+              'text-warning': t.type === 'warning',
+              'text-info': t.type === 'info'
+            }"
+          >
+            <AppIcon :name="iconName(t.type)" :size="14" :stroke-width="2.2" />
           </span>
           <span>{{ t.message }}</span>
         </div>
@@ -17,7 +27,12 @@
 </template>
 
 <script setup>
-import {useToast} from '../composables/useToast.js'
+import { useToast } from '../composables/useToast.js'
+import AppIcon from './ui/AppIcon.vue'
 
 const { toasts, dismiss } = useToast()
+
+function iconName(type) {
+  return { success: 'success', error: 'error', warning: 'alert' }[type] || 'info'
+}
 </script>

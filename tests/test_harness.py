@@ -104,6 +104,24 @@ def test_command_filter_blocks_dangerous_task():
     assert "命令过滤" in result.error
 
 
+def test_policy_check_fails_closed_on_unreadable_cordis(monkeypatch):
+    """安全门 fail-closed：cordis 文件读不到时必须拒绝，而非放行。"""
+
+    class _UnreadablePath:
+        def read_text(self, *args, **kwargs):
+            raise OSError("disk error")
+
+    cfg = FakeConfig()
+    cfg.get = lambda k, d=None: (
+        d if k == "harness.allow_full_access" else CFG.get(k, d)
+    )
+    client = DSHClient(cfg=cfg)
+    monkeypatch.setattr(client, "_cordis_config", lambda: _UnreadablePath())
+    error = client._policy_check()
+    assert error is not None
+    assert "无法读取" in error
+
+
 def test_cordis_config_generated(monkeypatch, tmp_path):
     cfg = FakeConfig()
     cfg.get = lambda k, d=None: (

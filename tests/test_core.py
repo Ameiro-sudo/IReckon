@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from app.core.config import ConfigManager, config_manager
+from app.core.config import ConfigManager
 from app.utils.json_utils import extract_json
 
 from app.core.config import get

@@ -82,7 +82,7 @@ def test_review_router_retry():
 
 
 def test_revise_router():
-    engine = make_engine()
+    make_engine()
     assert revise_router({"status": TaskStatus.EXECUTING}) == "execute"
     assert revise_router({"status": TaskStatus.REVIEWING}) == "review"
 

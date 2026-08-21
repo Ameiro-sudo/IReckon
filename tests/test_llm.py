@@ -43,7 +43,7 @@ def _api_error():
 
 
 def test_ensure_model_prefix():
-    c = LLMClient()
+    LLMClient()
     cap = make_cap()
     assert _ensure_model_prefix(cap, "auto") == "openai/auto"
     assert _ensure_model_prefix(cap, "openai/auto") == "openai/auto"
