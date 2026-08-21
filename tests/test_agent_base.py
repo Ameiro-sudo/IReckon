@@ -83,7 +83,6 @@ async def test_think_enforce_limit_blocks_before_llm():
     async def limit_err(tid):
         return "预算耗尽"
 
-    a_cap = a.capability
     orig = cost_mod.cost_tracker.enforce_limits
     cost_mod.cost_tracker.enforce_limits = limit_err
     try:
