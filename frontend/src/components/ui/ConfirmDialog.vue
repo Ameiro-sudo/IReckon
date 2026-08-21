@@ -6,7 +6,7 @@
         class="fixed inset-0 z-[110] flex items-center justify-center bg-overlay p-5 backdrop-blur-[3px]"
         @click.self="answer(false)"
       >
-        <div class="modal-panel w-[400px]!" role="alertdialog" aria-modal="true" :aria-label="state.title">
+        <div ref="panelRef" class="modal-panel w-[400px]!" tabindex="-1" role="alertdialog" aria-modal="true" :aria-label="state.title">
           <div class="flex items-start gap-3">
             <span
               class="flex size-9 shrink-0 items-center justify-center rounded-md"
@@ -35,10 +35,18 @@
 </template>
 
 <script setup>
+import { computed, ref } from 'vue'
 import { state, resolveConfirm } from '../../composables/useConfirm.js'
 import AppIcon from './AppIcon.vue'
+import { useModalA11y } from '../../composables/useModalA11y.js'
+
+const panelRef = ref(null)
+const isOpen = computed(() => Boolean(state.value))
 
 function answer(ok) {
   resolveConfirm(ok)
 }
+
+// 打开时聚焦取消按钮(安全默认),ESC=取消,关闭后焦点归还触发处
+useModalA11y(isOpen, panelRef, () => answer(false), { focusFirstFocusable: true })
 </script>
