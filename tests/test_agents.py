@@ -121,7 +121,7 @@ def test_executor_parse_cleans_filename_backticks():
 
 
 def test_executor_syntax_errors_detection():
-    ex = make_executor()
+    make_executor()
     assert _syntax_errors({"ok.py": "def f():\n    pass"}) == []
     errs = _syntax_errors({"bad.py": "def f(:", "note.md": "## x"})
     assert len(errs) == 1
@@ -146,14 +146,14 @@ def test_executor_parse_patches_multiple_files():
 
 
 def test_executor_apply_unified_diff():
-    ex = make_executor()
+    make_executor()
     original = "a\nb\nc\n"
     patch = "@@ -1,3 +1,3 @@\n a\n-b\n+c\n"
     assert _apply_unified_diff(original, patch) == "a\nc\nc\n"
 
 
 def test_executor_apply_diff_add_line():
-    ex = make_executor()
+    make_executor()
     original = "x = 1\n"
     patch = "@@ -1,1 +1,2 @@\n x = 1\n+y = 2\n"
     assert _apply_unified_diff(original, patch) == "x = 1\ny = 2\n"
