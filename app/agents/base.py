@@ -183,11 +183,13 @@ class BaseAgent(ABC):
 
             self.add_message("assistant", full_response)
 
-            # 流式调用 token 核算：客户端提供 last_stream_usage 时使用，否则跳过
-            last_usage = getattr(self.llm, "last_stream_usage", None)
-            if callable(last_usage):
+            # 流式调用 token 核算：客户端提供 last_stream_usage 时使用，否则跳过。
+            # 兼容三种形态：普通属性(dict)、同步回调、异步回调——
+            # 此前同步回调未被调用导致核算静默失效。
+            raw_usage = getattr(self.llm, "last_stream_usage", None)
+            if raw_usage is not None:
                 try:
-                    usage = last_usage
+                    usage = raw_usage() if callable(raw_usage) else raw_usage
                     if asyncio.iscoroutine(usage):
                         usage = await usage
                     if (
