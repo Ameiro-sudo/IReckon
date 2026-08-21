@@ -118,7 +118,9 @@ def test_mark_checked_creates_marker_with_fresh_mtime(tmp_path):
     up.mark_checked()
     assert up._last_check_file.exists()
     age = time.time() - os.path.getmtime(up._last_check_file)
-    assert 0 <= age < 60
+    # Windows 下 time.time() 采样与 NTFS mtime 粒度存在纳秒级竞态，age 可为极小负值
+    # (实测 -2.4e-07)，放宽下界到 -1 容忍时钟/时间戳舍入抖动（黑板点名遗留项）
+    assert -1 <= age < 60
 
 
 def test_should_check_survives_stat_errors(tmp_path):
