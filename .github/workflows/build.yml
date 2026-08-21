@@ -6,6 +6,10 @@ on:
       - "v*"
   workflow_dispatch:
 
+# 最小权限：仅发布 Release 需要 contents 写权限
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -33,11 +37,15 @@ jobs:
           cd frontend
           npm run build
 
+      - name: Stage safe config (never pack local config.yaml)
+        run: |
+          python -c "import sys; sys.path.insert(0, 'scripts'); from build_exe import stage_config; print('staged:', stage_config())"
+
       - name: Build EXE (onedir)
         run: |
           python -m PyInstaller `
             --name IReckon --distpath dist/IReckon --workpath build `
-            --add-data "config;config" `
+            --add-data "build/config-staged;config" `
             --add-data "frontend/dist;frontend/dist" `
             --hidden-import "app.web.api" `
             --hidden-import "app.web.push" `

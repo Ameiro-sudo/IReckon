@@ -6,7 +6,9 @@ services:
     image: ireckon:latest
     container_name: ireckon
     ports:
-      - "8000:8000"
+      # 默认仅绑定宿主回环：API 带鉴权但不应默认暴露到局域网。
+      # 如需局域网访问，改为 "8000:8000" 并确认 IRECKON_API_TOKEN 已固定配置。
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./../config:/app/config
       - ireckon-data:/app/data

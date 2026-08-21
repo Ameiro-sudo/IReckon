@@ -18,6 +18,11 @@ data/
 *.key
 .env
 .env.*
+# 本地真实配置：可能含 API 密钥与 auth 自动回写的 token，绝不进镜像
+config/config.yaml
+测试用key.txt
+bandit_out*.json
+semgrep*.json
 
 # Git / IDE
 .git/
