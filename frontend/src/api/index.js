@@ -65,7 +65,10 @@ export const aiInstanceAPI = {
 
   delete: (instanceId) => api.delete(`/ai-instances/${instanceId}`),
 
-  test: (instanceId) => api.post(`/ai-instances/${instanceId}/test`)
+  test: (instanceId) => api.post(`/ai-instances/${instanceId}/test`),
+
+  // 探测 OpenAI 兼容 /models 列表；编辑态传 instance_id 复用存量密钥
+  scanModels: (payload) => api.post('/ai-instances/scan-models', payload)
 }
 
 export const configAPI = {
