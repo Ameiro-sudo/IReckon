@@ -49,6 +49,11 @@ ignore_missing_imports = true
 strict_optional = true
 no_implicit_optional = true
 show_error_codes = true
+# 跳过第三方包内部分析：新版 numpy 等 stubs 使用 PEP 695 type 语法
+# （需 python_version>=3.12），解析即报 syntax error 中断全量检查，
+# 且 per-module override 对解析期错误无效（实测 unused section）。
+# 项目代码零直接 numpy 依赖，第三方类型本就经 ignore_missing_imports 归 Any。
+follow_imports = "skip"
 
 [tool.ruff]
 target-version = "py310"
