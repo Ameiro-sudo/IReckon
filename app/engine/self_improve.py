@@ -7,9 +7,12 @@
 """
 
 import asyncio
+import json
 import re
 import subprocess
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional
 
@@ -42,6 +45,19 @@ _DEFAULT_BLACKLIST = [
     "app/security/",
     "app/core/updater.py",
 ]
+
+_HISTORY_CAP = 50
+# 运行态对外暴露的字段（历史条目同构，便于前端复用渲染）
+_RUN_FIELDS = (
+    "run_id",
+    "status",
+    "started_at",
+    "finished_at",
+    "analysis",
+    "branch",
+    "files_changed",
+    "error",
+)
 
 _ANALYSIS_FALLBACK_PROMPT = """你是一位资深的软件架构师，正在对自己的源码库（IReckon）做一次严谨的代码评审。评审目的是找出真正值得修改的高价值问题，并输出可执行的修改方案。
 
@@ -186,6 +202,11 @@ class SelfImprover:
         )
         self._blacklist = set(get("self_update.file_blacklist", _DEFAULT_BLACKLIST))
         self._base_dir = Path(__file__).parent.parent.parent
+        # 异步运行态：_active_run 仅在流水线执行期非空；_last_run 保留最近一次完成态，
+        # 前端刷新后经 /self-improve/status 恢复（修复"刷新丢状态"）
+        self._active_run: Optional[Dict] = None
+        self._last_run: Optional[Dict] = None
+        self._run_tasks: set = set()  # 持任务引用防 GC（R2 教训）
 
     # ========== 对外 API ==========
 
@@ -278,6 +299,97 @@ class SelfImprover:
             return False
         logger.info(f"已推送分支: {branch}")
         return True
+
+    # ========== 异步运行态（后台任务化 + 历史持久化） ==========
+
+    async def start_run(self) -> Dict:
+        """启动一次完整流水线(分析→落地)，立即返回运行句柄；状态经 get_status() 轮询。"""
+        if not self._enabled:
+            return {"status": "error", "error": "自我改进已关闭"}
+        if self._active_run is not None:
+            return {"status": "busy", "run": dict(self._active_run)}
+
+        run_id = f"self-{uuid.uuid4().hex[:8]}"
+        run: Dict = {
+            "run_id": run_id,
+            "status": "running",
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+            "finished_at": None,
+            "analysis": "",
+            "branch": None,
+            "files_changed": [],
+            "error": None,
+        }
+        self._active_run = run
+        task = asyncio.create_task(self._pipeline(run))
+        self._run_tasks.add(task)
+        task.add_done_callback(self._run_tasks.discard)
+        return {"status": "started", "run": dict(run)}
+
+    async def _pipeline(self, run: Dict) -> None:
+        """串起 analyze → apply_improvements，任何失败都进状态机而非炸后台任务。"""
+        try:
+            analysis = await self.analyze(run["run_id"])
+            if not analysis.get("success"):
+                raise RuntimeError(analysis.get("error") or "分析失败")
+            run["analysis"] = (analysis.get("analysis") or "")[:500]
+
+            result = await self.apply_improvements(run["run_id"], analysis)
+            if not result.get("success"):
+                raise RuntimeError(result.get("error") or "落地修改失败")
+            run["branch"] = result.get("branch")
+            run["files_changed"] = list(result.get("files_changed") or [])
+            run["status"] = "ok"
+        except Exception as e:  # noqa: BLE001  # 运行态兜底
+            logger.error(f"自我改进运行失败: {e}")
+            run["status"] = "error"
+            run["error"] = str(e)
+        finally:
+            run["finished_at"] = datetime.now().isoformat(timespec="seconds")
+            self._last_run = {k: run.get(k) for k in _RUN_FIELDS}
+            self._append_history(self._last_run)
+            if self._active_run is run:
+                self._active_run = None
+
+    async def get_status(self) -> Dict:
+        """当前运行/最近一次完成态；前端刷新后据此恢复界面。"""
+        run = self._active_run or self._last_run
+        return {
+            "status": "ok",
+            "active": self._active_run is not None,
+            "run": dict(run) if run else None,
+        }
+
+    # ---------- 历史持久化 ----------
+
+    @property
+    def _history_file(self) -> Path:
+        data_dir = Path(get("system.data_dir", "./data"))
+        return data_dir / "self_improve" / "history.json"
+
+    def get_history(self) -> List[Dict]:
+        """读取历史（新→旧）；文件缺失或损坏一律降级为空列表。"""
+        try:
+            items = json.loads(self._history_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        return items if isinstance(items, list) else []
+
+    def _append_history(self, entry: Dict) -> None:
+        """原子落盘：tmp 写入后 replace；超上限裁剪最旧条目。"""
+        try:
+            items = self.get_history()
+            items.insert(0, entry)
+            del items[_HISTORY_CAP:]
+            target = self._history_file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(".json.tmp")
+            tmp.write_text(
+                json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8"
+            )
+            tmp.replace(target)
+        except OSError as e:
+            logger.error(f"写入自我改进历史失败: {e}")
 
     # ========== 内部工具 ==========
 

@@ -153,19 +153,23 @@ async def logs(
 
 @router.post("/self-improve", dependencies=[Depends(require_strict_token)])
 async def trigger_self_improve():
-    import uuid
+    """启动一次自我改进流水线（后台任务化，立即返回）。
 
-    task_id = f"self-{uuid.uuid4().hex[:8]}"
-    analysis = await self_improver.analyze(task_id)
-    if not analysis.get("success"):
-        return {"status": "error", "error": analysis.get("error", "分析失败")}
-    result = await self_improver.apply_improvements(task_id, analysis)
-    return {
-        "status": "ok",
-        "task_id": task_id,
-        "analysis": analysis.get("analysis", "")[:500],
-        "result": result,
-    }
+    返回 started(新启动)/busy(已有运行)/error(功能关闭)；进度经 /self-improve/status 轮询。
+    """
+    return await self_improver.start_run()
+
+
+@router.get("/self-improve/status", dependencies=[Depends(require_strict_token)])
+async def self_improve_status():
+    """当前运行/最近一次完成态——前端刷新后据此恢复界面。"""
+    return await self_improver.get_status()
+
+
+@router.get("/self-improve/history", dependencies=[Depends(require_strict_token)])
+async def self_improve_history():
+    """历史运行记录（新→旧，持久化于 data/self_improve/history.json）。"""
+    return {"status": "ok", "items": self_improver.get_history()}
 
 
 @router.post("/self-improve/push", dependencies=[Depends(require_strict_token)])
