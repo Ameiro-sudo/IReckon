@@ -124,7 +124,7 @@ URL:
         }
 
     async def save_pattern(self, title: str, content: str, source: str) -> str:
-        return await self.kb.add_entry(
+        return await self.kb.add_entry(  # type: ignore[no-any-return]  # 知识库 API 动态类型
             entry_type="patterns", title=title, content=content, source=source
         )
 

@@ -113,7 +113,7 @@ class GitResult:
 def _render_template(env: Environment, name: str, fallback: str, **kwargs) -> str:
     """渲染 jinja2 模板，失败时回退到内置文本。"""
     try:
-        return env.get_template(name).render(**kwargs)
+        return env.get_template(name).render(**kwargs)  # type: ignore[no-any-return]  # jinja2 缺失时 stubs 为 Any
     except Exception as e:
         logger.warning(f"模板 {name} 渲染失败，使用内置默认: {e}")
         return fallback.format(**kwargs)

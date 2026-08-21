@@ -74,8 +74,8 @@ async def acquire(
                 exclude_ids=exclude_ids,
                 prefer_cheapest=True,
             )
-        return cap
-    return await capability_pool.find_best_match(
+        return cap  # type: ignore[no-any-return]  # 池 API 动态类型
+    return await capability_pool.find_best_match(  # type: ignore[no-any-return]  # 池 API 动态类型
         required_tags=required_tags,
         exclude_tags=[CHANNEL_EXECUTION_TAG],
         exclude_ids=exclude_ids,

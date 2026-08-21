@@ -77,7 +77,7 @@ def _validate_zip_download_url(url: str, repo: str) -> bool:
 
 
 class Updater:
-    def __init__(self):
+    def __init__(self) -> None:
         # 构造时读取一次并固定 _repo，不允许通过配置热更新替换仓库地址
         repo = get("self_update.repo", "Ameiro-sudo/IReckon")
         if not _REPO_RE.match(repo):
@@ -85,7 +85,7 @@ class Updater:
             repo = "Ameiro-sudo/IReckon"
         self._repo = repo
         self._current_version = get("system.version", "0.1.0")
-        self._check_interval = get("self_update.check_interval_hours", 24)
+        self._check_interval = float(get("self_update.check_interval_hours", 24) or 24)
         self._max_zip_bytes = get("self_update.max_zip_bytes", _MAX_ZIP_BYTES)
         self._github_api = f"{_GITHUB_API_PREFIX}{self._repo}"
         self._last_check_file = (

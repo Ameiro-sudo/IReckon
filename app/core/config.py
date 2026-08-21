@@ -25,8 +25,8 @@ try:
 
     WATCHDOG_AVAILABLE = True
 except ImportError:
-    FileSystemEventHandler = object  # type: ignore[misc,assignment]  # 降级：无 watchdog 时用空基类避免导入失败
-    Observer = None  # type: ignore[assignment]
+    FileSystemEventHandler = object
+    Observer = None
     WATCHDOG_AVAILABLE = False
     logger.warning("watchdog 未安装，配置文件热加载不可用，将使用手动重载")
 
@@ -69,11 +69,12 @@ class ConfigManager:
     _instance: Optional["ConfigManager"] = None
     _instance_lock = threading.Lock()
 
-    def __new__(cls) -> Optional["ConfigManager"]:
+    def __new__(cls) -> "ConfigManager":
         with cls._instance_lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
-        return cls._instance
+            instance = cls._instance
+        return instance
 
     @staticmethod
     def _resolve_base_dir() -> Path:
@@ -100,6 +101,8 @@ class ConfigManager:
         self.config_path = (self.base_dir / "config" / "config.yaml").resolve()
         if not self.config_path.exists():
             self.config_path = (Path.cwd() / "config" / "config.yaml").resolve()
+        self.example_path = self.config_path.with_name("config.example.yaml")
+        self._source_note = ""
 
         self.config: Dict[str, Any] = {}
         self._load_config()
@@ -107,11 +110,27 @@ class ConfigManager:
         atexit.register(self.shutdown)
 
     def _load_config(self, force: bool = False) -> None:
+        # config.yaml 缺失时回退 example 模板：全新克隆/打包解压即可运行，
+        # 且本地 config.yaml 仍然优先（example 不含真实密钥，仅模板占位）
+        # 主配置重新出现（如 auth 模块回写 token）时切回，避免一直停留在 example
+        if self.config_path.name != "config.yaml":
+            main = self.example_path.with_name("config.yaml")
+            if main.exists():
+                self.config_path = main
         if not self.config_path.exists():
-            logger.warning(f"配置文件不存在: {self.config_path}，使用空配置")
-            with self._config_lock:
-                self.config = {}
-            return
+            if self.example_path.exists():
+                if self._source_note != "example":
+                    logger.info(
+                        f"config.yaml 不存在，回退模板 {self.example_path.name}"
+                    )
+                self._source_note = "example"
+                self.config_path = self.example_path
+            else:
+                logger.warning(f"配置文件不存在: {self.config_path}，使用空配置")
+                self._source_note = ""
+                with self._config_lock:
+                    self.config = {}
+                return
 
         # 计算配置文件哈希（仅用于变更检测，非安全用途）
         current_hash = hashlib.md5(  # nosec B324: 非安全用途，仅变更检测
@@ -146,11 +165,11 @@ class ConfigManager:
             return [self._expand_env_vars(item) for item in value]
         if isinstance(value, str):
 
-            def replacer(match: re.Match) -> str | None:
+            def replacer(match: re.Match[str]) -> str:
                 expr = match.group(1)
                 if ":-" in expr:
                     var_name, default = expr.split(":-", 1)
-                    return os.environ.get(var_name, default)
+                    return os.environ.get(var_name, default) or ""
                 return os.environ.get(expr, "")
 
             return _ENV_VAR_PATTERN.sub(replacer, value)
@@ -209,6 +228,19 @@ class ConfigManager:
         if len(parts) != 2:
             raise ValueError("save_value 仅支持 section.key 形式的一级嵌套键")
         section, name = parts
+        # 只写 config.yaml：缺失（正在使用 example 回退）时先物化出一份副本，
+        # 避免把运行时生成的密钥写进被 git 跟踪的 config.example.yaml
+        if self.config_path.name != "config.yaml":
+            main = self.example_path.with_name("config.yaml")
+            try:
+                main.write_text(
+                    self.example_path.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+                self.config_path = main
+                logger.info("config.yaml 不存在，已从模板物化一份用于持久化")
+            except Exception as exc:
+                logger.warning(f"无法物化 config.yaml，跳过持久化 {key}: {exc}")
+                return False
         try:
             text = self.config_path.read_text(encoding="utf-8")
         except Exception as exc:
@@ -269,7 +301,8 @@ class ConfigManager:
             return node
 
         with self._config_lock:
-            return _mask(self.get_all())
+            masked = _mask(self.get_all())
+        return masked if isinstance(masked, dict) else {}
 
 
 class ConfigChangeHandler(FileSystemEventHandler):

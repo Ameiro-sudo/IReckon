@@ -146,6 +146,9 @@ class IReckonApp:
             except subprocess.CalledProcessError as e:
                 logger.warning(f"前端依赖安装失败: {e.returncode} {e.stderr}")
                 return
+            except (FileNotFoundError, OSError) as e:
+                logger.warning(f"前端依赖安装无法执行({cmd[0]}): {e}")
+                return
 
         logger.info("启动Vue前端...")
         bin_vite = os.path.join(FRONTEND_DIR, "node_modules", ".bin", "vite")

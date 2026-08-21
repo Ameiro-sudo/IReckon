@@ -25,7 +25,7 @@ def create_jinja_env() -> Environment:
 def load_template(template_name: str) -> str:
     """加载模板文件"""
     env = create_jinja_env()
-    return env.get_template(template_name).render()
+    return env.get_template(template_name).render()  # type: ignore[no-any-return]  # jinja2 缺失时 stubs 为 Any
 
 
 def make_task_title(user_request: str, max_len: int = 40) -> str:

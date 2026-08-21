@@ -125,7 +125,7 @@ class BaseAgent(ABC):
             )
             self.add_message("assistant", response.content)
             await self._record_usage(response)
-            return response.content
+            return response.content  # type: ignore[no-any-return]  # litellm 响应体动态类型
 
         except Exception as e:
             logger.error(f"Agent {self.role} 思考失败: {e}")

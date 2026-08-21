@@ -3,7 +3,7 @@ import copy
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import aiofiles
 from loguru import logger
@@ -92,7 +92,7 @@ class StateManager:
                 content = await f.read()
             state = json.loads(content)
             logger.info(f"从快照恢复任务状态: {latest}")
-            return state
+            return cast(Dict[str, Any], state)
         except json.JSONDecodeError as e:
             logger.error(f"快照文件损坏: {latest}, 错误: {e}")
             return None

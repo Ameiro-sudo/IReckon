@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class RoleRegistry:
     _instance: Optional["RoleRegistry"] = None
 
-    def __new__(cls) -> RoleRegistry | None:
+    def __new__(cls) -> "RoleRegistry":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance

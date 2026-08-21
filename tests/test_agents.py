@@ -164,20 +164,22 @@ def test_executor_apply_diff_add_line():
 
 def test_reviewer_parse_json():
     text = json.dumps({"passed": True, "issues": ["i1"], "suggestions": ["s1"]})
-    out = _parse_review_response(text)
+    out = _parse_review_response(text, "efficiency")
     assert out["passed"] is True
+    assert out["reviewer_type"] == "efficiency"
     assert "i1" in out["issues"]
 
 
 def test_reviewer_parse_with_fence():
     text = '```json\n{"passed": false, "issues": ["x"]}\n```'
-    out = _parse_review_response(text)
+    out = _parse_review_response(text, "correctness")
     assert out["passed"] is False
+    assert out["reviewer_type"] == "correctness"
     assert out["issues"] == ["x"]
 
 
 def test_reviewer_parse_invalid_fallback():
-    out = _parse_review_response("随便说点什么")
+    out = _parse_review_response("随便说点什么", "efficiency")
     assert out["passed"] is False
 
 

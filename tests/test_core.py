@@ -44,7 +44,8 @@ def test_config_env_var_expansion_missing_is_empty():
 
 def test_config_path_resolution():
     cm = ConfigManager()
-    assert cm.config_path.name == "config.yaml"
+    # 主配置存在时用 config.yaml；全新环境缺失时回退 example 模板，两者都必须可加载
+    assert cm.config_path.name in ("config.yaml", "config.example.yaml")
     assert cm.config_path.exists()
 
 

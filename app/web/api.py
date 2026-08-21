@@ -94,7 +94,9 @@ if not _frontend_available:
 
 
 def _dev_url() -> str:
-    return get("server.frontend_dev_url", "http://127.0.0.1:3000")
+    from typing import cast
+
+    return cast(str, get("server.frontend_dev_url", "http://127.0.0.1:3000"))
 
 
 @app.exception_handler(RequestValidationError)
