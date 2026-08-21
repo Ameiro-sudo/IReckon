@@ -19,6 +19,7 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
 import pytest_asyncio
 
 ROOT = Path(__file__).parent.parent.resolve()
@@ -143,6 +144,27 @@ def _get_db():
     from app.core.database import db
 
     return db
+
+
+@pytest.fixture(autouse=True)
+def _reset_capability_pool():
+    """每个测试前重置全局能力池单例状态。
+
+    背景：CapabilityPool 是进程级单例，refresh() 有 60s 单调时钟节流。
+    若某个测试在 config_manager.get 被 patch（如 make_improver 返回空实例列表）
+    时触发了真实 find_best_match，单例会缓存"空池 + 刚刷新过"状态长达 60s，
+    污染同进程后续所有依赖真实池的测试（且全量运行时因耗时>60s 而侥幸掩盖）。
+    同时 pytest-asyncio 每个测试独立事件循环，_refresh_lock 需随循环重建
+    （与 session_db 重建数据库锁同理）。
+    """
+    from app.llm.pool import capability_pool
+
+    capability_pool._last_refresh = 0
+    capability_pool.capabilities = {}
+    capability_pool._memory_cache.clear()
+    capability_pool._cache_timestamps.clear()
+    capability_pool._refresh_lock = asyncio.Lock()
+    yield
 
 
 @pytest_asyncio.fixture
