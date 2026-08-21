@@ -83,3 +83,11 @@
 ## 自主轮 8
 
 - [x] core/updater.py 55%→66%（+12 测试）：版本解析/双 URL 校验器(含 evil.com 查询串绕过用例)/should_check 节流按 mtime 真实语义
+## 自主轮 9（CI 事故与修复）
+
+- ⚠️ 发现：自主轮 4-7 期间的推送导致远端 CI 三路失败(windows/ubuntu pytest + ruff format check)，本地全绿掩盖了问题——本地验证链缺 `ruff format --check` 环节，且 3.13 本地 vs 3.11 CI 的 asyncio 调度差异被侥幸掩盖
+- [x] 修复①：测试中 `gather(*all_tasks)` 反模式清除(跨测试残留已取消任务炸入当前用例)，改 await 具体包装任务+suppress
+- [x] 修复②：ruff format 落地 23 文件重排，验证链补上格式检查环节
+- [x] 修复③：learner._should_trigger 返回 Any 收口 bool()
+- [x] **CI 恢复全绿** @ 4709d88(gh run watch 实证)
+- 教训入库：本地验证链=pytest+ruff check+**ruff format --check**+mypy 四件套，缺一不可
