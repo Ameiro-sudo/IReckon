@@ -29,6 +29,24 @@ _NON_REPO_PREFIXES = (
 )
 
 
+def _extract_repo_candidates(html: str) -> List[str]:
+    """从 Trending 页面 HTML 提取 <owner>/<repo> 候选（去重，前 20 个）。"""
+    candidates = []
+    for match in re.findall(r'href="/([^/"]+/[^/"]+)"', html):
+        owner, _, repo = match.partition("/")
+        if not owner or not repo:
+            continue
+        if owner in _NON_REPO_PREFIXES:
+            continue
+        if repo.endswith(".md") or "/" in repo:
+            continue
+        if match not in candidates:
+            candidates.append(match)
+        if len(candidates) >= 20:
+            break
+    return candidates
+
+
 async def _fetch_trending_repos(url: str) -> List[str]:
     """抓取 GitHub Trending 页面，提取 <owner>/<repo> 候选列表（前 20 个）。"""
     try:
@@ -46,20 +64,7 @@ async def _fetch_trending_repos(url: str) -> List[str]:
     except Exception as e:
         logger.warning(f"抓取 {url} 失败，降级为直接传 URL 文本: {e}")
         return []
-    candidates = []
-    for match in re.findall(r'href="/([^/"]+/[^/"]+)"', html):
-        owner, _, repo = match.partition("/")
-        if not owner or not repo:
-            continue
-        if owner in _NON_REPO_PREFIXES:
-            continue
-        if repo.endswith(".md") or "/" in repo:
-            continue
-        if match not in candidates:
-            candidates.append(match)
-        if len(candidates) >= 20:
-            break
-    return candidates
+    return _extract_repo_candidates(html)
 
 
 class IdleLearningLoop:
@@ -73,19 +78,28 @@ class IdleLearningLoop:
         # 持有后台学习任务引用，便于 shutdown 时取消
         self._learning_task: Optional["asyncio.Task"] = None
 
+    def _daily_reset_if_needed(self, today) -> None:
+        """跨天时重置当日学习计数。"""
+        if today != self._last_reset_date:
+            self._learn_count = 0
+            self._last_reset_date = today
+
+    def _should_trigger(self, now: float, today) -> bool:
+        """空闲触发判定：非学习态 + 空闲超阈值 + 未达每日上限。"""
+        self._daily_reset_if_needed(today)
+        if self._learning:
+            return False
+        return (
+            now - self._last_task_time > self.idle_trigger_minutes * 60
+            and self._learn_count < self.max_learn_sessions_per_day
+        )
+
     async def run(self):
         logger.info(f"空闲学习循环已启动，触发间隔: {self.idle_trigger_minutes} 分钟")
         while True:
             await asyncio.sleep(60)
-            today = datetime.now(timezone.utc).date()
-            if today != self._last_reset_date:
-                self._learn_count = 0
-                self._last_reset_date = today
-            if self._learning:
-                continue
-            if (
-                time.time() - self._last_task_time > self.idle_trigger_minutes * 60
-                and self._learn_count < self.max_learn_sessions_per_day
+            if self._should_trigger(
+                time.time(), datetime.now(timezone.utc).date()
             ):
                 logger.info(
                     f"空闲学习 ({self._learn_count + 1}/{self.max_learn_sessions_per_day})"
