@@ -67,3 +67,7 @@
 - [x] security/mining.py 50%→95%：8正4负参数化检测用例、假psutil进程扫描命中、psutil缺失降级
 - [x] knowledge/vector.py 39%→82%：绕过 chromadb 构造直测 add 委托/search 映射/n_results 钳制/可选字段容错
 - [x] 全量 pytest 绿；累计自主轮测试 196→268
+## 自主轮 5
+
+- [x] core/state.py 46%→84% + engine/registry.py 43%→58%（+14 测试）
+- [x] 全量 pytest 绿；累计自主轮测试 196→282
