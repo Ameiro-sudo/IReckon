@@ -52,3 +52,8 @@
 - [x] 覆盖率摸底并补盲区：content_filter 35%→100%、tool_manager 19%→67%（+16 测试），04f1b17 已推远端
 - [x] IReckon.spec(PyInstaller 产物)入 gitignore
 - [ ] 下轮候选：engine/tasks.py(37%)、web/routers/system.py(31%) 补测；learner 循环逻辑审查
+## 自主轮 2
+
+- [x] engine/tasks.py 37%→67%：任务创建/上传批次白名单(_UPLOAD_ID_RE)/_ingest_uploads 穿越防护/需求拼装(超限与非法路径跳过)/_launch 异常→FAILED、取消+事件→PAUSED 语义，+13 测试
+- [x] web/routers/system.py 31%→67%：auth/check 三态(免鉴权布尔语义/回环信任/错 token)、stats 形状、logs 解析与 level 过滤，+5 测试
+- [x] 全量 pytest 保持绿，63f4f84 已推远端
