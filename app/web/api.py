@@ -66,6 +66,39 @@ app.add_middleware(
     allow_headers=["X-API-Token", "Content-Type"],
 )
 
+# 安全响应头（P2-12）：CSP 收紧脚本/对象/框架来源，其余为通用加固。
+# 说明：
+# - script-src 'self'：主题引导已外链为 /theme-init.js（public/），入口无内联脚本；
+# - style-src 'unsafe-inline'：Vue 运行时与 Tailwind 会注入内联样式，无法收紧；
+# - Google Fonts 两个域仅为字体样式与字体文件；
+# - connect-src 显式放行 ws/wss（部分浏览器对 'self' 覆盖 WebSocket 的行为不一致）；
+# - frame-ancestors 'none' 禁止被嵌入 iframe，配合 X-Frame-Options DENY。
+_CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data:",
+        "connect-src 'self' ws: wss:",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 app.include_router(tasks.router, dependencies=[Depends(require_api_token)])
 app.include_router(instances.router, dependencies=[Depends(require_api_token)])
 app.include_router(config_router.router, dependencies=[Depends(require_api_token)])
@@ -166,4 +199,9 @@ else:
 
     @app.get("/{path:path}", include_in_schema=False)
     async def redirect_to_dev(path: str):
+        # 文档已关闭时无前端 dist 也必须直接 404：
+        # 否则 302 到 dev server 后 TestClient 会把绝对URL再次喂回本应用形成重定向循环，
+        # 且交互文档端点不应借 dev server 重定向"复活"
+        if not _docs_enabled and path in ("docs", "redoc", "openapi.json"):
+            raise HTTPException(404)
         return RedirectResponse(_dev_url())
