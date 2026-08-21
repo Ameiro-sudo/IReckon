@@ -31,8 +31,16 @@ class SupplyChainFirewall:
         custom = get("security.supply_chain_blacklist", {}) or {}
         self._pip_blacklist.extend(str(p).lower() for p in custom.get("pip", []))
         self._npm_blacklist.extend(str(p).lower() for p in custom.get("npm", []))
-        self._pip_blacklist = list(dict.fromkeys(self._pip_blacklist))
+        # PEP 503 规范化：requests_fake / requests.fake / requests-fake 视为同一包
+        self._pip_blacklist = list(
+            dict.fromkeys(self._normalize_pip_name(p) for p in self._pip_blacklist)
+        )
         self._npm_blacklist = list(dict.fromkeys(self._npm_blacklist))
+
+    @staticmethod
+    def _normalize_pip_name(name: str) -> str:
+        """PEP 503 包名规范化：小写 + 连续 -/_/. 归一为单个 -。"""
+        return re.sub(r"[-_.]+", "-", name.strip()).lower()
 
     @staticmethod
     def _extract_package_name(word: str) -> str:
@@ -40,10 +48,16 @@ class SupplyChainFirewall:
         w = word.strip().strip("'\"")
         if not w:
             return ""
-        # git+https://host/owner/repo.git 或 url 形式 → 取 repo 名
+        # git+https://host/owner/repo.git 或 URL/wheel 直装形式
         if "://" in w or w.startswith("git+"):
-            m = re.search(r"/([^/]+?)(?:\.git)?$", w.split("#")[0])
-            return (m.group(1) if m else w).lower()
+            path = w.split("#")[0].split("?")[0]
+            fname = re.sub(r"^.*/", "", path)
+            # wheel/sdist 文件名（dist-1.0-py3-none-any.whl）→ 取首段 dist 名
+            base = re.sub(r"\.(whl|tar\.gz|zip|egg)$", "", fname, flags=re.IGNORECASE)
+            if base != fname:
+                return SupplyChainFirewall._normalize_pip_name(base.split("-")[0])
+            m = re.search(r"/([^/]+?)(?:\.git)?$", path)
+            return SupplyChainFirewall._normalize_pip_name(m.group(1) if m else w)
         # @scope/name@version 或 name@version
         if w.startswith("@"):
             m = re.match(r"@[^/]+/([^@/\s]+)", w)
@@ -51,11 +65,11 @@ class SupplyChainFirewall:
                 return m.group(1).lower()
         # 去版本约束（= < > ~ ! ; [ ）与 @version
         base = re.split(r"[=<>~!;\[@]", w)[0]
-        return base.lower()
+        return SupplyChainFirewall._normalize_pip_name(base)
 
     def _check_packages(self, tokens: list, blacklist: list, kind: str) -> bool:
         # 跳过包管理器命令本身与选项
-        skip = {"install", "add", "i", "-r", "--requirement", "-e", "--editable"}
+        skip = {"install", "add", "i", "-r", "--requirement"}
         for word in tokens:
             if word.startswith("-") or word in skip:
                 continue
@@ -63,6 +77,31 @@ class SupplyChainFirewall:
             if pkg in blacklist:
                 logger.warning(f"供应链防火墙拦截 {kind} 包: {pkg}")
                 return False
+        return True
+
+    def _check_requirements_line(self, line: str) -> bool:
+        """检查 requirements 单行：含 -e/--editable 与 http 明文源拦截。"""
+        line = line.strip()
+        if not line or line.startswith("#"):
+            return True
+        if line.startswith("-"):
+            parts = line.split(None, 1)
+            flag = parts[0].lower()
+            arg = parts[1].strip() if len(parts) > 1 else ""
+            if flag in ("-e", "--editable"):
+                # 可编辑安装同样指向具体包/仓库，必须纳入黑名单检查
+                return self._check_packages([arg], self._pip_blacklist, "pip")
+            if flag in ("-i", "--index-url", "--extra-index-url"):
+                # 明文 http 源可被中间人投毒，直接拒绝；https 镜像放行
+                if arg.startswith("http://"):
+                    logger.warning(f"供应链防火墙：拒绝明文 HTTP 包索引源: {arg}")
+                    return False
+                return True
+            # 其余选项行（--trusted-host 等）不携带包名，放行
+            return True
+        if self._extract_package_name(line) in self._pip_blacklist:
+            logger.warning(f"供应链防火墙拦截 requirements 中的 pip 包: {line}")
+            return False
         return True
 
     def check_install_command(self, command: str) -> bool:
@@ -90,20 +129,11 @@ class SupplyChainFirewall:
                 try:
                     p = Path(req_file)
                     if p.exists():
-                        for line in p.read_text(
+                        for raw_line in p.read_text(
                             encoding="utf-8", errors="replace"
                         ).splitlines():
-                            line = line.strip()
-                            if not line or line.startswith(("#", "-", "git+")):
-                                if line.startswith("git+") and not self._check_packages(
-                                    [line], self._pip_blacklist, "pip"
-                                ):
-                                    return False
-                                continue
-                            if self._extract_package_name(line) in self._pip_blacklist:
-                                logger.warning(
-                                    f"供应链防火墙拦截 requirements 中的 pip 包: {line}"
-                                )
+                            line = raw_line.strip()
+                            if not self._check_requirements_line(line):
                                 return False
                     else:
                         # 文件不存在按保守处理：拒绝该 -r 引用

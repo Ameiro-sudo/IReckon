@@ -5,6 +5,7 @@
 
 import atexit
 import hashlib
+import json
 import os
 import re
 import sys
@@ -30,6 +31,38 @@ except ImportError:
     logger.warning("watchdog 未安装，配置文件热加载不可用，将使用手动重载")
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)}")
+
+
+def _load_dotenv_file(path: Path) -> int:
+    """极简 .env 加载器（零依赖）：KEY=VALUE 逐行解析。
+
+    - 已存在的环境变量不覆盖（真实 shell 环境优先）；
+    - 注释/空行/无等号的行跳过；值两侧成对引号会被剥掉；
+    - 返回新载入的变量数。文件不存在时静默返回 0。
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return 0
+    loaded = 0
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if not key or " " in key:
+            logger.warning(f".env 行格式非法已跳过: {raw_line[:50]}")
+            continue
+        if key not in os.environ:
+            os.environ[key] = value
+            loaded += 1
+    if loaded:
+        logger.debug(f"已从 {path.name} 载入 {loaded} 个环境变量")
+    return loaded
 
 
 class ConfigManager:
@@ -62,6 +95,8 @@ class ConfigManager:
         self._config_hash: Optional[str] = None
 
         self.base_dir = self._resolve_base_dir()
+        # .env 必须在首次展开 ${VAR} 之前载入（零依赖，已有环境变量优先）
+        _load_dotenv_file(self.base_dir / ".env")
         self.config_path = (self.base_dir / "config" / "config.yaml").resolve()
         if not self.config_path.exists():
             self.config_path = (Path.cwd() / "config" / "config.yaml").resolve()
@@ -90,6 +125,11 @@ class ConfigManager:
             with self.config_path.open("r", encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
         except Exception as exc:
+            # 解析失败（如编辑器半写入状态）时保留上一份好配置，避免空配置
+            # 覆盖运行时导致 LLM 端点/密钥/预算全部丢失
+            if self.config:
+                logger.error(f"配置文件解析失败，保留上一份有效配置: {exc}")
+                return
             logger.error(f"配置文件读取失败: {exc}，使用空配置")
             raw = {}
 
@@ -123,11 +163,12 @@ class ConfigManager:
 
         try:
             handler = ConfigChangeHandler(self)
-            self._observer = Observer
-            self._observer.schedule(
+            observer = Observer()
+            observer.schedule(
                 handler, path=str(self.config_path.parent), recursive=False
             )
-            self._observer.start()
+            observer.start()
+            self._observer = observer
             logger.info("配置文件热加载监视器已启动")
         except Exception as exc:
             logger.warning(f"无法启动文件监视器: {exc}")
@@ -159,13 +200,68 @@ class ConfigManager:
         with self._config_lock:
             return copy.deepcopy(self.config)
 
+    def save_value(self, key: str, value: Any) -> bool:
+        """将 section.key 形式的二级标量键写回 YAML（行级替换，保留注释与格式）。
+
+        找不到目标行或写入失败时返回 False，调用方需自行兜底。
+        """
+        parts = key.split(".")
+        if len(parts) != 2:
+            raise ValueError("save_value 仅支持 section.key 形式的一级嵌套键")
+        section, name = parts
+        try:
+            text = self.config_path.read_text(encoding="utf-8")
+        except Exception as exc:
+            logger.warning(f"读取配置文件失败，无法写回 {key}: {exc}")
+            return False
+
+        lines = text.splitlines(keepends=True)
+        in_section = False
+        pattern = re.compile(rf"^(\s*){re.escape(name)}\s*:\s*(.*?)\s*(#.*)?$")
+        for i, line in enumerate(lines):
+            stripped = line.rstrip("\r\n")
+            if not stripped.strip() or stripped.strip().startswith("#"):
+                continue
+            indent = len(stripped) - len(stripped.lstrip(" "))
+            if indent == 0:
+                in_section = stripped.split(":", 1)[0].strip() == section
+                continue
+            if not in_section or indent != 2:
+                continue
+            m = pattern.match(stripped)
+            if not m:
+                continue
+            new_value = json.dumps(str(value), ensure_ascii=False)
+            rebuilt = f"{m.group(1)}{name}: {new_value}"
+            if m.group(3):
+                rebuilt += f"  {m.group(3)}"
+            lines[i] = rebuilt + ("\n" if line.endswith("\n") else "")
+            tmp_path = self.config_path.with_suffix(".yaml.tmp")
+            try:
+                tmp_path.write_text("".join(lines), encoding="utf-8")
+                tmp_path.replace(self.config_path)
+            except Exception as exc:
+                logger.warning(f"配置文件写入失败，无法持久化 {key}: {exc}")
+                return False
+            self._load_config(force=True)
+            logger.info(f"配置项已写回: {key}")
+            return True
+        logger.warning(f"配置文件中未找到 {key} 行，跳过持久化")
+        return False
+
     def get_redacted(self) -> Dict[str, Any]:
-        """深拷贝后掩码所有键名含 api_key 的值为 "***"，防止 API Key 泄露。"""
+        """深拷贝后掩码所有敏感键（api_key/token/secret/password/credential）为 "***"。"""
+
+        _SENSITIVE_MARKERS = ("api_key", "token", "secret", "password", "credential")
 
         def _mask(node: Any) -> Any:
             if isinstance(node, dict):
                 return {
-                    k: ("***" if "api_key" in str(k).lower() else _mask(v))
+                    k: (
+                        "***"
+                        if any(m in str(k).lower() for m in _SENSITIVE_MARKERS)
+                        else _mask(v)
+                    )
                     for k, v in node.items()
                 }
             if isinstance(node, list):

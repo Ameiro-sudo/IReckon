@@ -9,41 +9,6 @@ from app.tools.assembler import ToolAssembler
 from loguru import logger
 
 
-async def add_part(
-    name: str,
-    description: str,
-    language: str,
-    code: str,
-    input_schema: Dict,
-    output_schema: Dict,
-    tags: List[str],
-    created_by: str,
-) -> str:
-    import uuid
-
-    part_id = f"part-{uuid.uuid4().hex[:8]}"
-    await db.execute(
-        """
-        INSERT INTO tool_parts
-        (part_id, name, description, language, code, input_schema, output_schema, tags, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            part_id,
-            name,
-            description,
-            language,
-            code,
-            json.dumps(input_schema),
-            json.dumps(output_schema),
-            json.dumps(tags),
-            created_by,
-        ),
-    )
-    logger.info(f"零件入库: {name} ({part_id})")
-    return part_id
-
-
 async def assemble_tool_simple(requirement: str, parts: List[Dict]) -> Optional[str]:
     if "如果" in requirement or "条件" in requirement or "分支" in requirement:
         if len(parts) >= 3:

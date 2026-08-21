@@ -3,8 +3,11 @@
 # persistent Bash and string-replace editor tools.
 #
 # SECURITY WARNING: sandbox-policy 使用 mode: danger-full-access（完全访问）。
-# 该模式允许 dsh 代理在工作区内执行任意命令，仅应在受信任环境中启用；
-# 部署到不可信环境前请改用受限沙箱策略并收紧 workspaceRoot。
+# 该模式允许 dsh 代理在宿主机执行任意命令，仅应在受信任环境中启用。
+# 运行时安全门：使用本配置必须在 config.yaml 中显式设置
+#   harness.allow_full_access: true
+# 否则 dsh 任务会被拒绝执行；或改用受限策略
+# （harness.policy_mode / 自定义 cordis_config）。
 
 - id: sdk-jsonrpc-server
   name: '@deepseek-ai/dsh-sdk-jsonrpc-server'

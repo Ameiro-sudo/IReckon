@@ -46,11 +46,16 @@ jobs:
         run: mypy app/ --ignore-missing-imports
 
       - name: Security scan with bandit
-        run: bandit -r app/ -x app/tests/ -ll
+        run: bandit -r app/ -ll
 
   test:
-    name: Unit Tests
-    runs-on: ubuntu-latest
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 主分发渠道是 Windows 安装包，Windows 必须与 Linux 同等跑测试
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4

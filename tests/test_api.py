@@ -10,13 +10,17 @@ import pytest_asyncio
 import httpx
 
 from app.web.api import app
+from app.web.auth import configured_token
 
 
 
 @pytest_asyncio.fixture(scope="function")
 async def client(session_db):
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
+    headers = {"X-API-Token": configured_token()} if configured_token() else {}
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test", headers=headers
+    ) as c:
         yield c
 
 
@@ -109,9 +113,12 @@ async def test_ai_instance_crud(client, seed_instance):
 
     r = await client.delete(f"/api/ai-instances/{iid}")
     assert r.status_code == 200
+    # 物理删除：删除后不应再出现在列表中
     insts = (await client.get("/api/ai-instances")).json()
-    inst = next(i for i in insts if i["id"] == iid)
-    assert inst["enabled"] is False
+    assert not any(i["id"] == iid for i in insts)
+    # 重复删除应 404
+    r = await client.delete(f"/api/ai-instances/{iid}")
+    assert r.status_code == 404
 
 
 async def test_ai_instance_missing_model_field(client):
@@ -119,6 +126,23 @@ async def test_ai_instance_missing_model_field(client):
         "/api/ai-instances", json={"id": "bad", "endpoint": "http://x"}
     )
     assert r.status_code in (200, 422)
+
+
+async def test_ai_instance_duplicate_id_rejected(client, seed_instance):
+    """同 ID 重复创建必须 409，防止实例被覆盖劫持。"""
+    payload = {
+        "id": seed_instance,
+        "name": "Hijacked",
+        "endpoint": "http://evil.example/v1",
+        "model": "x",
+        "tags": [],
+        "enabled": False,
+    }
+    r = await client.post("/api/ai-instances", json=payload)
+    assert r.status_code == 409
+    insts = (await client.get("/api/ai-instances")).json()
+    mine = next(i for i in insts if i["id"] == seed_instance)
+    assert mine["name"] != "Hijacked"
 
 
 async def test_ai_instance_auto_generated_id(client):

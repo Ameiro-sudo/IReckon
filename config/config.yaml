@@ -1,5 +1,12 @@
 ai_pool:
   default_model: auto
+  routing:
+    # 执行通道无可用实例时是否回退主通道（会消耗按次计费调用）
+    execution_fallback_to_primary: true
+  response_cache:
+    enabled: true
+    ttl_seconds: 3600
+    max_entries: 512
   instances:
   - api_key: ${FREELMAPI_KEY}
     cost_per_1k_tokens: 0.0
@@ -42,6 +49,7 @@ ai_pool:
     - review
     - architecture
     - python
+    - channel:execution
   - api_key: ${DEEPSEEK_API_KEY}
     cost_per_1k_tokens: 2.19
     enabled: true
@@ -60,10 +68,31 @@ ai_pool:
     - code
     - architecture
     - review
+  - api_key: ${OPENCODE_API_KEY}
+    cost_per_1k_tokens: 0.0
+    enabled: true
+    endpoint: https://opencode.ai/zen/v1
+    id: opencodezen-ox-free
+    max_context: 131072
+    model: x-preview-f-free
+    name: OpenCode Zen Ox Alpha Free
+    parameters: {}
+    tags:
+    - general
+    - fast
+    - cheap
+    - code
+    - channel:execution
 harness:
   cli_command: npx @deepseek-ai/dsh
   cordis_config: config/harness/minimal.cordis.yml
   enabled: true
+  # 安全门：cordis 策略为 danger-full-access 时必须显式置 true 才允许运行
+  allow_full_access: false
+  # 生成默认 cordis 模板时使用的策略模式
+  policy_mode: danger-full-access
+  # 任务文本命令过滤（L3 高危构造拦截）开关
+  command_filter_enabled: true
   max_tokens: 49152
   model: deepseek-v4-flash
   mode: auto
@@ -105,6 +134,7 @@ self_update:
   max_files_per_round: 5
   repo: Ameiro-sudo/IReckon
 server:
+  docs_enabled: false
   frontend_dev_url: http://127.0.0.1:3000
   host: 127.0.0.1
   log_level: INFO

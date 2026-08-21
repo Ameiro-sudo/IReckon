@@ -389,7 +389,7 @@ class WorkflowEngine:
 
         code = s["last_code"]
         reqs = phases[pi].get("description", "")
-        reviewers = self._create_reviewers(s)
+        reviewers = await self._create_reviewers(s)
 
         await asyncio.gather(
             tb.update(phase=TaskPhase.REVIEWING, pending_actions=["审查中"]),
@@ -459,10 +459,25 @@ class WorkflowEngine:
             "task_board_state": tb.get_state_dict(),
         }
 
-    def _create_reviewers(self, s) -> List:
+    async def _create_reviewers(self, s) -> List:
+        """创建评审者；招募计划未指定审查实例时按计费通道路由到主通道（重模型）。
+
+        审查判定是"判断点"，不应默认复用执行者的轻量实例——省下的钱
+        不能花在刀刃背面。主通道无可用实例时才降级复用执行者实例。
+        """
+        from app.llm.router import acquire
+
         reviewers = []
         for role in ("reviewer_correctness", "reviewer_efficiency"):
-            rc = s["team"].get(role, [None])[0] or s["team"]["executor"][0]
+            rc = s["team"].get(role, [None])[0]
+            if rc is None:
+                rc = await acquire(tier="heavy")
+                if rc is None:
+                    rc = s["team"]["executor"][0]
+                    logger.warning(
+                        f"主通道无可用实例，{role} 降级复用执行者实例 "
+                        f"{rc.id}（判断点将运行在轻模型上）"
+                    )
             rv = role_registry.create_agent(role, rc)
             if rv:
                 rv.bind_context(s["task_id"])

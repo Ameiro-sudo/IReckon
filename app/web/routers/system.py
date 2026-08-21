@@ -1,27 +1,25 @@
 """系统级 API：健康检查、统计、用量、日志、更新、自我进化。"""
 
 import time
-from collections import deque
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Header, Query
 from loguru import logger
 
 
 from app.core.config import get
 from app.core.database import db
-from app.core.logger import _log_queue
 from app.core.updater import updater
 from app.engine.cost import get_summary
 from app.engine.self_improve import self_improver
 from app.engine.tasks import task_manager
 from app.llm.pool import capability_pool
+from app.web.auth import configured_token, has_strict_token, require_strict_token
 from app.web.push import manager as ws_manager
 
 router = APIRouter(prefix="/api", tags=["system"])
 
-_log_buffer: deque = deque(maxlen=500)
 _boot_time = time.monotonic()
 _update_cache: dict = {"latest": None, "checked_at": 0.0}
 
@@ -39,21 +37,23 @@ async def _check_update_cached():
     return latest
 
 
-def _drain_log_queue() -> List[str]:
-    items = []
-    while not _log_queue.empty():
-        try:
-            items.append(_log_queue.get_nowait())
-        except Exception:
-            break
-    for item in items:
-        _log_buffer.append(item)
-    return items
+@router.get("/auth/check")
+async def auth_check(x_api_token: Optional[str] = Header(None)):
+    """登录页令牌校验（免鉴权路径）：只回答 是/否，不泄露任何其他信息。"""
+    import secrets as _secrets
+
+    token = configured_token()
+    required = bool(token)
+    authenticated = bool(
+        required
+        and x_api_token
+        and _secrets.compare_digest(x_api_token, token)
+    )
+    return {"authenticated": authenticated, "required": required}
 
 
 @router.get("/health")
 async def health():
-    _drain_log_queue()
     caps = await capability_pool.get_all(refresh=False)
     latest = await _check_update_cached()
     return {
@@ -100,11 +100,16 @@ async def usage():
 
 
 @router.get("/logs")
-async def logs(limit: int = Query(200, ge=1, le=2000), level: Optional[str] = None):
-    _drain_log_queue()
-    # 优先从当日日志文件读取（与 WebSocket 消费者无竞争）
+async def logs(
+    limit: int = Query(200, ge=1, le=2000),
+    level: Optional[str] = None,
+    x_api_token: Optional[str] = Header(None),
+):
+    # 只读当日日志文件，与 WebSocket 日志消费者（_log_queue）无竞争
     from datetime import datetime
 
+    # DEBUG 日志含 SQL 语句、内部路径等敏感细节，仅 strict token 持有者可见
+    allow_debug = has_strict_token(x_api_token)
     data_dir = Path(get("system.data_dir", "./data"))
     log_file = data_dir / "logs" / f"app_{datetime.now().strftime('%Y-%m-%d')}.log"
     lines: List[str] = []
@@ -114,7 +119,6 @@ async def logs(limit: int = Query(200, ge=1, le=2000), level: Optional[str] = No
             lines = raw.splitlines()[-limit:]
     except Exception as e:
         logger.debug(f"读取日志文件失败: {e}")
-    lines = lines + list(_log_buffer)[-limit:]
     lines = lines[-limit:]
     result = []
     _VALID_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
@@ -130,20 +134,15 @@ async def logs(limit: int = Query(200, ge=1, le=2000), level: Optional[str] = No
             if candidate in _VALID_LEVELS:
                 lv = candidate
                 raw = parts[2]
-        # 队列格式: "LEVEL|message"
-        elif "|" in raw:
-            head, _, rest = raw.partition("|")
-            candidate = head.strip().upper()
-            if candidate in _VALID_LEVELS:
-                lv = candidate
-                raw = rest.strip()
+        if lv == "DEBUG" and not allow_debug:
+            continue
         if level and lv != level.upper():
             continue
         result.append({"level": lv, "message": raw})
     return result
 
 
-@router.post("/self-improve")
+@router.post("/self-improve", dependencies=[Depends(require_strict_token)])
 async def trigger_self_improve():
     import uuid
 
@@ -160,7 +159,7 @@ async def trigger_self_improve():
     }
 
 
-@router.post("/self-improve/push")
+@router.post("/self-improve/push", dependencies=[Depends(require_strict_token)])
 async def push_self_improve():
     ok = await self_improver.push_to_remote()
     return {"status": "ok" if ok else "error"}
@@ -177,7 +176,7 @@ async def check_update():
     }
 
 
-@router.post("/update/apply")
+@router.post("/update/apply", dependencies=[Depends(require_strict_token)])
 async def apply_update():
     version = await updater.check()
     if not version:

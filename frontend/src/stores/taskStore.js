@@ -97,7 +97,10 @@ export const useTaskStore = defineStore('tasks', () => {
     if (!taskId) return null
     try {
       const res = await taskAPI.getBoard(taskId)
-      board.value = res.data
+      // 守卫：快速切换任务时，慢响应不得用旧任务看板覆盖当前看板
+      if (currentTask.value?.task_id === taskId) {
+        board.value = res.data
+      }
       return res.data
     } catch {
       return null

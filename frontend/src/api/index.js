@@ -17,7 +17,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => response,
   error => {
-    console.error('API Error:', error)
+    // 令牌失效/缺失：清除本地令牌并回到登录页（登录页自身的请求除外）
+    if (error.response?.status === 401 && !location.pathname.startsWith('/login')) {
+      localStorage.removeItem('ireckon_api_token')
+      const redirect = encodeURIComponent(location.pathname + location.search)
+      location.href = `/login?redirect=${redirect}`
+    }
     return Promise.reject(error)
   }
 )

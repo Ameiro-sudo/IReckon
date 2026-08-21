@@ -44,6 +44,8 @@ const MAX_LOGS = 1000
 let ws = null
 let reconnectTimer = null
 let retries = 0
+// 连接代数守卫：防止卸载后旧 socket 回调触发幽灵重连
+let wsGeneration = 0
 
 const filtered = computed(() => {
   if (!levelFilter.value) return logs.value
@@ -65,12 +67,19 @@ onUnmounted(() => disconnectWs())
 
 function connectWs() {
   disconnectWs()
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+  const gen = ++wsGeneration
   try {
     ws = createWebSocket()
-    ws.onopen = () => { connected.value = true; retries = 0 }
-    ws.onclose = () => { connected.value = false; scheduleReconnect() }
+    ws.onopen = () => {
+      if (gen !== wsGeneration) return
+      connected.value = true; retries = 0
+    }
+    ws.onclose = () => {
+      if (gen !== wsGeneration) return
+      connected.value = false; scheduleReconnect()
+    }
     ws.onmessage = (e) => {
+      if (gen !== wsGeneration) return
       try {
         const data = JSON.parse(e.data)
         if (data.type === 'log') {
@@ -79,7 +88,10 @@ function connectWs() {
           if (autoscroll.value) scrollBottom()
         }
       } catch {
-        if (e.data === 'ping') ws?.send('pong')
+        if (e.data === 'ping') {
+          // readyState 守卫：非 OPEN 状态 send 会抛未捕获异常
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send('pong')
+        }
       }
     }
   } catch {
@@ -99,11 +111,15 @@ function scheduleReconnect() {
 }
 
 function disconnectWs() {
+  ++wsGeneration
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
   if (ws) {
-    ws.close()
+    // 先摘除事件处理器再 close，防止 onclose 触发幽灵重连
+    ws.onopen = ws.onclose = ws.onmessage = ws.onerror = null
+    try { ws.close() } catch { /* ignore */ }
     ws = null
   }
+  connected.value = false
 }
 
 function clear() {

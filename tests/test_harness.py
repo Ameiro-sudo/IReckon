@@ -21,6 +21,8 @@ CFG = {
     "harness.session_root": "/tmp/ireckon-test/sessions",
     "harness.workspace_root": "/tmp/ireckon-test/workspaces",
     "harness.cli_command": "npx @deepseek-ai/dsh",
+    # 通道测试使用真实 cordis（danger-full-access），显式开启安全门
+    "harness.allow_full_access": True,
 }
 
 
@@ -75,6 +77,31 @@ def test_workspace_escape_rejected():
     )
     assert result.ok is False
     assert "workspace_root" in result.error
+
+
+def test_full_access_gate_blocks_by_default():
+    """安全门：cordis 为 danger-full-access 且未显式允许时必须拒绝。"""
+    cfg = FakeConfig()
+    # allow_full_access 未配置（返回默认 False）→ 安全门生效
+    cfg.get = lambda k, d=None: (
+        d if k == "harness.allow_full_access" else CFG.get(k, d)
+    )
+    client = DSHClient(cfg=cfg)
+    result = asyncio.run(client.run("写一个 hello world"))
+    assert result.ok is False
+    assert "danger-full-access" in result.error
+    assert "allow_full_access" in result.error
+
+
+def test_command_filter_blocks_dangerous_task():
+    """命令过滤接入点：任务文本内嵌高危 shell 构造时拒绝执行。"""
+    client = make_client()
+    client._get = lambda k, d=None: (
+        True if k == "allow_full_access" else CFG.get(f"harness.{k}", d)
+    )
+    result = asyncio.run(client.run("执行 `rm -rf /` 清理环境"))
+    assert result.ok is False
+    assert "命令过滤" in result.error
 
 
 def test_cordis_config_generated(monkeypatch, tmp_path):

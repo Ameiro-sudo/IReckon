@@ -5,6 +5,28 @@
 
   <div class="settings-grid">
     <div class="panel">
+      <div class="panel-title">API 访问令牌</div>
+      <p class="panel-desc">后端已启用鉴权（config.yaml → security.api_token）。令牌仅保存在本浏览器 localStorage，用于请求头 X-API-Token。</p>
+      <div class="token-row">
+        <input
+          v-model="apiToken"
+          class="input mono"
+          :type="showToken ? 'text' : 'password'"
+          placeholder="粘贴 API Token"
+          autocomplete="off"
+        />
+        <button class="btn btn-secondary" @click="showToken = !showToken">{{ showToken ? '隐藏' : '显示' }}</button>
+      </div>
+      <div class="flex gap-8 token-actions">
+        <button class="btn btn-primary" :disabled="savingToken" @click="saveToken">
+          {{ savingToken ? '验证中...' : '保存并验证' }}
+        </button>
+        <button v-if="apiToken" class="btn btn-secondary" @click="clearToken">清除</button>
+      </div>
+      <p class="text-sm text-muted token-hint" v-if="tokenState">{{ tokenState }}</p>
+    </div>
+
+    <div class="panel">
       <div class="panel-title">更新管理</div>
       <p class="panel-desc">检查并应用系统更新</p>
 
@@ -61,6 +83,7 @@
 </template>
 
 <script setup>
+import axios from 'axios'
 import {computed, onMounted, ref} from 'vue'
 import {configAPI, healthAPI, updateAPI} from '../api/index.js'
 import {useToast} from '../composables/useToast.js'
@@ -72,6 +95,36 @@ const updateStatus = ref(null)
 const version = ref('—')
 const checking = ref(false)
 const applying = ref(false)
+
+const TOKEN_KEY = 'ireckon_api_token'
+const apiToken = ref(localStorage.getItem(TOKEN_KEY) || '')
+const showToken = ref(false)
+const savingToken = ref(false)
+const tokenState = ref('')
+
+async function saveToken() {
+  savingToken.value = true
+  tokenState.value = ''
+  const candidate = apiToken.value.trim()
+  try {
+    await healthAPI.check()
+    await axios.get('/api/stats', { headers: { 'X-API-Token': candidate }, timeout: 10000 })
+    localStorage.setItem(TOKEN_KEY, candidate)
+    tokenState.value = '令牌有效，已保存'
+    toast.success('API Token 已保存')
+  } catch (e) {
+    tokenState.value = e?.response?.status === 401 ? '令牌无效（401），未保存' : '验证请求失败，未保存'
+    toast.error(tokenState.value)
+  } finally {
+    savingToken.value = false
+  }
+}
+
+function clearToken() {
+  apiToken.value = ''
+  localStorage.removeItem(TOKEN_KEY)
+  tokenState.value = '已清除本地令牌'
+}
 
 const topLevelKeys = computed(() => Object.keys(config.value))
 
@@ -124,6 +177,23 @@ function formatValue(val) {
   flex-direction: column;
   gap: 12px;
   max-width: 680px;
+}
+
+.token-row {
+  display: flex;
+  gap: 8px;
+}
+
+.token-row .input {
+  flex: 1;
+}
+
+.token-actions {
+  margin-top: 10px;
+}
+
+.token-hint {
+  margin-top: 6px;
 }
 
 .update-info {

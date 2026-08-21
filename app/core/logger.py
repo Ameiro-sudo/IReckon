@@ -65,6 +65,16 @@ def _short_module(name: str) -> str:
     return ".".join(parts) or "-"
 
 
+def _console_stream():
+    """控制台流目标：默认 stdout；MCP stdio 等场景下 stdout 是协议通道，
+    可设 IRECKON_LOG_STREAM=stderr 把日志整体让路（每次写入时读取，导入期也生效）。"""
+    return (
+        sys.stderr
+        if os.environ.get("IRECKON_LOG_STREAM", "").strip().lower() == "stderr"
+        else sys.stdout
+    )
+
+
 def _console_sink(message):
     """控制台 sink：手动格式化，多行消息自动缩进对齐；重定向到文件时自动去掉颜色。"""
     record = message.record
@@ -95,8 +105,9 @@ def _console_sink(message):
             out += "\n" + pad + line
 
     try:
-        sys.stdout.write(out + "\n")
-        sys.stdout.flush()
+        stream = _console_stream()
+        stream.write(out + "\n")
+        stream.flush()
     except (ValueError, OSError):
         pass
 

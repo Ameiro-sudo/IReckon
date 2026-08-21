@@ -1,45 +1,22 @@
 """FastAPI 应用工厂：挂载路由、中间件、WebSocket 与前端静态资源。"""
 
 import asyncio
-import os
-import secrets
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket
+from fastapi import Depends, FastAPI, HTTPException, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
+from .auth import require_api_token, ws_authorized
 from .push import heartbeat_loop, log_consumer, websocket_endpoint
 from .routers import tasks, instances, config as config_router, system, uploads
 
 from app.core.config import get
-
-# 鉴权豁免路径：未配置 token 的前端场景也需要加载主题与健康检查
-_AUTH_EXEMPT_PATHS = {"/api/health", "/api/themes"}
-
-
-def _configured_token() -> str:
-    """读取鉴权 token：环境变量优先，其次 config.yaml 的 security.api_token。"""
-    return os.environ.get("IRECKON_API_TOKEN", "") or get("security.api_token", "")
-
-
-async def require_api_token(
-    request: Request, x_api_token: Optional[str] = Header(None)
-):
-    """全局 /api/* 鉴权依赖：未配置 token 时放行；配置后校验 X-API-Token 头。"""
-    if request.url.path in _AUTH_EXEMPT_PATHS:
-        return
-    token = _configured_token()
-    if not token:
-        return
-    if not x_api_token or not secrets.compare_digest(x_api_token, token):
-        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @asynccontextmanager
@@ -61,19 +38,32 @@ async def lifespan(app: FastAPI):
                 pass
 
 
+# 交互文档默认关闭（openapi.json 会完整暴露 API 攻击面），仅开发时显式开启
+_docs_enabled = str(get("server.docs_enabled", False)).lower() in ("1", "true", "yes")
+
 app = FastAPI(
     title="IReckon AI Factory",
     version=get("system.version", "0.1.0"),
     lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
+
+# 同源部署无需跨域；仅放行本机前后端的固定来源，
+# 防止浏览器中的恶意网页借 CORS 扫描/调用本机 API（drive-by localhost）
+_allowed_origins = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    # 鉴权走 X-API-Token 头、无 Cookie 凭证，因此允许任意来源且不携带凭证；
-    # 若未来需要 Cookie，再收紧 allow_origins（"*" 与 credentials 不能共存）
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["X-API-Token", "Content-Type"],
 )
 
 app.include_router(tasks.router, dependencies=[Depends(require_api_token)])
@@ -125,12 +115,8 @@ async def global_handler(request, exc):
 
 
 def _ws_authorized(websocket: WebSocket) -> bool:
-    """WebSocket 握手鉴权：token 通过查询参数 ?token= 传入。"""
-    token = _configured_token()
-    if not token:
-        return True
-    supplied = websocket.query_params.get("token", "")
-    return bool(supplied) and secrets.compare_digest(supplied, token)
+    """WebSocket 握手鉴权（fail-closed 语义见 app.web.auth）。"""
+    return ws_authorized(websocket)
 
 
 @app.websocket("/ws/{task_id}")
@@ -161,6 +147,9 @@ if _frontend_available:
     async def spa_fallback(full_path: str):
         """Vue Router history 模式回退：非 API 路径统一返回 index.html。"""
         if full_path.startswith(("api/", "ws/")):
+            raise HTTPException(404)
+        if not _docs_enabled and full_path in ("docs", "redoc", "openapi.json"):
+            # 文档已关闭：不让 SPA 回退伪装成 200，直接 404
             raise HTTPException(404)
         candidate = (frontend_dir / full_path).resolve()
         try:

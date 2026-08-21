@@ -1,5 +1,6 @@
 <template>
-  <div class="app-shell">
+  <router-view v-if="isBare" />
+  <div v-else class="app-shell">
     <div v-if="mobileSidebarOpen" class="mobile-overlay" @click="mobileSidebarOpen = false"></div>
 
     <aside class="sidebar" :class="{ open: mobileSidebarOpen }" aria-label="主导航侧边栏">
@@ -98,18 +99,21 @@
 </template>
 
 <script setup>
-import {onMounted, onUnmounted, ref} from 'vue'
+import {computed, onMounted, onUnmounted, ref} from 'vue'
+import {useRoute} from 'vue-router'
 import {useTaskStore} from './stores/taskStore.js'
 import {healthAPI} from './api/index.js'
 import ToastContainer from './components/ToastContainer.vue'
 
+const route = useRoute()
 const taskStore = useTaskStore()
 const isDark = ref(false)
 const version = ref('—')
 const backendOnline = ref(true)
 const mobileSidebarOpen = ref(false)
 let healthTimer = null
-let pollTimer = null
+
+const isBare = computed(() => Boolean(route.meta?.bare))
 
 const toggleTheme = () => {
   isDark.value = !isDark.value
@@ -131,12 +135,13 @@ onMounted(async () => {
   isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
   await checkHealth()
   healthTimer = setInterval(checkHealth, 15000)
+  if (isBare.value) return
+  // 任务列表初始加载一次；后续轮询统一由 taskStore.startPolling 管理，
+  // 避免双定时器导致请求翻倍且 stopPolling 失效
   await taskStore.fetchTasks()
-  pollTimer = setInterval(() => taskStore.fetchTasks(), 10000)
 })
 
 onUnmounted(() => {
   if (healthTimer) clearInterval(healthTimer)
-  if (pollTimer) clearInterval(pollTimer)
 })
 </script>

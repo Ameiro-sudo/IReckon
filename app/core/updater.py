@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import shutil
@@ -7,6 +8,7 @@ import time
 import zipfile
 from pathlib import Path
 from typing import Optional, Tuple
+from urllib.parse import urlparse
 
 import httpx
 from loguru import logger
@@ -17,6 +19,20 @@ _REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 _GITHUB_API_PREFIX = "https://api.github.com/repos/"
 _MAX_ZIP_BYTES = 100 * 1024 * 1024
 _READ_CHUNK = 64 * 1024
+# 备份时排除的运行时/体积巨大目录（copytree 整目录拷贝会拖垮更新速度）
+_BACKUP_EXCLUDE_DIRS = (
+    "data",
+    ".venv",
+    "venv",
+    "node_modules",
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".idea",
+    ".vscode",
+)
 
 
 def _parse_version(v: str) -> Optional[Tuple[int, ...]]:
@@ -34,6 +50,30 @@ def _validate_release_url(url: str) -> bool:
     rest = url[len(_GITHUB_API_PREFIX) :]
     repo_part = "/".join(rest.split("/", 2)[:2])
     return bool(_REPO_RE.match(repo_part))
+
+
+def _validate_zip_download_url(url: str, repo: str) -> bool:
+    """校验 zip 下载地址：必须为 https、host 属于 github.com 及其 CDN、路径归属固定仓库。
+
+    用 URL 解析替代子串匹配，防止 `https://evil.com/?x=/{repo}/` 一类绕过。
+    """
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != "https" or not parsed.hostname:
+        return False
+    host = parsed.hostname.lower()
+    allowed_hosts = ("github.com", "objects.githubusercontent.com")
+    if not any(host == h or host.endswith("." + h) for h in allowed_hosts):
+        return False
+    path = parsed.path.lstrip("/")
+    repo_prefix = f"{repo}/"
+    # releases/download 资产路径形如 <repo>/releases/download/<tag>/<file>；
+    # objects.githubusercontent.com 跳转链不含 repo 前缀，由 host 白名单兜底
+    if host == "github.com" and not path.startswith(repo_prefix):
+        return False
+    return True
 
 
 class Updater:
@@ -100,11 +140,8 @@ class Updater:
                     logger.error("Release 没有 zip 附件")
                     return False
                 zip_url = zip_assets[0].get("browser_download_url", "")
-                # 下载 zip 前校验：仅允许 https 且 URL 必须属于固定仓库
-                if (
-                    not zip_url.startswith("https://")
-                    or f"/{self._repo}/" not in zip_url
-                ):
+                # 下载 zip 前校验：仅允许 https 且 host/路径归属固定仓库
+                if not _validate_zip_download_url(zip_url, self._repo):
                     logger.error(f"更新包 URL 非法: {zip_url}")
                     return False
 
@@ -170,6 +207,14 @@ class Updater:
     async def _apply_update(
         self, zip_path: str, version: str, base_dir: Optional[Path] = None
     ) -> bool:
+        # 解压/备份/逐文件拷贝均为重同步 IO，放线程池执行避免阻塞事件循环
+        return await asyncio.to_thread(
+            self._apply_update_sync, zip_path, version, base_dir
+        )
+
+    def _apply_update_sync(
+        self, zip_path: str, version: str, base_dir: Optional[Path] = None
+    ) -> bool:
         if base_dir is None:
             base_dir = (
                 Path(sys.argv[0]).resolve().parent
@@ -182,7 +227,12 @@ class Updater:
         try:
             if backup_dir.exists():
                 shutil.rmtree(backup_dir)
-            shutil.copytree(base_dir, backup_dir)
+            # 排除 data/venv/node_modules 等运行时目录，避免 GB 级无效拷贝
+            shutil.copytree(
+                base_dir,
+                backup_dir,
+                ignore=shutil.ignore_patterns(*_BACKUP_EXCLUDE_DIRS),
+            )
             logger.info(f"已备份当前版本到: {backup_dir}")
 
             temp_dir = Path(tempfile.mkdtemp())

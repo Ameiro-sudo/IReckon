@@ -112,6 +112,11 @@ class CapabilityPool:
             await self.refresh()
 
         result = self.capabilities.get(iid)
+        if not result:
+            # 已启用池中不存在时回退查库，覆盖"禁用实例"（PUT/DELETE/test 需要能找到它们）
+            row = await db.get_ai_instance(iid)
+            if row:
+                result = AICapability(**row)
         if result:
             self._memory_cache[iid] = result
             self._cache_timestamps[iid] = now
@@ -157,11 +162,12 @@ class CapabilityPool:
         await self.refresh(force=True)
 
     async def remove_instance(self, iid):
-        cap = await self.get_by_id(iid)
-        if cap:
-            cap.enabled = False
-            await db.save_ai_instance(cap.to_dict())
-            await self.refresh(force=True)
+        # 物理删除：此前仅置 enabled=False 造成"删除后仍出现在列表中"的假象
+        deleted = await db.delete_ai_instance(iid)
+        self._memory_cache.pop(iid, None)
+        self._cache_timestamps.pop(iid, None)
+        await self.refresh(force=True)
+        return deleted
 
     async def get_fallback_instances(self, primary_id, count=2):
         cap = await self.get_by_id(primary_id)

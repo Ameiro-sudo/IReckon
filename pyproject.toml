@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=64.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "ireckon"
@@ -36,7 +36,7 @@ Documentation = "https://github.com/Ameiro-sudo/IReckon#readme"
 IssueTracker = "https://github.com/Ameiro-sudo/IReckon/issues"
 
 [project.scripts]
-ireckon = "main:main"
+ireckon = "main:run_cli"
 
 [tool.mypy]
 python_version = "3.10"

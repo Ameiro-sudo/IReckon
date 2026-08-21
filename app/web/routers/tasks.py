@@ -2,12 +2,15 @@
 
 import asyncio
 import json
+import os
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from loguru import logger
 
@@ -288,16 +291,30 @@ async def download_artifacts(task_id: str):
     out = _output_dir(task_id)
     if not out:
         raise HTTPException(404, "无交付产物")
-    zip_path = out.parent / f"{task_id}.zip"
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in out.rglob("*"):
-            # 跳过符号链接，防止 zip 跟随链接打包目录外文件
-            if p.is_symlink():
-                continue
-            if p.is_file():
-                zf.write(p, p.relative_to(out))
+
+    def _build_zip() -> Path:
+        # 唯一临时文件名：避免并发请求同时写同一 zip 导致交付损坏
+        fd, name = tempfile.mkstemp(prefix=f"{task_id}-", suffix=".zip")
+        os.close(fd)
+        zip_path = Path(name)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for p in out.rglob("*"):
+                # 跳过符号链接，防止 zip 跟随链接打包目录外文件
+                if p.is_symlink():
+                    continue
+                if p.is_file():
+                    zf.write(p, p.relative_to(out))
+        return zip_path
+
+    zip_path = await asyncio.to_thread(_build_zip)
+
+    async def _cleanup(_path: Path) -> None:
+        # 响应发送完毕后删除临时 zip，防止磁盘泄漏
+        await asyncio.to_thread(_path.unlink, True)
+
     return FileResponse(
         zip_path,
         filename=f"{task_id}.zip",
         media_type="application/zip",
+        background=BackgroundTask(_cleanup, zip_path),
     )

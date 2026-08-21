@@ -20,10 +20,14 @@ class CodeScanner:
         except Exception:
             return False
 
-    async def scan(self, code, language="python"):
+    async def ensure_available(self) -> bool:
+        """探测扫描工具可用性（结果缓存）。入库门禁用：不可用时调用方应 fail-closed。"""
         if self._available is None:
             self._available = await asyncio.to_thread(self._check_tool)
-        if not self._available:
+        return bool(self._available)
+
+    async def scan(self, code, language="python"):
+        if not await self.ensure_available():
             logger.warning(f"扫描工具 {self.tool} 不可用，跳过静态扫描")
             return []
         filepath = None

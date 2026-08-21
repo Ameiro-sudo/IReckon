@@ -43,9 +43,9 @@ _ALLOWED_EXTENSIONS = {
 async def upload_files(files: List[UploadFile] = File(...)):
     """批量上传参考文件，返回 upload_id 供创建任务时引用。"""
     if not files:
-        return {"status": "error", "error": "未选择文件"}
+        raise HTTPException(400, "未选择文件")
     if len(files) > MAX_FILES:
-        return {"status": "error", "error": f"最多上传 {MAX_FILES} 个文件"}
+        raise HTTPException(413, f"最多上传 {MAX_FILES} 个文件")
     upload_id = f"up-{uuid.uuid4().hex[:12]}"
     data_dir = Path(get("system.data_dir", "./data"))
     uploads_root = (data_dir / "uploads").resolve()
@@ -76,5 +76,5 @@ async def upload_files(files: List[UploadFile] = File(...)):
         )
 
     if not saved:
-        return {"status": "error", "error": "没有有效文件"}
+        raise HTTPException(400, "没有有效文件（扩展名不在白名单或超过大小限制）")
     return {"status": "ok", "upload_id": upload_id, "files": saved}
