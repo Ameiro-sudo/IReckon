@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
-from .auth import require_api_token, ws_authorized
+from .auth import require_api_token, ws_handshake
 from .push import heartbeat_loop, log_consumer, websocket_endpoint
 from .routers import tasks, instances, config as config_router, system, uploads
 
@@ -171,25 +171,22 @@ async def global_handler(request, exc):
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
-def _ws_authorized(websocket: WebSocket) -> bool:
-    """WebSocket 握手鉴权（fail-closed 语义见 app.web.auth）。"""
-    return ws_authorized(websocket)
-
-
 @app.websocket("/ws/{task_id}")
 async def ws_task(websocket: WebSocket, task_id: str):
-    if not _ws_authorized(websocket):
+    authorized, subprotocol = ws_handshake(websocket)
+    if not authorized:
         await websocket.close(code=4401)
         return
-    await websocket_endpoint(websocket, task_id)
+    await websocket_endpoint(websocket, task_id, subprotocol=subprotocol)
 
 
 @app.websocket("/ws")
 async def ws_global(websocket: WebSocket):
-    if not _ws_authorized(websocket):
+    authorized, subprotocol = ws_handshake(websocket)
+    if not authorized:
         await websocket.close(code=4401)
         return
-    await websocket_endpoint(websocket, task_id=None)
+    await websocket_endpoint(websocket, task_id=None, subprotocol=subprotocol)
 
 
 if _frontend_available:

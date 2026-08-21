@@ -121,9 +121,13 @@ export const updateAPI = {
 export function createWebSocket(taskId = null) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   const path = taskId ? `/ws/${taskId}` : '/ws'
-  const token = localStorage.getItem('ireckon_api_token')
-  const query = token ? `?token=${encodeURIComponent(token)}` : ''
-  return new WebSocket(`${protocol}//${location.host}${path}${query}`)
+  const token = localStorage.getItem('ireckon_api_token') || ''
+  // token 走 Sec-WebSocket-Protocol 子协议头（['ireckon.v1', <token>]），
+  // 不再拼进 URL——避免 token 落入反代 access_log / 浏览器历史 / Referer。
+  // 无 token（回环免鉴权模式）时只带服务名，空字符串不是合法子协议必须剔除。
+  const protocols = ['ireckon.v1']
+  if (token) protocols.push(token)
+  return new WebSocket(`${protocol}//${location.host}${path}`, protocols)
 }
 
 export default api

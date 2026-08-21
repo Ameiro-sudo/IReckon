@@ -29,8 +29,14 @@ class ConnectionManager:
         self._mutex = asyncio.Lock()  # 连接集合/心跳表修改与广播迭代共用一把全局锁
         self._global_send_lock = asyncio.Lock()  # 全局连接广播串行化
 
-    async def connect(self, websocket: WebSocket, task_id: Optional[str] = None):
-        await websocket.accept()
+    async def connect(
+        self,
+        websocket: WebSocket,
+        task_id: Optional[str] = None,
+        subprotocol: Optional[str] = None,
+    ):
+        # 握手期协商了子协议（ireckon.v1）则必须回显，浏览器才会放行连接
+        await websocket.accept(subprotocol=subprotocol)
         async with self._mutex:
             self._last_recv[websocket] = asyncio.get_running_loop().time()
             if task_id:
@@ -154,8 +160,12 @@ async def push_log_to_websocket(
     await manager.broadcast_global(log_msg)
 
 
-async def websocket_endpoint(websocket: WebSocket, task_id: Optional[str] = None):
-    await manager.connect(websocket, task_id)
+async def websocket_endpoint(
+    websocket: WebSocket,
+    task_id: Optional[str] = None,
+    subprotocol: Optional[str] = None,
+):
+    await manager.connect(websocket, task_id, subprotocol=subprotocol)
     try:
         while True:
             try:
