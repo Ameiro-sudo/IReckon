@@ -45,3 +45,10 @@
 - [x] **IReckon r2-review-fixes 已合并回 master**(--no-ff 06796df)，master+分支均已 push 远端备份；合并前处理了一起编辑器陈旧缓冲区回写事故(5个前端文件被旧内容覆盖，已备份补丁至 D:\project\stale-editor-backup.patch 后丢弃)
 - [x] bocchi-mod Modrinth/CurseForge 轨道**取消**(用户决定：不上第三方平台)
 - [x] inecraft 方案A代码交付(backend-proposal 4239fec)：sampler.py 零依赖采样器实测通过、status.js REMOTE_HISTORY_BASE 注水层、DEPLOY.md；**部署等 VPS 恢复**
+## 自主轮 1（合并后）
+
+- [x] **GitHub CI 外部验证**：master 06796df 推送后 CI success（顺带发现此前 6cb289d 的 CI 曾 failure，a45c5bb 起恢复）
+- [x] inecraft status.js 通过 node --check，本地 8801 预览站正常响应
+- [x] 覆盖率摸底并补盲区：content_filter 35%→100%、tool_manager 19%→67%（+16 测试），04f1b17 已推远端
+- [x] IReckon.spec(PyInstaller 产物)入 gitignore
+- [ ] 下轮候选：engine/tasks.py(37%)、web/routers/system.py(31%) 补测；learner 循环逻辑审查
