@@ -45,10 +45,15 @@
           </div>
         </div>
 
-        <div class="mt-3.5 flex gap-2">
+        <div class="mt-3.5 flex flex-wrap items-center gap-2">
           <button class="btn btn-secondary" :disabled="checking" @click="checkUpdate">
             {{ checking ? '检查中...' : '检查更新' }}
           </button>
+          <select v-model="updateChannel" class="input h-8 py-0 text-[13px]" title="更新渠道">
+            <option value="auto">自动选择渠道</option>
+            <option value="portable">便携版 ZIP（直接启动）</option>
+            <option value="installer">安装器 EXE（Setup）</option>
+          </select>
           <button class="btn btn-primary" :disabled="!updateStatus?.update_available || applying" @click="applyUpdate">
             {{ applying ? '更新中...' : '立即更新' }}
           </button>
@@ -91,6 +96,7 @@ import PageHeader from '../components/PageHeader.vue'
 const toast = useToast()
 const config = ref({})
 const updateStatus = ref(null)
+const updateChannel = ref('auto')
 const version = ref('—')
 const checking = ref(false)
 const applying = ref(false)
@@ -154,9 +160,15 @@ async function checkUpdate() {
 async function applyUpdate() {
   applying.value = true
   try {
-    const res = await updateAPI.apply()
-    if (res.data.status === 'ok') toast.success('更新完成，请重启应用')
-    else toast.error(res.data.error || '更新失败')
+    const res = await updateAPI.apply(
+      updateChannel.value === 'auto' ? null : updateChannel.value
+    )
+    if (res.data.status === 'ok') {
+      // 安装器渠道：向导已拉起，应用随后退出；便携渠道：文件已就地替换
+      toast.success(res.data.message || '更新完成，请重启应用')
+    } else {
+      toast.error(res.data.error || res.data.message || '更新失败')
+    }
   } catch (e) {
     toast.error('更新失败: ' + e.message)
   } finally {

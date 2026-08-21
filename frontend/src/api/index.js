@@ -106,7 +106,8 @@ export const selfImproveAPI = {
 export const updateAPI = {
   check: () => api.get('/update/check'),
 
-  apply: () => api.post('/update/apply')
+  apply: (channel = null, silent = false) =>
+    api.post('/update/apply', { channel, silent })
 }
 
 export function createWebSocket(taskId = null) {

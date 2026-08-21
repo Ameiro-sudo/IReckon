@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Header, Query
+from pydantic import BaseModel
 from loguru import logger
 
 
@@ -179,13 +180,42 @@ async def check_update():
         "current_version": current,
         "latest_version": version,
         "update_available": version is not None,
+        # 当前安装形态对应的更新渠道，供前端展示与默认选择
+        "channel": updater._resolve_channel(),
     }
 
 
+class UpdateApplyRequest(BaseModel):
+    """更新应用请求：channel 缺省时自动探测；silent 仅对 installer 渠道生效。"""
+
+    channel: Optional[str] = None
+    silent: bool = False
+
+
 @router.post("/update/apply", dependencies=[Depends(require_strict_token)])
-async def apply_update():
+async def apply_update(req: Optional[UpdateApplyRequest] = None):
+    body = req or UpdateApplyRequest()
+    try:
+        channel = updater._resolve_channel(body.channel)
+    except Exception:
+        channel = "portable"
+    if body.channel and body.channel.lower() not in ("installer", "portable", "auto"):
+        return {"status": "error", "error": f"未知渠道: {body.channel}"}
     version = await updater.check()
     if not version:
         return {"status": "error", "error": "没有新版本"}
-    ok = await updater.download_and_update(version)
-    return {"status": "ok" if ok else "error", "version": version}
+    ok = await updater.download_and_update(
+        version, channel=body.channel, silent=body.silent
+    )
+    message = {
+        ("installer", True): "安装器已启动，请完成安装向导（应用将关闭）",
+        ("installer", False): "更新失败，详见服务日志",
+        ("portable", True): f"已更新到 v{version}",
+        ("portable", False): "更新失败，已还原备份，详见服务日志",
+    }.get((channel, ok), "更新失败")
+    return {
+        "status": "ok" if ok else "error",
+        "version": version,
+        "channel": channel,
+        "message": message,
+    }

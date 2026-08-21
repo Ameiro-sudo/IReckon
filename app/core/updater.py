@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -114,7 +115,53 @@ class Updater:
             logger.debug(f"检查更新异常: {e}")
             return None
 
-    async def download_and_update(self, version: str) -> bool:
+    def _resolve_channel(self, explicit: Optional[str] = None) -> str:
+        """更新渠道解析：显式参数 > 配置 self_update.channel > 自动探测。
+
+        auto 规则：冻结环境下同目录存在 Inno Setup 卸载器(unins*.exe)
+        → installer(下载 Setup 安装器由用户完成安装)；否则
+        portable(便携 zip 自替换)。源码运行一律 portable。
+        """
+        cfg = str(explicit or get("self_update.channel", "auto") or "auto").lower()
+        if cfg in ("installer", "portable"):
+            return cfg
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            if any(exe_dir.glob("unins*.exe")):
+                return "installer"
+            return "portable"
+        return "portable"
+
+    @staticmethod
+    def _select_asset(assets: list, channel: str) -> Tuple[str, str]:
+        """按渠道挑选发行资产，返回 (下载URL, 资产名)；未命中返回 ("", "")。
+
+        命名约定（build.yml 保证）：
+          installer → IReckon-Setup-<ver>-win64.exe
+          portable  → IReckon-Portable-<ver>-win64.zip
+        """
+        for a in assets:
+            name = (a.get("name") or "").lower()
+            if (
+                channel == "installer"
+                and name.startswith("ireckon-setup-")
+                and name.endswith(".exe")
+            ):
+                return a.get("browser_download_url") or "", name
+            if (
+                channel == "portable"
+                and name.startswith("ireckon-portable-")
+                and name.endswith(".zip")
+            ):
+                return a.get("browser_download_url") or "", name
+        return "", ""
+
+    async def download_and_update(
+        self,
+        version: str,
+        channel: Optional[str] = None,
+        silent: bool = False,
+    ) -> bool:
         if not _parse_version(version):
             logger.error(f"非法版本号: {version}")
             return False
@@ -122,7 +169,8 @@ class Updater:
         if not _validate_release_url(download_url):
             logger.error("Release URL 非法，拒绝下载")
             return False
-        zip_path: Optional[str] = None
+        ch = self._resolve_channel(channel)
+        local_path: Optional[Path] = None
         try:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, read=180.0)
@@ -132,30 +180,29 @@ class Updater:
                     logger.error(f"获取 Release 信息失败: {resp.status_code}")
                     return False
                 assets = resp.json().get("assets", [])
-                # 只接受 zip 附件，避免误选源码包/sha 校验文件
-                zip_assets = [
-                    a for a in assets if (a.get("name") or "").lower().endswith(".zip")
-                ]
-                if not zip_assets:
-                    logger.error("Release 没有 zip 附件")
+                asset_url, asset_name = self._select_asset(assets, ch)
+                if not asset_url:
+                    names = ", ".join(a.get("name", "") for a in assets) or "(无附件)"
+                    logger.error(f"Release 缺少 {ch} 渠道资产，现有: {names}")
                     return False
-                zip_url = zip_assets[0].get("browser_download_url", "")
-                # 下载 zip 前校验：仅允许 https 且 host/路径归属固定仓库
-                if not _validate_zip_download_url(zip_url, self._repo):
-                    logger.error(f"更新包 URL 非法: {zip_url}")
+                # 下载前校验：仅允许 https 且 host/路径归属固定仓库
+                if not _validate_zip_download_url(asset_url, self._repo):
+                    logger.error(f"更新包 URL 非法: {asset_url}")
                     return False
 
-                logger.info(f"下载更新包: {zip_url}")
-                with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
-                    zip_path = f.name
+                suffix = ".exe" if ch == "installer" else ".zip"
+                local_path = Path(tempfile.gettempdir()) / (
+                    f"IReckon-update-{ch}-{version}{suffix}"
+                )
+                logger.info(f"下载更新包({ch}): {asset_url}")
                 # 流式下载到磁盘，避免整包驻留内存，并限制大小防 zip 炸弹
-                async with client.stream("GET", zip_url) as zip_resp:
-                    if zip_resp.status_code != 200:
-                        logger.error(f"下载失败: {zip_resp.status_code}")
+                async with client.stream("GET", asset_url) as dl_resp:
+                    if dl_resp.status_code != 200:
+                        logger.error(f"下载失败: {dl_resp.status_code}")
                         return False
                     downloaded = 0
-                    with open(zip_path, "wb") as f:
-                        async for chunk in zip_resp.aiter_bytes(_READ_CHUNK):
+                    with open(local_path, "wb") as f:
+                        async for chunk in dl_resp.aiter_bytes(_READ_CHUNK):
                             downloaded += len(chunk)
                             if downloaded > self._max_zip_bytes:
                                 logger.error(
@@ -165,14 +212,38 @@ class Updater:
                                 return False
                             f.write(chunk)
 
-                return await self._apply_update(zip_path, version)
+                if ch == "installer":
+                    # 安装器渠道：启动向导后即返回成功；不清理临时文件，
+                    # 安装器进程稍后需要读取。silent 时走 Inno 静默参数。
+                    flags = (
+                        [
+                            "/SILENT",
+                            "/SUPPRESSMSGBOXES",
+                            "/CLOSEAPPLICATIONS",
+                            "/RESTARTAPPLICATIONS",
+                        ]
+                        if silent
+                        else []
+                    )
+                    subprocess.Popen([str(local_path), *flags], close_fds=True)
+                    logger.info(f"安装器已启动: {local_path} (flags={flags})")
+                    return True
+
+                ok = await self._apply_update(str(local_path), version)
+                try:
+                    os.unlink(local_path)
+                except OSError:
+                    pass
+                local_path = None
+                return ok
         except Exception as e:
             logger.error(f"更新失败: {e}")
             return False
         finally:
-            if zip_path:
+            # 仅 portable 失败路径需要清理；安装器文件留给安装进程使用
+            if local_path is not None and ch == "portable":
                 try:
-                    os.unlink(zip_path)
+                    os.unlink(local_path)
                 except OSError:
                     pass
 

@@ -106,6 +106,16 @@ jobs:
           pause >nul
           "@ | Out-File -Encoding Default dist/IReckon/IReckon/启动IReckon.bat
 
+      # 便携版(直接启动渠道)：整目录压缩，解压即用；供检查更新的 portable 渠道下载自替换
+      - name: Package portable zip
+        id: portable
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ("${{ github.ref }}" -notlike "refs/tags/*") { $tag = "dev-build" }
+          $ver = $tag.TrimStart("v")
+          Compress-Archive -Path "dist/IReckon/IReckon" -DestinationPath "dist/IReckon-Portable-$ver-win64.zip"
+          "portable_name=IReckon-Portable-$ver-win64.zip" >> $env:GITHUB_OUTPUT
+
       - name: Install Inno Setup
         run: |
           choco install innosetup -y --no-progress
@@ -126,11 +136,15 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.installer.outputs.installer_name }}
+          files: |
+            ${{ steps.installer.outputs.installer_name }}
+            ${{ steps.portable.outputs.portable_name }}
 
       - name: Upload Artifact (manual trigger)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
-          name: IReckon-Setup
-          path: ${{ steps.installer.outputs.installer_name }}
+          name: IReckon-Distribution
+          path: |
+            ${{ steps.installer.outputs.installer_name }}
+            ${{ steps.portable.outputs.portable_name }}
