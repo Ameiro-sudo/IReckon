@@ -7,7 +7,9 @@
         @click.self="$emit('close')"
       >
         <div
+          ref="panelRef"
           class="modal-panel"
+          tabindex="-1"
           :style="width ? { width: width + 'px' } : null"
           role="dialog"
           aria-modal="true"
@@ -35,8 +37,9 @@
 </template>
 
 <script setup>
-import { onUnmounted, watch } from 'vue'
+import { ref } from 'vue'
 import AppIcon from './AppIcon.vue'
+import { useModalA11y } from '../../composables/useModalA11y.js'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -47,17 +50,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-function onKey(e) {
-  if (e.key === 'Escape' && props.open) emit('close')
-}
-
-watch(
-  () => props.open,
-  (v) => {
-    if (v) window.addEventListener('keydown', onKey)
-    else window.removeEventListener('keydown', onKey)
-  }
-)
-
-onUnmounted(() => window.removeEventListener('keydown', onKey))
+const panelRef = ref(null)
+useModalA11y(() => props.open, panelRef, () => emit('close'))
 </script>
