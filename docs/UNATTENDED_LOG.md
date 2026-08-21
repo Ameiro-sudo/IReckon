@@ -71,3 +71,7 @@
 
 - [x] core/state.py 46%→84% + engine/registry.py 43%→58%（+14 测试）
 - [x] 全量 pytest 绿；累计自主轮测试 196→282
+## 自主轮 6
+
+- [x] web/routers/tasks.py 48%→81%（+12 API级测试）：产物穿越拒绝矩阵、zip下载子目录打包、删除往返用 start_task 桩保证确定性（LLM 重试退避会让运行态窗口长达 30s+）
+- [x] 全量 pytest 绿；累计自主轮测试 196→285
