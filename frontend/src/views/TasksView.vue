@@ -18,7 +18,7 @@
     </PageHeader>
 
     <div class="panel overflow-x-auto px-3! py-1.5! pb-3">
-      <table class="table min-w-[720px]" aria-label="任务列表">
+      <table class="table min-w-[720px]" aria-label="任务列表" :aria-busy="taskStore.loading">
         <thead>
           <tr>
             <th class="w-[92px]" scope="col">ID</th>
@@ -30,7 +30,19 @@
             <th class="w-[150px] text-right" scope="col">操作</th>
           </tr>
         </thead>
-        <tbody>
+        <!-- 骨架屏：首次加载且尚无数据时占位，避免闪现"暂无任务" -->
+        <tbody v-if="taskStore.loading && !tasks.length" aria-hidden="true">
+          <tr v-for="i in 5" :key="'sk' + i">
+            <td><div class="sk h-[13px] w-[64px]"></div></td>
+            <td><div class="sk h-[13px] w-[70%]"></div></td>
+            <td><div class="sk h-[13px] w-[48px]"></div></td>
+            <td><div class="sk h-[5px] w-full rounded-full"></div></td>
+            <td><div class="sk h-[13px] w-[44px]"></div></td>
+            <td><div class="sk h-[13px] w-[52px]"></div></td>
+            <td></td>
+          </tr>
+        </tbody>
+        <tbody v-else>
           <tr v-for="task in filteredTasks" :key="task.task_id" class="cursor-pointer" @click="viewTask(task)">
             <td class="font-mono text-ink-3">{{ task.task_id?.slice(5, 13) ?? task.task_id ?? '—' }}</td>
             <td>
@@ -58,7 +70,7 @@
         </tbody>
       </table>
 
-      <div v-if="!filteredTasks.length" class="empty-state">
+      <div v-if="!filteredTasks.length && !taskStore.loading" class="empty-state">
         <div class="empty-icon"><AppIcon name="box" :size="19" /></div>
         <p>{{ tasks.length ? '无匹配任务' : '暂无任务' }}</p>
         <button v-if="!tasks.length" class="btn btn-primary btn-sm" @click="openCreate">创建第一个任务</button>
