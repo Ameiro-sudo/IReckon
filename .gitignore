@@ -61,4 +61,7 @@ config/harness/*
 .env
 测试用key.txt
 
+# 本地实例配置：含实例密钥与 auth 自动回写的 api_token，不入库（模板见 config.example.yaml）
+config/config.yaml
+
 tests/.tmp/
