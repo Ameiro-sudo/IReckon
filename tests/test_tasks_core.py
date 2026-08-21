@@ -146,7 +146,6 @@ async def test_launch_marks_failed_on_exception(session_db, fake_rooms):
     ce = asyncio.Event()
     await tm._launch("task-ex01", ce, boom)
     await asyncio.gather(*asyncio.all_tasks() - {asyncio.current_task()})
-    row = await db.fetch_one("SELECT status FROM tasks WHERE task_id='task-ex01'")
     # 任务行不存在时 _mark_status 静默失败属预期；此处验证清理
     assert "task-ex01" not in tm._running
     assert fake_rooms.closed == ["task-ex01"]
