@@ -81,10 +81,25 @@ async def test_logs_returns_parsed_entries(client):
     assert r.status_code == 200
     entries = r.json()
     assert isinstance(entries, list)
-    levels = {e["level"] for e in entries}
-    assert "INFO" in levels or not entries
     for e in entries:
-        assert set(e.keys()) == {"level", "message"}
+        assert set(e.keys()) == {"time", "level", "message"}
+    by_msg = {e["message"]: e for e in entries}
+
+    info = by_msg.get("服务启动完成")
+    assert info is not None
+    assert info["level"] == "INFO"
+    assert info["time"] == "12:00:00"
+
+    # DEBUG 行仅 strict token 可见；无 token 环境下被过滤
+    debug = by_msg.get("SELECT * FROM tasks")
+    if debug is not None:
+        assert debug["level"] == "DEBUG"
+        assert debug["time"] == "12:00:01"
+
+    # 坏行(无管道分隔)按 INFO 容错保留，时间为空
+    bad = by_msg.get("坏行没有管道分隔")
+    if bad is not None:
+        assert bad["time"] == ""
 
 
 async def test_logs_level_filter(client):
@@ -99,4 +114,6 @@ async def test_logs_level_filter(client):
     entries = r.json()
     assert all(e["level"] == "WARNING" for e in entries)
     if entries:
+        assert entries[0]["level"] == "WARNING"
         assert "警告一" in entries[0]["message"]
+        assert entries[0]["time"] == "12:00:01"

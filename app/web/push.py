@@ -216,11 +216,16 @@ async def log_consumer():
             while not _log_queue.empty():
                 try:
                     raw = _log_queue.get_nowait()
-                    level, _, msg = raw.partition("|")
+                    # 队列载荷 "HH:MM:SS|LEVEL|message"（logger._QUEUE_FORMAT）
+                    ts, _, rest = raw.partition("|")
+                    level, _, msg = rest.partition("|")
                     log_msg = {
                         "type": "log",
                         "level": level.strip(),
                         "message": msg.strip(),
+                        # 优先用日志产生时刻(本地时间)，缺失时退化为消费时刻
+                        "time": ts.strip()
+                        or datetime.now(timezone.utc).strftime("%H:%M:%S"),
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     messages.append(log_msg)

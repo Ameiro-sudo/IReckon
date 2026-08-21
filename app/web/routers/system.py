@@ -134,9 +134,11 @@ async def logs(
         if not raw:
             continue
         lv = "INFO"
-        # 文件格式: "YYYY-MM-DD HH:MM:SS | LEVEL | message"
+        ts = ""
+        # 文件格式: "YYYY-MM-DD HH:mm:ss | LEVEL | message"（时间取 HH:mm:ss 展示）
         parts = raw.split(" | ", 2)
         if len(parts) == 3:
+            ts = parts[0].split(" ")[-1]
             candidate = parts[1].strip().upper()
             if candidate in _VALID_LEVELS:
                 lv = candidate
@@ -145,7 +147,7 @@ async def logs(
             continue
         if level and lv != level.upper():
             continue
-        result.append({"level": lv, "message": raw})
+        result.append({"time": ts, "level": lv, "message": raw})
     return result
 
 

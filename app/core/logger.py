@@ -35,8 +35,11 @@ _RESET = "\x1b[0m"
 _FILE_FORMAT = (
     "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
 )
-# 队列载荷：`LEVEL|message`，与 WebSocket 推送 / logs API 解析约定一致
-_QUEUE_FORMAT = "{level}|{message}"
+# 队列载荷：`HH:MM:SS|LEVEL|message`，与 WebSocket 推送 / logs API 解析约定一致
+_QUEUE_FORMAT = "{time:HH:mm:ss}|{level}|{message}"
+
+# 已知噪音源（高频 DEBUG 刷屏）：无论全局级别如何，压到 WARNING
+_NOISY_STDLIB_LOGGERS = ("aiosqlite", "watchdog.observers", "urllib3", "httpx")
 
 
 def _should_colorize() -> bool:
@@ -156,11 +159,13 @@ def setup_logging():
         # 控制台输出（多行对齐，按等级着色，非 TTY 自动去色）
         logger.add(_console_sink, level=log_level)
 
-        # 应用日志文件（保留30天，滚动）
+        # 应用日志文件（保留30天，滚动）。级别跟随配置：该文件同时是
+        # /api/logs 历史加载的数据源，硬编码 DEBUG 会把 aiosqlite 等
+        # 噪音直接灌进前端日志页。
         logger.add(
             log_dir / "app_{time:YYYY-MM-DD}.log",
             format=_FILE_FORMAT,
-            level="DEBUG",
+            level=log_level,
             rotation="10 MB",
             retention="30 days",
             encoding="utf-8",
@@ -198,6 +203,9 @@ def setup_logging():
         logging.basicConfig(
             handlers=[_InterceptHandler()], level=logging.DEBUG, force=True
         )
+        # 已知噪音源压级：即使全局开 DEBUG 也不放行（按需临时打开再改回）
+        for name in _NOISY_STDLIB_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def log_banner(title: str, lines, level: str = "INFO"):

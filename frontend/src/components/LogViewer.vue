@@ -25,10 +25,14 @@
       <div
         v-for="(l, i) in filtered"
         :key="i"
-        class="flex gap-3 border-l-2 border-transparent px-4 py-0.5 break-all whitespace-pre-wrap hover:bg-hover"
+        class="flex items-start gap-3 border-l-2 border-transparent px-4 py-0.5 break-all whitespace-pre-wrap hover:bg-hover"
       >
-        <span class="w-[62px] shrink-0 text-[11px] font-semibold tracking-wide select-none" :class="levelColor(l.level)">{{ l.level }}</span>
-        <span class="text-ink-2">{{ l.message }}</span>
+        <span class="w-[58px] shrink-0 select-none text-[11px] text-ink-3">{{ l.time || '--:--:--' }}</span>
+        <span
+          class="w-[74px] shrink-0 rounded border border-line px-1 py-px text-center text-[10px] font-semibold tracking-wide select-none"
+          :class="levelBadge(l.level)"
+        >{{ l.level }}</span>
+        <span class="min-w-0 flex-1 text-ink-2">{{ l.message }}</span>
       </div>
       <div v-if="!filtered.length" class="py-10 text-center text-ink-3">暂无日志…</div>
     </div>
@@ -99,13 +103,15 @@ function scrollBottom() {
   }
 }
 
-function levelColor(level) {
+function levelBadge(level) {
   return {
-    DEBUG: 'text-ink-3',
-    INFO: 'text-info',
-    WARNING: 'text-warning',
-    ERROR: 'text-error'
-  }[level] || 'text-ink-3'
+    DEBUG: 'text-ink-3 bg-subtle',
+    INFO: 'text-info bg-info/10',
+    SUCCESS: 'text-success bg-success/10',
+    WARNING: 'text-warning bg-warning/10',
+    ERROR: 'text-error bg-error/10',
+    CRITICAL: 'text-error bg-error/20 font-bold'
+  }[level] || 'text-ink-3 bg-subtle'
 }
 
 watch(levelFilter, () => nextTick(() => scrollBottom()))
