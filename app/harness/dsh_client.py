@@ -708,6 +708,9 @@ class DSHClient:
                 await proc.wait()
             raise
 
+        # 管道 EOF 先于进程回收：快速退出的失败进程此处 returncode 可能为 None，
+        # 不 wait 直接判断会把非零退出误判成成功——先回收再取退出码
+        await proc.wait()
         if proc.returncode != 0:
             return DSHResult(
                 session_id=session_id,
