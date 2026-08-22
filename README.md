@@ -390,8 +390,8 @@ IReckon/
 │
 ├── config/                       # 配置（config.example.yaml 模板 / prompts / themes / harness）
 ├── scripts/                      # 工具脚本（run.sh 启动器 / build_exe 打包 / 测试 / Makefile）
-├── tests/                        # pytest 测试套件（13 个模块）
-├── docs/                         # 文档（README_EN / BUILD_APK / CODE_REVIEW）
+├── tests/                        # pytest 测试套件（43 个模块）
+├── docs/                         # 文档（README_EN / BUILD_APK / CODE_REVIEW / UNATTENDED_LOG）
 ├── deploy/                       # Docker / Inno Setup 部署
 └── data/                         # 运行时数据（db/logs/states/output/harness）
 ```
@@ -426,7 +426,7 @@ python scripts/test_run.py
 
 ## 开源许可
 
-基于 **MIT License** 分发。详见 `LICENSE` 文件。
+基于 **MIT License** 分发，详见 [`LICENSE`](LICENSE) 文件。
 
 ---
 

@@ -1,6 +1,6 @@
 <p style="text-align:center">
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-0.109%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/FastAPI-0.110%2B-00a393?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Vue_3-4.21%2B-4FC08D?style=for-the-badge&logo=vue.js" alt="Vue 3">
   <img src="https://img.shields.io/badge/LangGraph-%E2%9C%94-6C5CE7?style=for-the-badge" alt="LangGraph">
   <img src="https://img.shields.io/badge/ChromaDB-%E2%9C%94-FF6B6B?style=for-the-badge" alt="ChromaDB">
@@ -138,7 +138,7 @@ planning ──▶ execute ──▶ review ──┐
 - **Crypto mining detection** — Process command-line pattern matching
 
 ### Frontend
-- **Glassmorphism design system** — `backdrop-filter: blur(12px) saturate(180%)` with dynamic gradient backgrounds
+- **Minimal SaaS design system** — restrained borders/shadows with light/dark dual themes
 - **Real-time WebSocket streaming** — Live task progress, log feed, and message updates
 - **Multiple visual themes** — catgirl / programmer themes with customizable color schemes
 - **Responsive dashboard** — System metrics, task kanban, resource monitoring
@@ -155,7 +155,7 @@ planning ──▶ execute ──▶ review ──┐
 
 ### Prerequisites
 - Python 3.10+
-- LLM endpoint (default: `http://localhost:11434` — Ollama + `qwen2.5:7b`)
+- LLM endpoint (default: `http://localhost:3003/v1` — FreeLLM API, configurable)
 - Node.js 18+
 
 ### Installation
@@ -179,7 +179,7 @@ python -m uvicorn app.web.api:app --host 0.0.0.0 --port 8000
 cd frontend && npm run dev
 
 # Docker
-docker-compose up -d
+cd deploy && docker compose up -d --build
 ```
 
 ### Access
@@ -187,7 +187,7 @@ docker-compose up -d
 | Service | URL |
 |---------|-----|
 | Backend API | `http://localhost:8000` |
-| Interactive Docs | `http://localhost:8000/docs` |
+| Interactive Docs | `http://localhost:8000/docs` (disabled by default; enable via `server.docs_enabled`) |
 | Frontend UI | `http://localhost:3000` |
 | Health Check | `http://localhost:8000/api/health` |
 
@@ -261,7 +261,7 @@ python scripts/test_run.py
 
 ## License
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Distributed under the **MIT License**. See [`LICENSE`](../LICENSE).
 
 ---
 
