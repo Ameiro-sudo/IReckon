@@ -48,17 +48,27 @@ class StyleEngine:
         name = name or get("ui.theme", "catgirl")
         return self._themes.get(name, self._themes.get("catgirl", {}))
 
-    def render_role_name(self, role, theme=None):
+    def _role_entry(self, role, theme=None):
+        """取角色条目：主题文件的实际 schema 是 role_mapping[role]（name/style/avatar），
+        顶层同名键仅作旧扁平格式回退——此前直读顶层导致风格注入恒为空（潜伏 bug）。"""
         t = theme or self.get_theme()
-        return t.get("name", role)
+        mapping = t.get("role_mapping")
+        entry = mapping.get(role) if isinstance(mapping, dict) else None
+        if not isinstance(entry, dict):
+            entry = {}
+        return t, entry
+
+    def render_role_name(self, role, theme=None):
+        t, entry = self._role_entry(role, theme)
+        return entry.get("name", t.get("name", role))
 
     def render_avatar(self, role, theme=None):
-        t = theme or self.get_theme()
-        return t.get("avatar", "")
+        t, entry = self._role_entry(role, theme)
+        return entry.get("avatar", t.get("avatar", ""))
 
     def render_style(self, role, theme=None):
-        t = theme or self.get_theme()
-        return t.get("style", "")
+        t, entry = self._role_entry(role, theme)
+        return entry.get("style", t.get("style", ""))
 
     def generate_agent_prompt_injection(self, role, theme_name=None):
         style = self.render_style(role, self.get_theme(theme_name))
