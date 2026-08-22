@@ -240,4 +240,33 @@
 
 ### 待办池（下轮候选）
 - [ ] DashboardView/TaskBoardPanel 是否也接 persona 文案（可选抛光，非缺口）
-- [ ] 需用户决策留档：自更新签名基建（勿催）、SSRF pin-IP 专门设计轮
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮（~~自更新签名基建~~ → 用户 13:0x 拍板降级为哈希校验，已落地见下）
+
+## 用户决策轮：自更新 SHA-256 校验门（13:0x~14:0x，PR#28）
+
+**用户拍板原话**："不需要，加个哈希/md5校验就行"——签名基建否决，降级为哈希完整性校验；
+MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 SHA-256 实施：
+
+- **updater fail-closed 校验门**（在渠道分叉之前，installer/portable 双覆盖）：Release 必须携带
+  checksums.txt（sha256sum 格式）——清单缺失/不可解析/HTTP 错/无该资产条目/摘要不符五态全拒，
+  不符包双渠道都清理；下载流内联单遍哈希；清单获取复用逐跳白名单+1MB 上限；资产名大小写不敏感匹配
+- **build.yml**：Generate checksums 步骤（Get-FileHash→两空格格式），Release 与手动产物同挂清单，
+  产物缺失 throw 阻断发布
+- **测试 +8**：mismatch 拒绝+残留包清理/清单缺失连资产都不下载(fail-fast 断言)/条目缺失/HTTP 错/
+  坏格式/解析纯函数×2/定位大小写不敏感；既有双渠道用例适配合法清单后语义不变
+- **验证**：四件套本地绿 → CI 失败系 #27 污染殃及（见下）→ 主控 #29 修复后并入重跑 → **PASS 代合**
+  （1971606），master 复核 conclusion=success。主控独立复审四风险点全过（校验门位置/清单自身走白名单/
+  五态 fail-closed/流式单遍哈希+大小写回退匹配）
+
+### 本轮事故两则（均闭环）
+
+1. **误改主检出**：编辑工具调用路径笔误把 updater/build.yml 改进了主检出（黑板禁区内）——git status
+   确认仅我两个文件、HEAD blob 与 clone 基线逐字节一致后 Copy-Item 转移进 clone、checkout -- 弹回，
+   主检出复原干净零残留。教训：多检出并行时每次 edit 前核对 file_path 前缀。
+2. **污染修复双修撞车（善意版）**：CI 红（test_library:74 t1 泄漏）本会话定位根因并写了模块级清空夹具；
+   同期主控已用 PR#29（tmseed- 前缀+测后清除）先行上库——rebase 冲突后弃用本侧重复修复保留上游版本，
+   `rebase --onto` 范围参数误用卷回已弃提交，改 reset --hard+rebase 组合解决。
+
+### 待办池（更新后）
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+- [ ] 下一个 tag 发布时实测 Release 资产含 checksums.txt 且旧客户端升级链路通畅
