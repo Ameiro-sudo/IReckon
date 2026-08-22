@@ -207,6 +207,37 @@
 - 覆盖率摸底方法学沉淀：`coverage run -m pytest` 现做现报，勿信仓库里的陈旧 .coverage 文件
 
 ### 待办池（下轮候选）
-- [ ] engine/registry 58%、core/config 64% 覆盖率继续
-- [ ] IR-01 延续项：加载文案池 + 七角色 emoji/色点识别物（创意笔记同条目）
+- [x] engine/registry 58%、core/config 64% 覆盖率继续 → ✅ PR#23/#24（见下）
+- [x] IR-01 延续项：加载文案池 + 七角色 emoji/色点识别物（创意笔记同条目） → ✅ PR#25（见下）
+- [ ] 需用户决策留档：自更新签名基建（勿催）、SSRF pin-IP 专门设计轮
+
+## 晨间轮（10:4x~12:4x，双 ox-alpha 会话并行·零撞车）
+
+> 用户对另一 GUI 会话下达「继续推进irec」（goal-8ab853a5）。10:4x 巡检发现主检出有活跃并发改动
+> （registry 测试 WIP，即第四任主控 goal-4ef0ad47 所做）——按黑板纪律避让：覆盖率工作包归对方，
+> 本会话认领 IR-01 延续项走 clone 模式（ui-lab\ireckon，分支 feat/ir01-loading-copy），认领登记写共享黑板。
+> **并行安全解实操验证**：双会话各自 PR 交错合并零冲突。
+
+### ✅ PR#23/#24 已合并（第四任主控 · 覆盖率待办池清空）
+- #23（cc29b95）：engine/registry **58%→96%**（+7：create 成功/异常双路、目录发现四态、装饰器、单例同一性）
+- #24（f7702c8）：core/config **63%→97%**（+30：dotenv/_load_config 回退链/哈希短路/save_value 写回矩阵/敏感键掩码/热加载 handler）
+
+### ✅ PR#25 已合并（0f75211）：IR-01 延续——加载文案池 + 七角色 emoji 识别物
+- 新增 `frontend/src/utils/persona.js`：七角色 emoji 映射（🧭💡⚡🔍🔬📐📦📚🧰🛡️⚙️🙋，键值对齐
+  后端 sender_role/roleMeta）+ 六阶段「我看行」文案池各 2 句；`loadingCopy` 确定性取模轮换无随机
+- ChatView：消息头升级「emoji+角色名」识别物（未知角色回退纯名字）；加载提示行扩展——创建在途固定
+  creating 池 → 任务选中按状态取池每 6s 轮换；定时器随 isActive 启停+卸载清理+切任务归零；完成态不显示
+- **试错留档**：NewTaskModal 提交按钮曾试接 creating 池，实测 submit() 内 emit 与关窗同步执行、
+  无文件路径下按钮文案永不可见（原"创建中..."同为死渲染）——已回退保持最小 diff（净改动仅 2 文件 +76/-3）
+- 验证：vite build 绿 / 全量 pytest exit 0 / headless Edge 冒烟六断言全过（verify-persona.js：
+  识别物渲染/executing 命中+加载点/6.3s 翻句/创建窗口 creating 文案/pending 接管/console 零错误）；
+  CI 五项绿后合并，master 复核绿
+
+### 冒烟脚本踩坑补录
+- puppeteer 断言池命中用 `findIndex(t => includes)` 双层嵌套时，内层返回 0 被当 falsy——**真值陷阱**
+  （黑板旧课变体：这次坑在验证脚本自身）；改返回索引数组逐位断言
+- 断言"活跃提示"勿用 `/执行者[^\n]*$/m` 抓 innerText——消息头同名文字先行命中；整句 includes 才可靠
+
+### 待办池（下轮候选）
+- [ ] DashboardView/TaskBoardPanel 是否也接 persona 文案（可选抛光，非缺口）
 - [ ] 需用户决策留档：自更新签名基建（勿催）、SSRF pin-IP 专门设计轮
