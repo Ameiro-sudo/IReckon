@@ -270,3 +270,31 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
 ### 待办池（更新后）
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
 - [ ] 下一个 tag 发布时实测 Release 资产含 checksums.txt 且旧客户端升级链路通畅
+
+## 无人值守轮1：后端边角覆盖率清扫（14:0x~14:2x，PR#30）
+
+用户指令"无人值守自己推进"（goal-7ef85dd4）。选题前核对主控 `feat/ir-ui-snowblock` 分支=空壳
+（无领先提交）但声明工作面含 IR 系列 UI 项——**避让全部前端，锁定纯后端测试**。现做现报摸底后取四个低洼：
+
+| 模块 | 前 | 后（本轮 PR#30） |
+|---|---|---|
+| tools/builtin/dsh_harness | 29% | 95% |
+| tools/builtin/regex_helper | 55% | 98% |
+| agents/creative | 62% | **100%** |
+| engine/style | 64% | 94%（主控 PR#31 随后推到 96%） |
+
+- 新增四文件 46 例：dsh_task 双事件循环回退用 flaky asyncio.run 计数验证两分支、workspace 越界
+  fail-fast 断言；regex ReDoS 守卫矩阵+内置八模式正负样本参数化；creative 双 untrusted_data 围栏+
+  temperature=0.7；style 用 monkeypatch 模块级 `__file__` 实现主题目录隔离（仓库真实 config/themes
+  恒存在，cwd 回退分支天然不可达——直接 patch 是最短路径）
+- **意外收获**：本侧 style 测试锁定了顶层扁平 schema 语义，促成主控发现**潜伏真 bug**——真实主题文件
+  用 `role_mapping[role]` 嵌套结构，旧代码直读顶层键致 `generate_agent_prompt_injection` 恒为空；
+  主控 PR#31 修复嵌套读取+保留扁平回退（与我 #30 的合成主题用例共存绿），与 #19 流式降级同类
+- 留档已知限制：`_REDOS_PATTERN` 不拦纯交替模式 `(a|aa)+`（源码注释宣称但实现未及），现状锁定用例防静默回归
+- 验证：四件套本地绿；PR#30 五项 CI 绿合并（c3c76c9）；master run 被紧随的 #31 合并顶替 cancelled，
+  以 #31 的 master run（32556360814 conclusion=success）为两改动的共同终审
+
+### 待办池（下轮候选）
+- [ ] web/push.py 69%、web/routers/system.py 69%、engine/room.py 69%、harness/dsh_client.py 70% 续扫
+- [ ] `_REDOS_PATTERN` 是否补强纯交替拦截（评估正则复杂度 vs 收益）
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
