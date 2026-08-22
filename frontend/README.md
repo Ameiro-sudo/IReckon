@@ -1,6 +1,6 @@
 # IReckon Frontend
 
-Vue 3 前端 — 极简明亮风设计系统（Linear / Notion 质感）
+Vue 3 前端 — 冰海控制台设计系统（SnowBlock 配色 · v6）
 
 ---
 
@@ -35,10 +35,12 @@ npm run build
 
 ## 设计系统
 
-- **极简明亮风** — 大留白、克制边框与阴影、12px 圆角、Indigo 强调色
-- **浅色优先，深色精修** — 双主题均基于同一套 CSS 变量（`--accent` / `--bg` / `--border` 等）
-- **代码块纸感处理** — 深浅主题下代码块保持一致浅色背景，与 github 高亮主题匹配
-- **响应式布局** — 桌面 / 平板 / 移动端自适应
+- **SnowBlock 配色正本**（v1.0，与三站 tokens.css 同源）——亮色 = 纸雪车间（纸雪底 `#f2efe9` · 雾蓝主色 `#5b9bb5`），暗色 = 深海夜班（深海底 `#0b2b3b` · 冰青主色 `#8fd8ef`）
+- **功能色原值上屏**（暗色主题）——Online `#1fdf64` / Offline `#f25e5e` / Warning `#f0b34b` / Info Blue `#5ea3f2`
+- **品牌点缀令牌** —— 芯暖 `--sb-core-warm`（晶核/点睛，勿大面积）、内光 `--sb-inner-frost`、磁贴渐变 `--sb-tile-gradient`，见 `src/assets/main.css` 头部
+- **一套类名通吃双主题** —— Tailwind v4 `@theme inline` 映射语义令牌，明暗只翻转原始变量
+- **签名元素「信号轨」** —— 导航激活 / 任务选中共用同一条 3px 主色左轨
+- **响应式布局** —— 桌面 / 平板 / 移动端自适应
 
 ## 功能
 
