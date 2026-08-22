@@ -197,3 +197,16 @@
   分支保护立功。纠正流程=从该提交切分支+`branch -f master origin/master` 弹回。教训：merge 后
   checkout master 的状态下**先 branch 再动手**
 - master CI 对 #18/#19/#20 合并复核绿；docs 直推不触发 CI（workflow 有路径过滤）属预期
+
+## 夜班轮3-4（04:5x~10:0x，轮间会话空闲数小时）
+
+- ✅ **PR#22 已合并**（6e58063）：mcp_server 工具面补测 +11——ask/review/delegate 参数透传与结果整形、
+  pool_status endpoint 掩码安全回归（PR#13 语义首获显式断言：路径掩去/端口 `*` 标记/未配置与非法
+  端点分类/零原文泄漏）、_ensure_db 幂等、缺 SDK SystemExit 提示；**mcp_server 63%→91%**
+  （剩余为 main() 启动行），全量 529 绿
+- 覆盖率摸底方法学沉淀：`coverage run -m pytest` 现做现报，勿信仓库里的陈旧 .coverage 文件
+
+### 待办池（下轮候选）
+- [ ] engine/registry 58%、core/config 64% 覆盖率继续
+- [ ] IR-01 延续项：加载文案池 + 七角色 emoji/色点识别物（创意笔记同条目）
+- [ ] 需用户决策留档：自更新签名基建（勿催）、SSRF pin-IP 专门设计轮
