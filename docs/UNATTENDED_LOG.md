@@ -330,6 +330,28 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
 - 验证：四件套绿（ruff --fix 清掉 2 处 F401 后复检过）；PR#35 五项 CI 绿合并，master 复核 success
 
 ### 待办池（下轮候选）
-- [ ] web/routers/system.py 69%、harness/dsh_client.py 70%（331 语句大头）续扫
+- [x] web/routers/system.py 69% → ✅ PR#36（见下）；harness/dsh_client.py 70%（331 语句大头）续扫
+- [ ] `_REDOS_PATTERN` 纯交替拦截评估
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+
+## 无人值守轮4：system.py 路由层 + 署名规则变更（15:0x~15:3x，PR#36）
+
+- **web/routers/system.py 69%→91%**：test_system_router.py 新增 11 例——/health 双态
+  （未认证最小应答+认证完整形状）、**10 分钟更新缓存窗口实证**（第二次健康检查不打 GitHub，
+  调用计数断言）、/usage 委托、/update/check 形状、/update/apply 四分支消息矩阵
+  （未知渠道/无新版本/installer 成功+silent 渠道透传/portable 失败还原文案）、
+  /logs 三处现状锁定（非法级别行整行原文回退 INFO、limit 取最新 N、strict token 下 DEBUG 可见）
+- 🚨 **套件级测试污染向量破案**：全量跑独有失败定位发现——app 装配路径 `ensure_token` 物化会把
+  随机 token 留在 `_runtime_token` 与 config_manager 内存态，此后 configured_token() 三级回退恒非空、
+  client fixture 头自动携带，任何"未认证"断言在特定用例顺序下翻车。本侧用例改为三级回退显式打空
+  （顺序无关）；是否上 conftest 全局复位夹具留后续评估（影响面大）
+- 📛 **署名规则变更（用户指令）**：用户质询 Co-authored-by ox-alpha 尾注后拍板"后面不加就行"——
+  该尾注邮箱恰好解析到一个 16h 前注册的真实同名账号（GitHub noreply 邮箱自动关联），6 个历史提交
+  显示陌生共同作者。已停用尾注；已合并历史不 rewrite；主控已立黑板规则 1.5a 全会话生效
+- 验证：四件套绿（含污染修复后全量 exit 0 复跑）；PR#36 五项 CI 绿合并，master 复核 success
+
+### 待办池（下轮候选）
+- [ ] harness/dsh_client.py 70%（331 语句大头）
+- [ ] conftest 是否加 config_manager 跨测试复位夹具（影响面评估）
 - [ ] `_REDOS_PATTERN` 纯交替拦截评估
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
