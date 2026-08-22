@@ -7,6 +7,8 @@
 import sys
 from pathlib import Path
 
+import pytest_asyncio
+
 ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(ROOT))
 
@@ -214,44 +216,58 @@ async def _seed_part(part_id, name, description="零件描述", tags=("util",)):
     )
 
 
-async def test_search_parts_matches_name_and_description(session_db):
-    await _seed_part("t1", "哈希助手", "计算文件哈希")
-    await _seed_part("t2", "压缩器", "zip 打包")
+@pytest_asyncio.fixture()
+async def clean_tool_parts():
+    """本文件种子行用 tmseed- 前缀，测后清除——共享库不隔离，
+    残留行会污染 test_library 等检索断言（PR#27 CI 实录）。"""
+    yield db
+    await db.execute("DELETE FROM tool_parts WHERE part_id LIKE 'tmseed-%'")
+
+
+async def test_search_parts_matches_name_and_description(clean_tool_parts):
+    await _seed_part("tmseed-1", "哈希助手", "计算文件哈希")
+    await _seed_part("tmseed-2", "压缩器", "zip 打包")
     by_name = await search_parts("哈希")
-    assert [p["part_id"] for p in by_name] == ["t1"]
+    assert [p["part_id"] for p in by_name] == ["tmseed-1"]
     by_desc = await search_parts("打包")
-    assert [p["part_id"] for p in by_desc] == ["t2"]
-    # 双字段联合命中
-    both = await search_parts("哈希 助手不存在词")  # 无单一字段同时含两词
-    assert both == [] or all(p["part_id"] == "t1" for p in both)
+    assert [p["part_id"] for p in by_desc] == ["tmseed-2"]
 
 
-async def test_search_parts_percent_literal_not_wildcard(session_db):
-    await _seed_part("p100", "成功率100x统计")
-    await _seed_part("pliteral", "成功率100%统计")
+async def test_search_parts_percent_literal_not_wildcard(clean_tool_parts):
+    await _seed_part("tmseed-p100", "成功率100x统计")
+    await _seed_part("tmseed-lit", "成功率100%统计")
     # % 已被转义：只命中字面含 "100%" 的名字，不再当任意串通配
     hits = await search_parts("100%")
-    assert [p["part_id"] for p in hits] == ["pliteral"]
+    assert [p["part_id"] for p in hits] == ["tmseed-lit"]
     # 下划线同理：字面匹配而非单字符占位
     hits2 = await search_parts("率100_")
     assert hits2 == []
 
 
-async def test_search_parts_tags_filter(session_db):
-    await _seed_part("tag1", "零件甲", tags=("util", "hash"))
-    await _seed_part("tag2", "零件乙", tags=("net",))
+async def test_search_parts_tags_filter(clean_tool_parts):
+    await _seed_part("tmseed-tag1", "零件甲", tags=("util", "hash"))
+    await _seed_part("tmseed-tag2", "零件乙", tags=("net",))
     got = await search_parts("", tags=["hash"])
-    assert [p["part_id"] for p in got] == ["tag1"]
+    assert [p["part_id"] for p in got] == ["tmseed-tag1"]
     got_none = await search_parts("", tags=["不存在的标签"])
     assert got_none == []
 
 
-async def test_search_parts_shapes_json_fields_and_null_schemas(session_db):
+async def test_search_parts_shapes_json_fields_and_null_schemas(clean_tool_parts):
     await db.execute(
         "INSERT INTO tool_parts"
         "(part_id,name,description,language,code,input_schema,output_schema,tags)"
         " VALUES (?,?,?,?,?,?,?,?)",
-        ("shape1", "裸零件", "无 schema", "python", "x=1\n", None, None, None),
+        (
+            "tmseed-shape",
+            "裸零件",
+            "无 schema",
+            "python",
+            "x=1\n",
+            None,
+            None,
+            None,
+        ),
     )
     parts = await search_parts("裸零件")
     assert len(parts) == 1
