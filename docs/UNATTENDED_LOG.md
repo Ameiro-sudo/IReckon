@@ -295,6 +295,25 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
   以 #31 的 master run（32556360814 conclusion=success）为两改动的共同终审
 
 ### 待办池（下轮候选）
-- [ ] web/push.py 69%、web/routers/system.py 69%、engine/room.py 69%、harness/dsh_client.py 70% 续扫
+- [x] web/push.py 69% → ✅ PR#33（见下）；web/routers/system.py 69%、engine/room.py 69%、harness/dsh_client.py 70% 续扫
 - [ ] `_REDOS_PATTERN` 是否补强纯交替拦截（评估正则复杂度 vs 收益）
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+
+## 无人值守轮2：push.py 深水区（14:1x~14:4x，PR#33）
+
+- **web/push.py 69%→93%**：新增 test_push_deep.py 12 例——websocket_endpoint 收发循环
+  （fast_wait_for 补丁驯服硬编码 30s 空闲：空闲→服务端 ping→放行真实 receive 吃脚本→再空闲断开，
+  全程亚秒）、子协议回显、泛异常干净退场、touch spy 直证；heartbeat_loop 僵尸 1001 清扫+新鲜连接
+  不受累+单飞守卫；log_consumer 载荷解析+非字符串跳过分支；broadcast_global_batch 保序剔除死连接；
+  模块级 push 三函数委托与 task_id 有无双路由
+- **测试设计沉淀**：对"会话结束即清理"的簿记，事后查表断言必假——改 spy 包装直证调用发生；
+  FakeWS 脚本耗尽即挂起 3600s，交由外层 wait_for 处置，天然适配心跳路径
+- 验证：四件套绿；PR#33 五项 CI 绿；合并与主控代合撞车（"Merge already in progress"），
+  终态 MERGED + master run 32557350734 success
+- ⚠️ 推送引用乌龙一次：round1 的旧 master-sync 引用被误当分支推送（内容已在库→PR 创建报无差异）——
+  删错枝、改推正确本地引用后重开。教训：多分支轮换时 push 前先 `git log master..HEAD` 确认待推提交
+
+### 待办池（下轮候选）
+- [ ] web/routers/system.py 69%、engine/room.py 69%、harness/dsh_client.py 70%（331 语句大头）续扫
+- [ ] `_REDOS_PATTERN` 是否补强纯交替拦截
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
