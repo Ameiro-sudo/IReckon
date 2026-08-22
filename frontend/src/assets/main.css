@@ -1,10 +1,13 @@
 /* ============================================================
-   IReckon 设计系统 v5 —— 工业控制台 · Instrument Panel（精修版）
-   石墨机身 · 琥珀信号灯 · 铭牌刻线 · 传送带节拍
-   签名元素：「琥珀信号轨」—— 导航激活 / 任务选中 / 文件选中
-              共用同一条 3px 琥珀左轨（sig.on）
-   Tailwind CSS v4 驱动：语义令牌经 @theme inline 映射为工具类?
-   明暗主题只切换原始变量，一套类名通吃双主题?
+   IReckon 设计系统 v6 —— 冰海控制台 · Frost Console
+   SnowBlock 配色系统 v1.0 同源落地（与三站 tokens.css 同一正本）
+   亮色 = 纸雪车间（纸雪底 · 雾蓝主色 · 暖金点睛）
+   暗色 = 深海夜班（深海底 · 冰青主色 · 功能色原值上屏）
+   结构承袭 v5 工业控制台：铭牌刻线 · 传送带节拍照旧
+   签名元素：「信号轨」—— 导航激活 / 任务选中 / 文件选中
+              共用同一条 3px 主色左轨（sig.on），随主题雾蓝⇄冰青
+   Tailwind CSS v4 驱动：语义令牌经 @theme inline 映射为工具类；
+   明暗主题只切换原始变量，一套类名通吃双主题。
    字体分工：Chakra Petch（显示数字）· Inter（正文）· IBM Plex Mono（数据）
              中文走系统栈（PingFang/MiSans/雅黑），不加载中文 webfont
    ============================================================ */
@@ -17,52 +20,62 @@
 :root {
   color-scheme: light;
 
-  /* 信号灯 —— 工业琥珀 */
-  --accent: #b8770a;             /* 浅色下作文字色仍可读 */
-  --accent-fill: #eea92e;        /* 填充层 */
-  --accent-fill-hover: #f3b54a;
-  --accent-fill-active: #dd9a22;
-  --accent-ink: #1c1506;         /* 填充面上的深色文字 */
-  --accent-soft: rgba(184, 119, 10, 0.09);
-  --accent-border: rgba(184, 119, 10, 0.32);
+  /* ---- SnowBlock 品牌正本色值（tokens.css v1.0，主题无关，供点缀/晶核/磁贴引用）---- */
+  --sb-ice-cyan: #8fd8ef;        /* 冰青 Ice Cyan：暗色模式主色 */
+  --sb-mist-blue: #5b9bb5;       /* 雾蓝 Mist Blue：亮色模式主色 */
+  --sb-deep-sea: #0b2b3b;        /* 深海 Deep Sea：暗色 body 底 */
+  --sb-paper-snow: #f2efe9;      /* 纸雪 Paper Snow：亮色 body 底 */
+  --sb-core-warm: #ffe6b0;       /* 芯暖 Core Warm：logo 晶核/点睛（勿用于大面积） */
+  --sb-warm-gold: #d4a86a;       /* 暖金 Warm Gold：亮色暖强调 */
+  --sb-inner-frost: #c0f0ff;     /* 内光 Inner Frost：边缘高光/次级冰感 */
+  --sb-tile-gradient: linear-gradient(135deg, #164a66, #0f3a52, #0b2b3b); /* 磁贴渐变 135° 三段 */
 
-  /* 语义信号灯 */
-  --success: #178f5d;
-  --success-soft: rgba(31, 158, 104, 0.1);
-  --warning: #b45309;
-  --warning-soft: rgba(180, 83, 9, 0.1);
-  --error: #cf3034;
-  --error-soft: rgba(209, 52, 56, 0.08);
-  --info: #2273a8;
-  --info-soft: rgba(34, 115, 168, 0.09);
+  /* 信号灯 —— 雾蓝主色（文字态用深雾蓝保证纸雪底对比） */
+  --accent: #2f6a83;
+  --accent-fill: #5b9bb5;        /* 雾蓝填充层 */
+  --accent-fill-hover: #6caac2;
+  --accent-fill-active: #4f8aa2;
+  --accent-ink: #08222f;         /* 填充面上的深海墨 */
+  --accent-soft: rgba(91, 155, 181, 0.1);
+  --accent-border: rgba(91, 155, 181, 0.35);
 
-  /* 中性 —— 日班车间 */
-  --bg: #e9ebee;
-  --housing: #dde2e7;            /* 侧边栏机身 */
-  --surface: #f7f8f9;
-  --subtle: #edeff1;
-  --hover: #e0e4e8;
-  --pressed: #d5dadd;
+  /* 语义信号灯 —— 色相取自 SnowBlock 功能色，亮色下降明度保可读 */
+  --success: #148a53;
+  --success-soft: rgba(31, 223, 100, 0.12);
+  --warning: #ad6b14;
+  --warning-soft: rgba(240, 179, 75, 0.14);
+  --error: #cf3434;
+  --error-soft: rgba(242, 94, 94, 0.12);
+  --info: #2469bd;
+  --info-soft: rgba(94, 163, 242, 0.12);
 
-  --ink: #1a2026;
-  --ink-2: #505b65;
-  --ink-3: #828d97;
+  /* 中性 —— 纸雪车间 */
+  --bg: #f2efe9;                 /* 纸雪 Paper Snow：body 底 */
+  --housing: #eae7de;            /* 侧边栏机身 */
+  --surface: #faf9f5;
+  --subtle: #efede4;
+  --hover: #e9e6db;
+  --pressed: #dedacd;
 
-  --line: #d6dbdf;
-  --line-strong: #bcc5cc;
+  --ink: #16242f;
+  --ink-2: #45586a;
+  --ink-3: #7e93a4;
 
-  --overlay: rgba(18, 24, 30, 0.45);
-  --ring: rgba(238, 169, 46, 0.25);
+  --line: #dcd7c9;
+  --line-strong: #c3bdac;
+
+  --overlay: rgba(11, 43, 59, 0.45);
+  --ring: rgba(91, 155, 181, 0.28);
 
   /* 工序信号灯 */
-  --st-pending: #87929c;
-  --st-planning: #3d84c6;
-  --st-executing: #c07c08;
+  --st-pending: #7f8d99;
+  --st-planning: #2469bd;
+  --st-executing: #9c7040;       /* 暖金系：执行中=炉温 */
   --st-reviewing: #7a5fd0;
   --st-revising: #cf5f34;
   --st-delivering: #c74e86;
-  --st-completed: #178f5d;
-  --st-failed: #cf3034;
+  --st-completed: #148a53;
+  --st-failed: #cf3434;
   --st-paused: #64707c;
 
   /* 阴影 —— 克制 */
@@ -70,8 +83,8 @@
   --elev-2: 0 1px 3px rgba(16, 22, 28, 0.07), 0 4px 14px rgba(16, 22, 28, 0.06);
   --elev-3: 0 4px 12px rgba(16, 22, 28, 0.09), 0 16px 48px rgba(16, 22, 28, 0.14);
 
-  --code-bg: #edeff1;
-  --code-text: #232a31;
+  --code-bg: #efece3;
+  --code-text: #22303c;
 
   --sidebar-w: 236px;
 
@@ -86,57 +99,60 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --accent: #eda73f;
-  --accent-fill: #eda73f;
-  --accent-fill-hover: #f4bc60;
-  --accent-fill-active: #dd9a2e;
-  --accent-ink: #191307;
-  --accent-soft: rgba(237, 167, 63, 0.1);
-  --accent-border: rgba(237, 167, 63, 0.35);
+  /* 信号灯 —— 冰青主色（SnowBlock 暗色模式正本） */
+  --accent: #8fd8ef;
+  --accent-fill: #8fd8ef;
+  --accent-fill-hover: #a5e2f4;
+  --accent-fill-active: #79cce8;
+  --accent-ink: #062330;         /* 冰青填充面上的深海墨 */
+  --accent-soft: rgba(143, 216, 239, 0.1);
+  --accent-border: rgba(143, 216, 239, 0.32);
 
-  --success: #35c287;
-  --success-soft: rgba(53, 194, 135, 0.12);
-  --warning: #e0a038;
-  --warning-soft: rgba(224, 160, 56, 0.12);
-  --error: #e5534b;
-  --error-soft: rgba(229, 83, 75, 0.12);
-  --info: #4cb3d4;
-  --info-soft: rgba(76, 179, 212, 0.11);
+  /* 语义信号灯 —— SnowBlock 功能色原值上屏（深海底对比充足） */
+  --success: #1fdf64;            /* 在线 Online */
+  --success-soft: rgba(31, 223, 100, 0.13);
+  --warning: #f0b34b;            /* 警告 Warning */
+  --warning-soft: rgba(240, 179, 75, 0.13);
+  --error: #f25e5e;              /* 离线 Offline */
+  --error-soft: rgba(242, 94, 94, 0.13);
+  --info: #5ea3f2;               /* 信息 Info Blue */
+  --info-soft: rgba(94, 163, 242, 0.13);
 
-  /* 夜班控制室 */
-  --bg: #0e1216;
-  --housing: #090d11;
-  --surface: #14191f;
-  --subtle: #191f26;
-  --hover: #202831;
-  --pressed: #27303a;
+  /* 夜班深海控制室 */
+  --bg: #0b2b3b;                 /* 深海 Deep Sea：body 底 */
+  --housing: #07202d;            /* 侧边栏机身（比深海再沉半档） */
+  --surface: #10374b;
+  --subtle: #154154;
+  --hover: #1b4a63;
+  --pressed: #225572;
 
-  --ink: #e8ebef;
-  --ink-2: #99a3ae;
-  --ink-3: #5c6873;
+  --ink: #eaf5fb;
+  --ink-2: #a9c6d6;
+  --ink-3: #5e8095;
 
-  --line: #222b34;
-  --line-strong: #35424f;
+  --line: #173f54;
+  --line-strong: #2a5a74;
 
-  --overlay: rgba(3, 6, 10, 0.64);
-  --ring: rgba(237, 167, 63, 0.22);
+  --overlay: rgba(2, 10, 16, 0.64);
+  --ring: rgba(143, 216, 239, 0.25);
 
-  --st-pending: #8a95a0;
-  --st-planning: #4fa3d8;
-  --st-executing: #eda73f;
+  /* 工序信号灯（执行中沿用暗色暖金正本，同 blog tokens dark） */
+  --st-pending: #7f93a3;
+  --st-planning: #5ea3f2;
+  --st-executing: #e8c98a;
   --st-reviewing: #9d8cff;
   --st-revising: #e0764a;
   --st-delivering: #e0679a;
-  --st-completed: #35c287;
-  --st-failed: #e5534b;
-  --st-paused: #6d7d8d;
+  --st-completed: #1fdf64;
+  --st-failed: #f25e5e;
+  --st-paused: #6d8496;
 
   --elev-1: 0 1px 2px rgba(0, 0, 0, 0.35);
   --elev-2: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.32);
   --elev-3: 0 4px 12px rgba(0, 0, 0, 0.5), 0 16px 48px rgba(0, 0, 0, 0.6);
 
-  --code-bg: #10151b;
-  --code-text: #d7dde3;
+  --code-bg: #092231;
+  --code-text: #d7ecf5;
 }
 
 /* ============ 主题映射 → Tailwind 工具类 ============ */
@@ -369,7 +385,7 @@
     @apply rounded-lg border border-line bg-surface p-5;
   }
 
-  /* 铭牌刻线：标题前的琥珀刻度 */
+  /* 铭牌刻线：标题前的主色刻度 */
   .plate {
     @apply mb-3.5 flex items-center gap-2 text-[13px] font-semibold tracking-tight text-ink;
   }
@@ -408,11 +424,11 @@
     border-color: var(--line-strong);
   }
   .st-planning {
-    background: rgba(79, 163, 216, 0.12);
+    background: rgba(94, 163, 242, 0.14);
     color: var(--st-planning);
   }
   .st-executing {
-    background: rgba(237, 167, 63, 0.13);
+    background: rgba(212, 168, 106, 0.16);
     color: var(--st-executing);
   }
   .st-reviewing {
@@ -551,7 +567,7 @@
     @apply bg-accent-soft font-semibold text-accent;
   }
 
-  /* 签名元素：激活项左侧琥珀信号轨 */
+  /* 签名元素：激活项左侧主色信号轨（雾蓝⇄冰青随主题） */
   .nav-item.router-link-active::before {
     content: '';
     position: absolute;
