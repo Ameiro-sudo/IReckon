@@ -37,6 +37,20 @@
       </nav>
 
       <div class="flex flex-col gap-1.5 border-t border-line p-2.5">
+        <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="主题配色切换">
+          <button
+            v-for="p in PALETTES"
+            :key="p.id"
+            class="flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors duration-150"
+            :class="palette === p.id ? 'border-accent-fill bg-accent-soft text-accent' : 'border-line bg-subtle text-ink-2 hover:bg-hover hover:text-ink'"
+            :aria-pressed="palette === p.id"
+            :title="p.desc"
+            @click="setPalette(p.id)"
+          >
+            <span class="size-2 shrink-0 rounded-full shadow-[inset_0_0_0_1px_rgba(0,0,0,0.18)]" :style="{ background: p.dot }"></span>
+            {{ p.label }}
+          </button>
+        </div>
         <div class="flex items-center gap-2 rounded-md border border-line bg-subtle px-2.5 py-[7px] text-xs text-ink-2">
           <span class="lamp" :class="backendOnline ? 'lamp-ok' : 'lamp-bad'"></span>
           <span class="flex-1">{{ backendOnline ? '后端在线' : '后端离线' }}</span>
@@ -110,6 +124,20 @@ const backendOnline = ref(true)
 const mobileSidebarOpen = ref(false)
 let healthTimer = null
 
+/* 配色皮肤（data-palette）：frost=冰海 SnowBlock（默认）· amber=琥珀工业（v5 正本）。
+   首帧由 theme-init.js 预涂，此处仅同步状态与响应用户切换；选择持久化于 localStorage.palette */
+const PALETTES = [
+  { id: 'frost', label: '冰海', desc: 'SnowBlock 冰海皮肤：纸雪×雾蓝 / 深海×冰青', dot: 'linear-gradient(135deg, #8fd8ef 50%, #5b9bb5 50%)' },
+  { id: 'amber', label: '琥珀', desc: '琥珀工业皮肤（v5 正本）：石墨×琥珀信号灯', dot: 'linear-gradient(135deg, #eda73f 50%, #b8770a 50%)' }
+]
+const palette = ref('frost')
+
+const setPalette = (id) => {
+  palette.value = id
+  document.documentElement.setAttribute('data-palette', id)
+  localStorage.setItem('palette', id)
+}
+
 const isBare = computed(() => Boolean(route.meta?.bare))
 
 const toggleTheme = () => {
@@ -130,6 +158,7 @@ async function checkHealth() {
 
 onMounted(async () => {
   isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
+  palette.value = document.documentElement.getAttribute('data-palette') === 'amber' ? 'amber' : 'frost'
   await checkHealth()
   healthTimer = setInterval(checkHealth, 15000)
   window.addEventListener('keydown', onGlobalKeydown)
