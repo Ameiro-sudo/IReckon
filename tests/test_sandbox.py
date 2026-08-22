@@ -6,6 +6,7 @@
 
 import asyncio
 import importlib
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -357,3 +358,213 @@ async def test_scanner_host_path_when_sandbox_disabled(monkeypatch):
     s._available = True
     findings = await s.scan("print(2)")
     assert findings == [{"via": "host"}]
+
+
+# ---------- 深水区补测：引擎探测 / 镜像保障 / 杀树 / run 全路径 ----------
+
+
+def test_check_engine_ok(monkeypatch):
+    seen = {}
+
+    def fake_run(cmd, **kw):
+        seen["cmd"] = list(cmd)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(sandbox_mod.subprocess, "run", fake_run)
+    assert sandbox_mod._check_engine("docker") is True
+    assert seen["cmd"] == ["docker", "--version"]
+
+
+def test_check_engine_failure_modes(monkeypatch):
+    cases = [
+        subprocess.CalledProcessError(1, "docker"),
+        FileNotFoundError(),
+        subprocess.TimeoutExpired("docker", 15),
+    ]
+    for exc in cases:
+        monkeypatch.setattr(
+            sandbox_mod.subprocess,
+            "run",
+            lambda *a, **kw: (_ for _ in ()).throw(exc),
+        )
+        assert sandbox_mod._check_engine("docker") is False
+
+
+def _install_run_sequence(monkeypatch, results):
+    """按顺序吐 subprocess.run 结果/异常的桩。"""
+    seq = list(results)
+
+    def fake_run(*a, **kw):
+        item = seq.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(sandbox_mod.subprocess, "run", fake_run)
+
+
+def test_ensure_image_present_skips_pull(monkeypatch):
+    sb = _sb()
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(list(cmd))
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(sandbox_mod.subprocess, "run", fake_run)
+    assert sb._ensure_image() is True
+    assert calls == [["docker", "inspect", "test-image"]]  # 镜像在位不拉取
+
+
+def test_ensure_image_pull_success(monkeypatch):
+    sb = _sb()
+    _install_run_sequence(
+        monkeypatch,
+        [SimpleNamespace(returncode=1), SimpleNamespace(returncode=0)],
+    )
+    assert sb._ensure_image() is True
+
+
+def test_ensure_image_pull_failure(monkeypatch):
+    sb = _sb()
+    fail = SimpleNamespace(returncode=1, stderr=b"no such image: x")
+    _install_run_sequence(monkeypatch, [fail, fail])
+    assert sb._ensure_image() is False
+
+
+def test_ensure_image_pull_timeout_and_missing_binary(monkeypatch):
+    sb = _sb()
+    _install_run_sequence(
+        monkeypatch,
+        [
+            subprocess.TimeoutExpired("inspect", 10),
+            subprocess.TimeoutExpired("pull", 300),
+        ],
+    )
+    assert sb._ensure_image() is False
+    _install_run_sequence(
+        monkeypatch,
+        [FileNotFoundError(), FileNotFoundError()],
+    )
+    assert sb._ensure_image() is False
+
+
+async def test_kill_tree_kills_children_then_main(monkeypatch):
+    killed = []
+
+    class FakeChild:
+        def kill(self):
+            killed.append("child")
+
+    class FakePsutilProc:
+        def __init__(self, pid):
+            pass
+
+        def children(self, recursive=True):
+            return [FakeChild()]
+
+    monkeypatch.setattr(sandbox_mod.psutil, "Process", FakePsutilProc)
+    proc = _FakeProc()
+    await _sb()._kill_tree(proc)
+    assert killed == ["child"]
+    assert proc.killed and proc.waited
+
+
+async def test_kill_tree_swallows_every_error(monkeypatch):
+    class ExplodingProc:
+        def __init__(self, pid):
+            raise RuntimeError("process gone")
+
+    monkeypatch.setattr(sandbox_mod.psutil, "Process", ExplodingProc)
+    proc = _FakeProc()
+
+    def boom_kill():
+        raise RuntimeError("already dead")
+
+    async def boom_wait():
+        raise RuntimeError("cannot wait")
+
+    proc.kill = boom_kill
+    proc.wait = boom_wait
+    await _sb()._kill_tree(proc)  # 三段异常全部吞掉，不向上抛
+
+
+async def test_run_engine_unavailable_short_circuits():
+    sb = _sb(enabled=True)
+    sb._available = False
+    r = await sb.run("echo hi")
+    assert r["stderr"] == "sandbox unavailable" and r["returncode"] == -1
+
+
+async def test_run_image_unavailable_short_circuits(monkeypatch):
+    sb = _sb(enabled=True)
+    sb._available = True
+    sb._image_ready = None
+
+    def no_image():
+        return False
+
+    monkeypatch.setattr(sb, "_ensure_image", no_image)
+    r = await sb.run("x")
+    assert r["stderr"] == "sandbox image unavailable" and r["returncode"] == -1
+
+
+async def test_run_success_assembles_args_and_filters_env(monkeypatch):
+    sb = _sb(enabled=True)
+    sb._available = True
+    sb._image_ready = True
+    captured = {}
+
+    async def fake_exec(*cmd, **kw):
+        captured["cmd"] = list(cmd)
+        return _FakeProc(stdout=b'{"ok": 1}', stderr=b"warn line")
+
+    monkeypatch.setattr(sandbox_mod.asyncio, "create_subprocess_exec", fake_exec)
+    r = await sb.run(
+        'echo {"ok": 1}',
+        mounts={"/work": ("/host/work", "ro")},
+        env={"ALLOWED_VAR": "v", "SECRET": "s"},
+    )
+    assert r["returncode"] == 0 and '{"ok": 1}' in r["stdout"]
+    cmd = captured["cmd"]
+    assert cmd[0] == "docker"
+    assert "--network=none" in cmd and "--memory=256m" in cmd and "--cpus=0.5" in cmd
+    assert "--user=65534" in cmd
+    assert "--volume=/host/work:/work:ro" in cmd
+    assert "--env=ALLOWED_VAR=v" in cmd
+    assert not any(c.startswith("--env=SECRET") for c in cmd)  # 白名单外被滤
+    assert cmd[-3:] == ["bash", "-c", 'echo {"ok": 1}']
+
+
+async def test_run_timeout_kills_tree(monkeypatch):
+    sb = _sb(enabled=True)
+    sb._available = True
+    sb._image_ready = True
+    proc = _FakeProc(hang=True)  # communicate 挂起 → 触发 run 内部超时
+
+    class ExplodingProc:
+        def __init__(self, pid):
+            raise RuntimeError("gone")
+
+    monkeypatch.setattr(sandbox_mod.psutil, "Process", ExplodingProc)
+
+    async def fake_exec(*a, **kw):
+        return proc
+
+    monkeypatch.setattr(sandbox_mod.asyncio, "create_subprocess_exec", fake_exec)
+    r = await asyncio.wait_for(sb.run("long task", timeout=1), timeout=5)
+    assert r == {"stdout": "", "stderr": "timeout", "returncode": -1}
+    assert proc.killed  # 超时杀树兜底执行
+
+
+async def test_run_generic_exception_returns_error(monkeypatch):
+    sb = _sb(enabled=True)
+    sb._available = True
+    sb._image_ready = True
+
+    async def fake_exec(*a, **kw):
+        raise RuntimeError("spawn failed")
+
+    monkeypatch.setattr(sandbox_mod.asyncio, "create_subprocess_exec", fake_exec)
+    r = await sb.run("anything")
+    assert r["returncode"] == -1 and "spawn failed" in r["stderr"]
