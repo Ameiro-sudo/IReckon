@@ -72,12 +72,15 @@ async def test_drain_cli_reads_both_streams_until_eof():
 
 def test_kill_tree_terminates_process():
     async def scenario():
+        # 必须与生产 spawn 语义一致（独立会话/进程组）：否则 POSIX 分支
+        # killpg(getpgid(pid)) 会连测试进程组一起 SIGKILL（ubuntu 卡死实录）
         proc = await asyncio.create_subprocess_exec(
             sys.executable,
             "-c",
             "import time; time.sleep(30)",
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=(sys.platform != "win32"),
         )
         _kill_tree(proc)
         await asyncio.wait_for(proc.wait(), timeout=15)
