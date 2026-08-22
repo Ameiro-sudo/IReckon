@@ -375,7 +375,22 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
 - 验证：四件套本地绿；PR#38 五项 CI 绿合并（50bbc13），master 复核 success
 
 ### 待办池（下轮候选）
+- [x] board 71% → ✅ PR#41（见下）；覆盖率扫尾候选余：executor 71%/tasks 71%/machine 72%（中大模块）
 - [ ] conftest config_manager 跨测试复位夹具评估
 - [ ] `_REDOS_PATTERN` 纯交替拦截评估
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
-- [ ] 覆盖率扫尾候选：executor 71%/board 71%/tasks 71%/machine 72%（均为中大模块）
+
+## 无人值守轮6：board.py 看板层（16:4x，PR#41）
+
+- **engine/board.py 71%→86%**：test_board.py 16 例——状态枚举往返、上下文提示词条件段落
+  （空产出占位/已完成待办条件渲染）、initialize 计划+团队映射（空成员列表跳过）、
+  update 未初始化 ValueError、advance_stage 中途拉取下一阶段 vs 越界"交付"兜底、
+  坏 config_snapshot 容错、UPSERT 双写单行、broadcast None 跳过与 L2 摘要载荷
+- 验证：四件套绿；PR#41 五项 CI 绿合并，master 复核 success
+- 提交卫生：commit 消息管道按规则 1.5a 过滤——起草时习惯性带入的 Co-authored-by 尾注行
+  被过滤器剥掉后才落库（双保险生效实证）
+
+### 待办池（下轮候选）
+- [ ] executor/tasks/machine 扫尾（中大模块，建议续接会话分轮处理）
+- [ ] conftest config_manager 复位夹具评估、`_REDOS_PATTERN` 评估
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
