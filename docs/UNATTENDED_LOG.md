@@ -314,6 +314,22 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
   删错枝、改推正确本地引用后重开。教训：多分支轮换时 push 前先 `git log master..HEAD` 确认待推提交
 
 ### 待办池（下轮候选）
-- [ ] web/routers/system.py 69%、engine/room.py 69%、harness/dsh_client.py 70%（331 语句大头）续扫
+- [x] engine/room.py 69% → ✅ PR#35（见下）；web/routers/system.py 69%、harness/dsh_client.py 70%（331 语句大头）续扫
 - [ ] `_REDOS_PATTERN` 是否补强纯交替拦截
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+
+## 无人值守轮3：room.py 会议层（15:0x，PR#35）
+
+- **engine/room.py 69%→94%**：test_meeting_room.py 13 例——broadcast 消息整形/L1 推送/
+  MAX_HISTORY 裁剪保最新/推送超时与泛异常双容错；send_private 收件人元数据进载荷 metadata 键；
+  持久化三例（含 persist=False 定向零写入）；管理器幂等/查询/关闭生命周期
+- **测试模式沉淀**：①非持久化用例一律 persist=False——broadcast 默认落库会撞共享库外键且污染真实数据；
+  ②conversation_messages.task_id 外键引用 tasks，持久化用例先 _seed_task 主表行（IntegrityError 实录）；
+  ③fetch_one 返回元组非字典（列序索引访问）；④跨测试共享库文件上 COUNT(*) 断言必假，
+  按 msg_id 定向查（PR#29 教训第三变体）
+- 验证：四件套绿（ruff --fix 清掉 2 处 F401 后复检过）；PR#35 五项 CI 绿合并，master 复核 success
+
+### 待办池（下轮候选）
+- [ ] web/routers/system.py 69%、harness/dsh_client.py 70%（331 语句大头）续扫
+- [ ] `_REDOS_PATTERN` 纯交替拦截评估
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
