@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 import re
 import shutil
@@ -20,6 +21,10 @@ _REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 _GITHUB_API_PREFIX = "https://api.github.com/repos/"
 _MAX_ZIP_BYTES = 100 * 1024 * 1024
 _READ_CHUNK = 64 * 1024
+# 发行包校验清单（sha256sum 格式）；apply 前 fail-closed 强校验
+_CHECKSUM_ASSET_NAME = "checksums.txt"
+_MAX_CHECKSUM_BYTES = 1024 * 1024
+_CHECKSUM_LINE_RE = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(.+?)\s*$")
 # 备份时排除的运行时/体积巨大目录（copytree 整目录拷贝会拖垮更新速度）
 _BACKUP_EXCLUDE_DIRS = (
     "data",
@@ -156,6 +161,68 @@ class Updater:
                 return a.get("browser_download_url") or "", name
         return "", ""
 
+    @staticmethod
+    def _find_checksum_url(assets: list) -> str:
+        """定位发行包校验清单资产（文件名固定 checksums.txt）；缺失返回 ""。"""
+        for a in assets:
+            if (a.get("name") or "").strip().lower() == _CHECKSUM_ASSET_NAME:
+                return a.get("browser_download_url") or ""
+        return ""
+
+    @staticmethod
+    def _parse_checksums(text: str) -> dict:
+        """解析 sha256sum 格式清单（<64位hex> 空格[可含*]<文件名>），返回 {文件名: 小写hex}。
+
+        容错语义：空行/#注释/不合规范的行跳过；大小写归一小写。
+        """
+        digests: dict = {}
+        for line in str(text).splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = _CHECKSUM_LINE_RE.match(line)
+            if m:
+                digests[m.group(2)] = m.group(1).lower()
+        return digests
+
+    async def _fetch_checksums(
+        self, client: "httpx.AsyncClient", url: str
+    ) -> Optional[dict]:
+        """受控逐跳下载校验清单并解析；任何异常/超限/非法跳转返回 None（fail-closed）。"""
+        try:
+            hop = url
+            for _ in range(5):
+                if not _validate_zip_download_url(hop, self._repo):
+                    logger.error(f"校验清单 URL 非法: {hop}")
+                    return None
+                async with client.stream("GET", hop) as resp:
+                    if resp.status_code in (301, 302, 303, 307, 308):
+                        location = resp.headers.get("location", "")
+                        if not location:
+                            logger.error("校验清单重定向缺少 Location 头")
+                            return None
+                        hop = str(httpx.URL(hop).join(location))
+                        continue
+                    if resp.status_code != 200:
+                        logger.error(f"校验清单下载失败: HTTP {resp.status_code}")
+                        return None
+                    chunks: list = []
+                    total = 0
+                    async for chunk in resp.aiter_bytes(_READ_CHUNK):
+                        total += len(chunk)
+                        if total > _MAX_CHECKSUM_BYTES:
+                            logger.error("校验清单超过大小上限，拒绝")
+                            return None
+                        chunks.append(chunk)
+                    break
+            else:
+                logger.error("校验清单重定向跳数超限")
+                return None
+            return self._parse_checksums(b"".join(chunks).decode("utf-8"))
+        except Exception as e:
+            logger.error(f"校验清单获取异常: {e}")
+            return None
+
     async def download_and_update(
         self,
         version: str,
@@ -184,6 +251,31 @@ class Updater:
                 if not asset_url:
                     names = ", ".join(a.get("name", "") for a in assets) or "(无附件)"
                     logger.error(f"Release 缺少 {ch} 渠道资产，现有: {names}")
+                    return False
+                # SHA-256 强校验（用户决策：不引入签名基建，仅哈希完整性校验）：
+                # 清单缺失/无该资产条目/摘要不匹配一律拒绝应用，fail-closed
+                checksum_url = self._find_checksum_url(assets)
+                if not checksum_url:
+                    logger.error(
+                        "Release 缺少 checksums.txt 校验清单，拒绝更新(fail-closed)"
+                    )
+                    return False
+                manifest = await self._fetch_checksums(client, checksum_url)
+                if not manifest:
+                    logger.error("校验清单缺失或不可解析，拒绝更新(fail-closed)")
+                    return False
+                # _select_asset 返回小写资产名，而清单条目保留原始大小写：
+                # 精确命中优先，退回大小写不敏感匹配
+                expected_digest = manifest.get(asset_name)
+                if not expected_digest:
+                    expected_digest = next(
+                        (v for k, v in manifest.items() if k.lower() == asset_name),
+                        None,
+                    )
+                if not expected_digest:
+                    logger.error(
+                        f"校验清单无资产条目: {asset_name}，拒绝更新(fail-closed)"
+                    )
                     return False
                 suffix = ".exe" if ch == "installer" else ".zip"
                 local_path = Path(tempfile.gettempdir()) / (
@@ -215,6 +307,7 @@ class Updater:
                             logger.error(f"下载失败: {dl_resp.status_code}")
                             return False
                         downloaded = 0
+                        hasher = hashlib.sha256()
                         with open(local_path, "wb") as f:
                             async for chunk in dl_resp.aiter_bytes(_READ_CHUNK):
                                 downloaded += len(chunk)
@@ -224,10 +317,26 @@ class Updater:
                                         f"({self._max_zip_bytes} bytes)，拒绝应用"
                                     )
                                     return False
+                                hasher.update(chunk)
                                 f.write(chunk)
                         saved = True
                 if not saved:
                     logger.error("更新包下载重定向跳数超限")
+                    return False
+
+                actual_digest = hasher.hexdigest().lower()
+                if actual_digest != expected_digest.lower():
+                    logger.error(
+                        f"更新包 SHA-256 校验失败"
+                        f"(期望 {expected_digest[:12]}…/实际 {actual_digest[:12]}…)，"
+                        "拒绝应用"
+                    )
+                    # 摘要不符的残留包任何渠道都不应留下
+                    try:
+                        os.unlink(local_path)
+                        local_path = None
+                    except OSError:
+                        pass
                     return False
 
                 if ch == "installer":

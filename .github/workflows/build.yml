@@ -140,6 +140,22 @@ jobs:
           Copy-Item dist/IReckon-Setup.exe "IReckon-Setup-${tag}-win64.exe" -Force
           echo "installer_name=IReckon-Setup-${tag}-win64.exe" >> $env:GITHUB_OUTPUT
 
+      # SHA-256 校验清单（sha256sum 格式）：updater apply 前 fail-closed 强校验
+      - name: Generate checksums
+        id: checksums
+        run: |
+          $names = @(
+            "${{ steps.installer.outputs.installer_name }}",
+            "${{ steps.portable.outputs.portable_name }}"
+          )
+          $lines = foreach ($n in $names) {
+            $f = Get-ChildItem -Recurse -File -Filter $n | Select-Object -First 1
+            if (-not $f) { throw "artifact not found: $n" }
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower(), $f.Name
+          }
+          $lines | Set-Content -Path dist/checksums.txt -Encoding ascii
+          Get-Content dist/checksums.txt
+
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -147,6 +163,7 @@ jobs:
           files: |
             ${{ steps.installer.outputs.installer_name }}
             ${{ steps.portable.outputs.portable_name }}
+            dist/checksums.txt
 
       - name: Upload Artifact (manual trigger)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -156,3 +173,4 @@ jobs:
           path: |
             ${{ steps.installer.outputs.installer_name }}
             ${{ steps.portable.outputs.portable_name }}
+            dist/checksums.txt
