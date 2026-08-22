@@ -392,5 +392,44 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
 
 ### 待办池（下轮候选）
 - [ ] executor/tasks/machine 扫尾（中大模块，建议续接会话分轮处理）
-- [ ] conftest config_manager 复位夹具评估、`_REDOS_PATTERN` 评估
+- [x] conftest config_manager 复位夹具评估 → ✅ PR#43（见下，评估结论=只做 auth 运行时兜底复位，
+      config 全量复位影响面大不做并留档）
+- [x] `_REDOS_PATTERN` 纯交替拦截评估 → 评估结论：正则无法区分重叠交替 `(a|aa)+` 与合法并列
+      `(foo|bar)+`，补强需回溯模拟超出守卫定位；现状已有 pattern 512/text 50KB 上限兜底，
+      维持不动并用现状锁定用例防静默回归（PR#30 已含）
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+
+## 🏁 无人值守终轮：conftest 复位夹具落地（16:5x~17:1x，PR#43）
+
+- **auth 运行时 token 跨测试复位夹具落地**：autouse `_reset_auth_runtime_token`——每测试前
+  monkeypatch 置空 `auth._runtime_token`（自动还原），封堵 ensure_token 物化泄漏向量；
+  只清运行时兜底不动 config/env 来源，爆炸半径最小。config_manager 全量复位**评估后不做**
+  （save_value 物化语义与多来源优先级耦合，影响面大），双留档
+- **ReDoS 拦截评估闭环**：维持现状+锁定用例（理由见待办池勾选行）
+- 推送引用乌龙复发一次（round5 旧引用当分支推→PR 报无差异）——按自留教训"push 前先
+  log master..HEAD"当场纠正重开；同一坑两踩说明该检查应进提交管道而非靠记忆
+- 验证：四件套绿；PR#43 五项 CI 绿合并，master 复核 success
+
+## 🏁 goal-7ef85dd4 八轮总账（无人值守自主推进收官）
+
+| 轮 | PR | 交付 |
+|---|---|---|
+| 1 | #30 | 四模块清扫 +46 测试（dsh_harness/regex_helper/creative/style） |
+| 2 | #33 | push.py +12（endpoint 循环/僵尸清扫/日志消费者） |
+| 3 | #35 | room.py +13（会议分层/私聊路由/持久化） |
+| 4 | #36 | system.py +11 + **ensure_token 污染向量破案** |
+| 5 | #38 | dsh_client +18 + **退出码竞态真 bug 一行修复** + ubuntu killpg 卡死破案 |
+| 6 | #41 | board.py +16（看板生命周期与容错） |
+| 终 | #43 | conftest auth 复位夹具 + ReDoS 评估闭环 |
+
+- 覆盖率提升九模块：dsh_harness 29→95 / regex_helper 55→98 / creative 62→100 /
+  style 64→96(主控接力) / push 69→93 / room 69→94 / system 69→91 /
+  dsh_client 70→81 / board 71→86
+- 真 bug ×2（退出码竞态一行修复、style 注入恒空连带促成）+ 污染向量破案 ×2
+  （ensure_token 物化、toolmgr 种子泄漏）+ CI 卡死破案 ×1（killpg 自杀式进程组）
+- 纪律执行：全程分支+四件套+五项 CI 绿合并；署名规则 1.5a 用户指令即时生效
+- 移交后续会话：executor/tasks/machine 扫尾、SSRF pin-IP（等用户拍板）
+
+### 待办池（移交续接会话）
+- [ ] executor 71%/tasks 71%/machine 72% 扫尾（中大模块分轮处理）
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
