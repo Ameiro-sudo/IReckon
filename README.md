@@ -169,6 +169,7 @@ planning ──▶ execute ──▶ review ──┐
 - **沙箱执行** — udocker 容器隔离，带资源限制（CPU/内存/网络）
 - **供应链防火墙** — pip/npm 包黑名单，依赖来源验证
 - **挖矿检测** — 进程命令行模式匹配，运行时异常检测
+- **更新包校验** — Release 附 checksums.txt（SHA-256 清单），apply 前强校验，缺失/不匹配一律拒绝（fail-closed）
 - **攻击面收敛** — 交互式文档默认关闭（`server.docs_enabled`）、CORS 仅放行本机固定来源、SPA 回退带路径穿越防护、异常详情不回显客户端
 
 ### LLM 与 AI 基础设施
