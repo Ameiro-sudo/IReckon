@@ -71,7 +71,7 @@
                 >{{ avatarText(msg.role) }}</div>
                 <div class="min-w-0">
                   <div class="mb-1 flex items-center gap-2 px-0.5">
-                    <span class="text-xs font-semibold" :style="{ color: roleColor(msg.role) }">{{ roleLabel(msg.role) }}</span>
+                    <span class="text-xs font-semibold" :style="{ color: roleColor(msg.role) }">{{ roleTag(msg.role) }}</span>
                     <span v-if="msg.msg_type === 'task_board_update'" class="rounded-full border border-line bg-subtle px-[7px] text-[10px] leading-[1.7] text-ink-3">看板</span>
                     <span v-else-if="msg.msg_type === 'security_warning'" class="rounded-full bg-error-soft px-[7px] text-[10px] leading-[1.7] text-error">安全</span>
                     <span v-else-if="msg.msg_type === 'code'" class="rounded-full border border-line bg-subtle px-[7px] text-[10px] leading-[1.7] text-ink-3">代码</span>
@@ -80,8 +80,11 @@
                   <div class="bubble rounded-lg border border-line bg-surface px-3.5 py-2.5 text-[13px] leading-relaxed text-ink shadow-sm" v-html="renderContent(msg)"></div>
                 </div>
               </div>
-              <div v-if="loading" class="flex gap-1 self-start py-2.5">
-                <span class="msg-dot"></span><span class="msg-dot"></span><span class="msg-dot"></span>
+              <div v-if="loading || isActive" class="flex items-center gap-2.5 self-start py-2.5">
+                <span class="flex gap-1">
+                  <span class="msg-dot"></span><span class="msg-dot"></span><span class="msg-dot"></span>
+                </span>
+                <span class="text-xs text-ink-3">{{ activeHint }}</span>
               </div>
             </div>
           </div>
@@ -120,6 +123,7 @@ import { useTaskStore } from '../stores/taskStore.js'
 import { taskAPI } from '../api/index.js'
 import { useLiveSocket } from '../composables/useLiveSocket.js'
 import { highlightDom, renderMarkdown, roleColor, roleLabel } from '../utils/markdown.js'
+import { loadingCopy, roleEmoji } from '../utils/persona.js'
 import { taskTitle } from '../utils/task.js'
 import { timeHM } from '../utils/format.js'
 import { useToast } from '../composables/useToast.js'
@@ -150,6 +154,23 @@ const connected = socket.connected
 const ACTIVE = ['pending', 'planning', 'executing', 'reviewing', 'revising', 'delivering']
 const isActive = computed(() => currentTask.value && ACTIVE.includes(currentTask.value.status))
 
+// IR-01 人格层：活跃阶段轮播文案池（6s 换一句，任务切换归零）；
+// 创建请求在途（loading）期间固定用 creating 池，避免闪现上一个任务的阶段文案
+const phaseTick = ref(0)
+let hintTimer = null
+const activeHint = computed(() => {
+  if (loading.value) return loadingCopy('creating', 1)
+  return loadingCopy(currentTask.value?.status || '', phaseTick.value)
+})
+
+watch(isActive, (on) => {
+  if (on && !hintTimer) hintTimer = setInterval(() => { phaseTick.value++ }, 6000)
+  if (!on && hintTimer) {
+    clearInterval(hintTimer)
+    hintTimer = null
+  }
+}, { immediate: true })
+
 const downloadUrl = computed(() => currentTask.value ? taskAPI.downloadUrl(currentTask.value.task_id) : '#')
 // 消息数量：仅监听长度变化触发高亮/滚动，避免对 800+ 条消息做深度遍历
 const messagesLength = computed(() => messages.value.length)
@@ -171,6 +192,10 @@ onMounted(async () => {
 onUnmounted(() => {
   socket.disconnect()
   taskStore.stopPolling()
+  if (hintTimer) {
+    clearInterval(hintTimer)
+    hintTimer = null
+  }
 })
 
 watch(selectedLayer, () => {
@@ -195,6 +220,7 @@ function selectTask(task) {
   taskStore.setCurrentTask(task)
   messages.value.length = 0
   activeTaskId = task.task_id
+  phaseTick.value = 0
   taskStore.fetchMessages(task.task_id, selectedLayer.value)
   taskStore.fetchBoard(task.task_id)
   socket.connect(task.task_id)
@@ -279,6 +305,12 @@ function avatarText(role) {
     security_scanner: 'SC', creative: 'C', learner: 'L', tool_manager: 'T'
   }
   return map[role] || '?'
+}
+
+// 消息头识别物：emoji + 角色名（未知角色回退纯名字，不留双空格）
+function roleTag(role) {
+  const emoji = roleEmoji(role)
+  return emoji ? `${emoji} ${roleLabel(role)}` : roleLabel(role)
 }
 
 function formatTime(ts) {
