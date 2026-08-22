@@ -351,7 +351,31 @@ MD5 方案再否（可构造碰撞且实现成本与 SHA-256 无差异），按 
 - 验证：四件套绿（含污染修复后全量 exit 0 复跑）；PR#36 五项 CI 绿合并，master 复核 success
 
 ### 待办池（下轮候选）
-- [ ] harness/dsh_client.py 70%（331 语句大头）
+- [x] harness/dsh_client.py 70% → ✅ PR#38（见下，70%→81% + 真 bug 一行修复）
 - [ ] conftest 是否加 config_manager 跨测试复位夹具（影响面评估）
 - [ ] `_REDOS_PATTERN` 纯交替拦截评估
 - [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+
+## 无人值守轮5：dsh_client 深水区 + 退出码竞态真 bug（15:5x~16:3x，PR#38）
+
+- 🐛 **真 bug（一行修复）**：`_run_cli` 以管道 EOF 为 drain 完成信号，但子进程回收异步——
+  快速退出的失败进程 `returncode` 尚为 None，`None != 0`=False 落入成功分支，
+  **非零退出被误判 ok=True** 且 final_response 带残缺 stdout。修复 = drain 后先
+  `await proc.wait()` 再取退出码。与 #19 流式降级/#31 风格注入同类的"从未正确工作"系列，
+  由新增的真子进程集成用例（非零退出+stderr 断言）直接抓获
+- **dsh_client.py 70%→81%**：test_dsh_client_deep.py 新增 18 例（含 python.exe 替身跑通
+  CLI 真子进程三连：stdout 捕获/非零退出+stderr 尾部/超时杀树）；收集器三件套/kill_tree/
+  会话锁修剪/cordis 白名单回退与安全门两态/env 白名单与 API key 优先级矩阵/run 流程分支
+- 🚨→✅ **ubuntu CI 卡死破案**：kill_tree 用例直调时未给子进程开独立进程组，POSIX 分支
+  killpg(getpgid(pid)) 把整个 pytest 进程组一起 SIGKILL（Windows taskkill /PID 按树杀故本地无恙）。
+  修复=用例补 start_new_session 对齐生产 spawn 语义；取消卡死 run 后新 run 全绿
+- 测试模式沉淀：①直调 _run_cli 需自建 workspace 目录（生产由 _resolve_workspace mkdir）；
+  ②FakeCfg.get 需兼容 _get 的 harness. 前缀（裸键全落默认值的假绿陷阱）；
+  ③会话锁不做两次返回锁的同异断言——GC 后循环 id() 可能复用，撞键属分配器行为
+- 验证：四件套本地绿；PR#38 五项 CI 绿合并（50bbc13），master 复核 success
+
+### 待办池（下轮候选）
+- [ ] conftest config_manager 跨测试复位夹具评估
+- [ ] `_REDOS_PATTERN` 纯交替拦截评估
+- [ ] 需用户决策留档：SSRF pin-IP 专门设计轮
+- [ ] 覆盖率扫尾候选：executor 71%/board 71%/tasks 71%/machine 72%（均为中大模块）
