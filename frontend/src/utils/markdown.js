@@ -96,19 +96,21 @@ export function highlightCode(code, filename = '') {
   return DOMPurify.sanitize(html)
 }
 
+// 角色识别色 —— SnowBlock 色系（头像底/标签文字双主题共用，取中间明度保证纸雪底与深海底都可读；
+// 功能色的主题自适应原值在 main.css 的 --st-*/--success 等令牌里，此处只管角色身份色）
 export const roleMeta = {
-  user: { label: '用户', color: '#3b82f6' },
-  scheduler: { label: '调度器', color: '#a855f7' },
-  executor: { label: '执行者', color: '#f59e0b' },
-  reviewer: { label: '审查者', color: '#10b981' },
-  reviewer_correctness: { label: '正确性审查', color: '#10b981' },
-  reviewer_efficiency: { label: '架构审查', color: '#0ea5e9' },
-  deliverer: { label: '交付者', color: '#ec4899' },
-  creative: { label: '创意官', color: '#8b5cf6' },
-  learner: { label: '学习者', color: '#64748b' },
-  tool_manager: { label: '工具管理', color: '#14b8a6' },
-  security_scanner: { label: '安全扫描', color: '#ef4444' },
-  system: { label: '系统', color: '#94a3b8' }
+  user: { label: '用户', color: '#5ea3f2' },          // Info Blue 正本
+  scheduler: { label: '调度器', color: '#9d8cff' },   // 紫罗兰，与 reviewing 同族
+  executor: { label: '执行者', color: '#d4a86a' },    // 暖金 Warm Gold 点睛
+  reviewer: { label: '审查者', color: '#14a05f' },    // Online 绿的亮底可读变体
+  reviewer_correctness: { label: '正确性审查', color: '#14a05f' },
+  reviewer_efficiency: { label: '架构审查', color: '#47a3c9' }, // 冰青的亮底可读变体
+  deliverer: { label: '交付者', color: '#e0679a' },   // delivering 粉同族
+  creative: { label: '创意官', color: '#a78bfa' },    // 紫罗兰亮档，与调度器区分
+  learner: { label: '学习者', color: '#7f93a3' },     // pending 灰蓝
+  tool_manager: { label: '工具管理', color: '#45b8c9' }, // 内光青瓷变体
+  security_scanner: { label: '安全扫描', color: '#f25e5e' }, // Offline 正本
+  system: { label: '系统', color: '#8ba3b5' }
 }
 
 export function roleLabel(role) {
@@ -116,5 +118,5 @@ export function roleLabel(role) {
 }
 
 export function roleColor(role) {
-  return roleMeta[role]?.color || '#94a3b8'
+  return roleMeta[role]?.color || '#8ba3b5'
 }
