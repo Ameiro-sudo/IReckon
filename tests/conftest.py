@@ -170,6 +170,25 @@ def _reset_capability_pool():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _reset_auth_runtime_token(monkeypatch):
+    """每个测试前清空 auth 模块级运行时 token 兜底。
+
+    背景：ensure_token() 在 env 与 config 均无 token 时会生成随机 token 并存入
+    模块级 `_runtime_token`（并尝试物化 config.yaml）。app 装配类用例触发后，
+    configured_token() 的末位回退从此非空，后续所有"未认证"语义断言在特定
+    用例顺序下翻车（PR#36 全量独有失败实录）。
+
+    monkeypatch 自动还原：测试中显式 setattr 该变量的用例不受影响（还原即恢复）。
+    只清运行时兜底，不动 config_manager 内存态——env 与 config 来源的 token
+    仍按原优先级生效，爆炸半径最小。
+    """
+    from app.web import auth as auth_mod
+
+    monkeypatch.setattr(auth_mod, "_runtime_token", "")
+    yield
+
+
 @pytest_asyncio.fixture
 async def session_db():
     """干净的数据库会话：每个测试独立事件循环，锁与连接随循环重建。"""
