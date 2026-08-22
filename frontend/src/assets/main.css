@@ -7,7 +7,9 @@
    签名元素：「信号轨」—— 导航激活 / 任务选中 / 文件选中
               共用同一条 3px 主色左轨（sig.on），随主题雾蓝⇄冰青
    Tailwind CSS v4 驱动：语义令牌经 @theme inline 映射为工具类；
-   明暗主题只切换原始变量，一套类名通吃双主题。
+   配色皮肤双套：<html data-palette> 切换——"frost" 冰海 SnowBlock（默认）/
+   "amber" 琥珀工业（v5 正本遗产）；明暗 <html data-theme> 只翻转原始变量，
+   一套类名通吃 双皮肤×双明暗 四组合。
    字体分工：Chakra Petch（显示数字）· Inter（正文）· IBM Plex Mono（数据）
              中文走系统栈（PingFang/MiSans/雅黑），不加载中文 webfont
    ============================================================ */
@@ -153,6 +155,116 @@
 
   --code-bg: #092231;
   --code-text: #d7ecf5;
+}
+
+/* ============ 琥珀工业皮肤（v5 正本遗产，data-palette="amber" 覆盖） ============
+   石墨机身 · 琥珀信号灯 —— 与冰海同构，仅原始令牌不同；
+   两块覆盖分别压过 :root 与 [data-theme="dark"]（属性选择器同级靠后、双属性更专）。 */
+[data-palette="amber"] {
+  color-scheme: light;
+
+  /* 信号灯 —— 工业琥珀 */
+  --accent: #b8770a;             /* 浅色下作文字色仍可读 */
+  --accent-fill: #eea92e;        /* 填充层 */
+  --accent-fill-hover: #f3b54a;
+  --accent-fill-active: #dd9a22;
+  --accent-ink: #1c1506;         /* 填充面上的深色文字 */
+  --accent-soft: rgba(184, 119, 10, 0.09);
+  --accent-border: rgba(184, 119, 10, 0.32);
+
+  /* 语义信号灯 */
+  --success: #178f5d;
+  --success-soft: rgba(31, 158, 104, 0.1);
+  --warning: #b45309;
+  --warning-soft: rgba(180, 83, 9, 0.1);
+  --error: #cf3034;
+  --error-soft: rgba(209, 52, 56, 0.08);
+  --info: #2273a8;
+  --info-soft: rgba(34, 115, 168, 0.09);
+
+  /* 中性 —— 日班车间（石墨冷灰） */
+  --bg: #e9ebee;
+  --housing: #dde2e7;
+  --surface: #f7f8f9;
+  --subtle: #edeff1;
+  --hover: #e0e4e8;
+  --pressed: #d5dadd;
+
+  --ink: #1a2026;
+  --ink-2: #505b65;
+  --ink-3: #828d97;
+
+  --line: #d6dbdf;
+  --line-strong: #bcc5cc;
+
+  --overlay: rgba(18, 24, 30, 0.45);
+  --ring: rgba(238, 169, 46, 0.25);
+
+  /* 工序信号灯 */
+  --st-pending: #87929c;
+  --st-planning: #3d84c6;
+  --st-executing: #c07c08;
+  --st-reviewing: #7a5fd0;
+  --st-revising: #cf5f34;
+  --st-delivering: #c74e86;
+  --st-completed: #178f5d;
+  --st-failed: #cf3034;
+  --st-paused: #64707c;
+
+  --code-bg: #edeff1;
+  --code-text: #232a31;
+}
+
+[data-palette="amber"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --accent: #eda73f;
+  --accent-fill: #eda73f;
+  --accent-fill-hover: #f4bc60;
+  --accent-fill-active: #dd9a2e;
+  --accent-ink: #191307;
+  --accent-soft: rgba(237, 167, 63, 0.1);
+  --accent-border: rgba(237, 167, 63, 0.35);
+
+  --success: #35c287;
+  --success-soft: rgba(53, 194, 135, 0.12);
+  --warning: #e0a038;
+  --warning-soft: rgba(224, 160, 56, 0.12);
+  --error: #e5534b;
+  --error-soft: rgba(229, 83, 75, 0.12);
+  --info: #4cb3d4;
+  --info-soft: rgba(76, 179, 212, 0.11);
+
+  /* 夜班控制室（石墨近黑） */
+  --bg: #0e1216;
+  --housing: #090d11;
+  --surface: #14191f;
+  --subtle: #191f26;
+  --hover: #202831;
+  --pressed: #27303a;
+
+  --ink: #e8ebef;
+  --ink-2: #99a3ae;
+  --ink-3: #5c6873;
+
+  --line: #222b34;
+  --line-strong: #35424f;
+
+  --overlay: rgba(3, 6, 10, 0.64);
+  --ring: rgba(237, 167, 63, 0.22);
+
+  --st-pending: #8a95a0;
+  --st-planning: #4fa3d8;
+  --st-executing: #eda73f;
+  --st-reviewing: #9d8cff;
+  --st-revising: #e0764a;
+  --st-delivering: #e0679a;
+  --st-completed: #35c287;
+  --st-failed: #e5534b;
+  --st-paused: #6d7d8d;
+
+  --code-bg: #10151b;
+  --code-text: #d7dde3;
 }
 
 /* ============ 主题映射 → Tailwind 工具类 ============ */
@@ -430,6 +542,13 @@
   .st-executing {
     background: rgba(212, 168, 106, 0.16);
     color: var(--st-executing);
+  }
+  /* 琥珀皮肤下，两处硬编码徽章底色回到 v5 色相 */
+  [data-palette="amber"] .st-planning {
+    background: rgba(61, 132, 198, 0.12);
+  }
+  [data-palette="amber"] .st-executing {
+    background: rgba(237, 167, 63, 0.13);
   }
   .st-reviewing {
     background: rgba(157, 140, 255, 0.12);
