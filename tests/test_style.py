@@ -2,6 +2,9 @@
 
 真实主题 schema 是 role_mapping[role]（name/style/avatar），旧代码直读顶层键
 导致风格注入恒为空——本文件同时锁定修复后行为与加载器路径。
+
+已并入 test_style_engine.py 的旧扁平格式用例（懒加载/回退/渲染/注入关键词分支）；
+扁平格式仍按旧格式写（无 role_mapping），嵌套格式按新格式。
 """
 
 import json
@@ -153,6 +156,64 @@ def test_injection_matrix(theme_cwd, monkeypatch):
     assert "活泼" in lively and "喵" in lively and "傲娇" not in lively
     assert e.generate_agent_prompt_injection("learner") == ""
     assert e.generate_agent_prompt_injection("不存在角色") == ""
+
+
+def test_get_theme_lazy_loads_on_first_access(theme_cwd):
+    # 并入自 test_style_engine：构造期不加载，首次访问惰性加载（扁平格式）。
+    e = _engine()
+    assert e._themes is None
+    _write_theme(
+        theme_cwd,
+        "catgirl",
+        {"name": "猫娘", "avatar": "🐱", "style": "傲娇活泼"},
+    )
+    theme = e.get_theme()
+    assert theme["name"] == "猫娘" and theme["avatar"] == "🐱"
+
+
+def test_get_theme_explicit_name_and_missing_falls_back(theme_cwd):
+    # 与 test_get_theme_unknown_falls_back_to_catgirl_then_empty 互补：显式命中 + 未知名回退。
+    _write_theme(theme_cwd, "strict", {"name": "严师", "style": "严格"})
+    _write_theme(theme_cwd, "catgirl", {"name": "猫娘", "style": "活泼"})
+    e = _engine()
+    assert e.get_theme("strict")["name"] == "严师"
+    assert e.get_theme("不存在的")["name"] == "猫娘"  # 未知名回退 catgirl
+
+
+def test_render_helpers_read_theme_fields(theme_cwd):
+    # 扁平格式渲染取值 + 显式传入 theme 直传分支。
+    _write_theme(
+        theme_cwd,
+        "catgirl",
+        {"name": "猫娘调度员", "avatar": "🐱", "style": "傲娇"},
+    )
+    e = _engine()
+    assert e.render_role_name("scheduler") == "猫娘调度员"
+    assert e.render_avatar("scheduler") == "🐱"
+    assert e.render_style("scheduler") == "傲娇"
+    assert e.render_role_name("x", {"name": "直传"}) == "直传"  # 显式传入不再查库
+
+
+def test_prompt_injection_keyword_branches(theme_cwd):
+    # 扁平格式注入关键词分支：命中傲娇/严格 + 短句，不命中活泼则无喵。
+    _write_theme(theme_cwd, "catgirl", {"name": "n", "style": "傲娇且严格"})
+    e = _engine()
+    out = e.generate_agent_prompt_injection("scheduler")
+    assert "傲娇" in out and "严格" in out and "短句" in out
+    assert "喵" not in out  # 活泼未命中不加喵
+
+
+def test_prompt_injection_empty_style_returns_empty(theme_cwd):
+    _write_theme(theme_cwd, "catgirl", {"name": "n"})
+    e = _engine()
+    assert e.generate_agent_prompt_injection("scheduler") == ""
+
+
+def test_prompt_injection_all_keywords(theme_cwd):
+    _write_theme(theme_cwd, "catgirl", {"name": "n", "style": "傲娇活泼严格"})
+    e = _engine()
+    out = e.generate_agent_prompt_injection("scheduler", "catgirl")
+    assert "喵~" in out
 
 
 def test_repo_real_themes_load_and_shape():
