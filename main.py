@@ -488,6 +488,18 @@ async def _serve_once2(closing: threading.Event) -> None:
 
 def run_cli():
     """命令行入口：打包版走嵌入式窗口(随机端口)，源码版走常规服务。"""
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        print("用法: python main.py [--help|--version]")
+        print("  无参数：启动后端服务（默认 http://127.0.0.1:8000，健康检查 /api/health）")
+        print("  --help：显示本帮助（不启动服务、不生成 token）")
+        print("  --version：显示版本号")
+        return
+    if "--version" in sys.argv[1:]:
+        try:
+            print(f"IReckon v{get('system.version', '0.1.0')}")
+        except Exception:
+            print("IReckon v0.1.0")
+        return
     if getattr(sys, "frozen", False):
         run_embedded()
         return
