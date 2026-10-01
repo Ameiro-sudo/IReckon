@@ -13,7 +13,15 @@ websockets>=12.0,<18
 python-multipart>=0.0.9,<1
 aiosqlite>=0.19,<1
 bandit>=1.7,<2
-semgrep>=1.0,<2
+# semgrep 按设计不支持 Windows：其 setup.py 里显式 raise
+# "Semgrep does not support Windows yet, please try again with WSL"
+# （semgrep/semgrep#1330）。即便 PyPI 上挂了 win_amd64 wheel，pip 仍会回落到
+# 源码构建并被这句拒绝，于是 Unit Tests (windows-latest) 自 2026-09-30 起
+# 一直红在 "Install dependencies" 这一步，而 ubuntu / smoke / frontend 全绿。
+# 静态扫描是可选能力：security.code_scanner 默认走 bandit，semgrep 仅在显式
+# 配置时使用；且 scanner 对工具缺失已降级处理（FileNotFoundError -> 记日志
+# 并返回空 findings，见 app/security/scanner.py）。
+semgrep>=1.0,<2; sys_platform != "win32"
 aiofiles>=23.0,<26
 # >=48.0.1：含 2026 年 X.509/EC/PKCS7 七条公告的全部修复；本地验证基线为 50.x
 cryptography>=48.0.1,<51
