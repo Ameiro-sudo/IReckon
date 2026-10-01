@@ -101,7 +101,7 @@ async def _scan_and_broadcast(code: str, room):
         await room.broadcast(
             MessageLayer.L2_MEETING,
             "security_scanner",
-            "bandit",
+            code_scanner.tool,
             f"发现{len(scans)}个问题",
             msg_type="security_warning",
         )
@@ -639,7 +639,7 @@ class WorkflowEngine:
             await room.broadcast(
                 MessageLayer.L2_MEETING,
                 "security_scanner",
-                "bandit",
+                code_scanner.tool,
                 f"修订扫描发现{len(scans)}问题",
                 msg_type="security_warning",
             )
